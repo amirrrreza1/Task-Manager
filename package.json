@@ -1,0 +1,40 @@
+{
+  "name": "task-manager",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Open-source collaborative task and sprint manager",
+  "license": "MIT",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace @task-manager/api && npm run build --workspace @task-manager/web",
+    "dev": "concurrently -n api,web -c blue,green \"npm run dev --workspace @task-manager/api\" \"npm run dev --workspace @task-manager/web\"",
+    "dev:api": "npm run dev --workspace @task-manager/api",
+    "dev:web": "npm run dev --workspace @task-manager/web",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "npm run lint --workspace @task-manager/api && npm run lint --workspace @task-manager/web",
+    "prisma:generate": "prisma generate --schema packages/database/prisma/schema.prisma",
+    "prisma:migrate": "prisma migrate dev --schema packages/database/prisma/schema.prisma",
+    "prisma:deploy": "prisma migrate deploy --schema packages/database/prisma/schema.prisma",
+    "prisma:studio": "prisma studio --schema packages/database/prisma/schema.prisma",
+    "test": "npm run test --workspace @task-manager/api && npm run test --workspace @task-manager/web",
+    "typecheck": "npm run typecheck --workspace @task-manager/api && npm run typecheck --workspace @task-manager/web"
+  },
+  "devDependencies": {
+    "concurrently": "9.2.1",
+    "prettier": "3.6.2",
+    "prisma": "6.19.3",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=22.0.0",
+    "npm": ">=10.0.0"
+  },
+  "allowScripts": {
+    "@prisma/client@6.19.3": true,
+    "prisma@6.19.3": true,
+    "@scarf/scarf": false
+  }
+}
