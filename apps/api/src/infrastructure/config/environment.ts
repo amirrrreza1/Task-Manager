@@ -1,5 +1,14 @@
-import { plainToInstance } from 'class-transformer';
-import { IsIn, IsInt, IsNotEmpty, IsString, Min, validateSync } from 'class-validator';
+import { plainToInstance, Type } from 'class-transformer';
+import {
+  IsIn,
+  IsInt,
+  IsNotEmpty,
+  IsString,
+  Max,
+  Min,
+  MinLength,
+  validateSync,
+} from 'class-validator';
 
 class EnvironmentVariables {
   @IsIn(['development', 'test', 'production'])
@@ -11,10 +20,12 @@ class EnvironmentVariables {
 
   @IsString()
   @IsNotEmpty()
+  @MinLength(3)
   ADMIN_USERNAME!: string;
 
   @IsString()
   @IsNotEmpty()
+  @MinLength(12)
   ADMIN_PASSWORD!: string;
 
   @IsString()
@@ -25,9 +36,33 @@ class EnvironmentVariables {
   @IsNotEmpty()
   CORS_ORIGIN!: string;
 
+  @IsString()
+  @IsNotEmpty()
+  JWT_EXPIRES_IN = '15m';
+
   @IsInt()
   @Min(1)
+  @Max(30)
+  @Type(() => Number)
+  REFRESH_TOKEN_DAYS = 7;
+
+  @IsInt()
+  @Min(1)
+  @Type(() => Number)
   API_PORT = 4000;
+
+  @IsIn(['local'])
+  STORAGE_DRIVER = 'local';
+
+  @IsString()
+  @IsNotEmpty()
+  UPLOAD_DIRECTORY = './uploads';
+
+  @IsInt()
+  @Min(1)
+  @Max(1024)
+  @Type(() => Number)
+  MAX_UPLOAD_SIZE_MB = 25;
 }
 
 export function validateEnvironment(configuration: Record<string, unknown>) {

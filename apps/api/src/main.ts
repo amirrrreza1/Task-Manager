@@ -2,12 +2,16 @@ import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+// cookie-parser exports with `module.exports`; this form also works in the production CommonJS bundle.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+import cookieParser = require('cookie-parser');
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const config = app.get(ConfigService);
 
+  app.use(cookieParser());
   app.setGlobalPrefix('api/v1');
   app.enableCors({
     origin: config
@@ -28,7 +32,7 @@ async function bootstrap() {
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Task Manager API')
     .setDescription('HTTP API for the open-source Task Manager project')
-    .setVersion('0.1.0')
+    .setVersion('0.3.0')
     .addBearerAuth()
     .build();
   SwaggerModule.setup('api/docs', app, SwaggerModule.createDocument(app, swaggerConfig));

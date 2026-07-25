@@ -1,6 +1,6 @@
 {
   "name": "task-manager",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Open-source collaborative task and sprint manager",
   "license": "MIT",
@@ -35,6 +35,14 @@
   "allowScripts": {
     "@prisma/client@6.19.3": true,
     "prisma@6.19.3": true,
+    "argon2@0.45.1": true,
+    "sharp@0.35.3": true,
     "@scarf/scarf": false
+  },
+  "overrides": {
+    "next": {
+      "postcss": "8.5.22",
+      "sharp": "0.35.3"
+    }
   }
 }

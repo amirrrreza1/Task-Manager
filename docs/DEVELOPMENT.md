@@ -20,6 +20,11 @@ For a strong secret in PowerShell:
 
 Never commit `.env`. Production secrets belong in the deployment platform's secret manager.
 
+`ADMIN_USERNAME` and `ADMIN_PASSWORD` own the protected bootstrap account. API startup creates the
+account when needed and reconciles those credentials on later starts. Changing the environment
+password revokes its refresh sessions. The account cannot be deactivated or have its password reset
+through the administration UI.
+
 ## Commands
 
 | Command                                   | Result                               |

@@ -4,9 +4,8 @@ An open-source, self-hosted task and sprint manager for small teams. Tasks may h
 assignees; subtasks have at most one assignee. The workspace can use either time or story-point
 estimates, and administrators can configure board columns and sprint duration.
 
-This repository currently contains the **v0.1 project foundation**: the application shells,
-database model, container setup, and the product/engineering documentation that governs the first
-implementation.
+The current **v0.3 release** adds the working team board: configurable workflow columns, task and
+subtask management, multi-assignee planning, estimates, filters, and authenticated local files.
 
 ## Stack
 
@@ -49,13 +48,24 @@ For local processes outside Docker, change the database host in `DATABASE_URL` f
 - [Development and operations](docs/DEVELOPMENT.md)
 - [Security model](docs/SECURITY.md)
 - [Roadmap](docs/ROADMAP.md)
+- [Changelog](CHANGELOG.md)
 - [Contributing](CONTRIBUTING.md)
 
-## Status
+## Available in v0.3
 
-The foundation builds and documents the intended behavior. Feature implementation is organized in
-the milestones in [ROADMAP.md](docs/ROADMAP.md); unfinished routes are not presented as working
-features.
+- Environment-backed bootstrap administrator
+- Argon2id password hashing and rotating refresh sessions
+- Member creation, activation/deactivation, password reset, and avatar regeneration
+- Time/point estimate mode and default sprint-duration settings
+- Configurable, ordered board columns with one completed-work designation
+- Task creation, editing, deletion, ordering, filtering, multi-assignee support, and estimates
+- Ordered single-assignee subtasks with independent completion and estimates
+- Authenticated attachment upload/download/delete with opaque names, checksums, and uploader history
+- Activity events for board, task, subtask, and attachment mutations
+- Responsive administration, board, task-detail, and profile screens
+
+Sprint planning and lifecycle management are the next milestone. See
+[ROADMAP.md](docs/ROADMAP.md) for the release boundaries.
 
 ## License
 

@@ -1,7 +1,8 @@
 .git
-.next
-dist
-node_modules
+**/.next
+**/dist
+**/node_modules
+**/*.tsbuildinfo
 coverage
 .env
 uploads

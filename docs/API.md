@@ -26,7 +26,9 @@ configuration. JSON uses camelCase and timestamps use ISO 8601 UTC strings.
 | PUT    | `/auth/password` | Change current user's password and revoke other sessions                     |
 
 Refresh cookies are `HttpOnly`, `Secure` in production, `SameSite=Lax`, and scoped to the refresh
-path. Password fields never appear in response types.
+path. Access tokens default to 15 minutes; refresh sessions default to seven days and rotate on every
+use. Reuse of a rotated token revokes its session family. Password fields never appear in response
+types.
 
 ## Users (administrator unless noted)
 

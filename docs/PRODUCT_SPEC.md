@@ -1,7 +1,7 @@
 # Product specification
 
 **Document status:** Baseline for v1  
-**Last updated:** 2026-07-22  
+**Last updated:** 2026-07-25
 **Product:** Task Manager
 
 ## 1. Product intent

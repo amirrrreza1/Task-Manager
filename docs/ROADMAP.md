@@ -3,7 +3,7 @@
 The roadmap separates foundation work from shipped behavior so documentation never implies an
 unfinished feature is available.
 
-## v0.1 — Foundation (current)
+## v0.1 — Foundation (complete)
 
 - [x] Product specification and acceptance criteria
 - [x] Next.js and NestJS TypeScript application shells
@@ -13,21 +13,21 @@ unfinished feature is available.
 - [x] Architecture, API, security, operations, and contribution documentation
 - [x] Activity-event and transactional-outbox data foundations for later releases
 
-## v0.2 — Identity and administration
+## v0.2 — Identity and administration (complete)
 
-- [ ] Bootstrap protected admin from environment
-- [ ] Argon2id login, access/refresh token rotation, logout, and session revocation
-- [ ] User CRUD/deactivation/password reset
-- [ ] Random deterministic avatar generation
-- [ ] Admin settings shell and authorization test matrix
+- [x] Bootstrap protected admin from environment
+- [x] Argon2id login, access/refresh token rotation, logout, and session revocation
+- [x] User CRUD/deactivation/password reset
+- [x] Random deterministic avatar generation
+- [x] Admin settings shell and authorization test matrix
 
-## v0.3 — Board, tasks, and files
+## v0.3 — Board, tasks, and files (current)
 
-- [ ] Configurable columns and accessible board movement
-- [ ] Task CRUD, ordering, filtering, multi-assignee support, and estimates
-- [ ] Subtask CRUD/order/completion, single assignee, and estimates
-- [ ] Local storage adapter and secure attachment lifecycle
-- [ ] Activity events for every mutation
+- [x] Configurable columns and accessible board movement
+- [x] Task CRUD, ordering, filtering, multi-assignee support, and estimates
+- [x] Subtask CRUD/order/completion, single assignee, and estimates
+- [x] Local storage adapter and secure attachment lifecycle
+- [x] Activity events for every mutation
 
 ## v0.4 — Sprints
 

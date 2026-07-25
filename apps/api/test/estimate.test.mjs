@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import { describe, it } from 'node:test';
+import { assertEstimate } from '../dist/common/estimate.js';
+
+describe('estimate validation', () => {
+  it('accepts valid time and point estimates', () => {
+    assert.doesNotThrow(() => assertEstimate({ value: 525_600, unit: 'MINUTES' }));
+    assert.doesNotThrow(() => assertEstimate({ value: 10_000, unit: 'POINTS' }));
+    assert.doesNotThrow(() => assertEstimate(null));
+  });
+
+  it('rejects values outside the unit-specific range', () => {
+    assert.throws(() => assertEstimate({ value: 0, unit: 'MINUTES' }), /time estimate/i);
+    assert.throws(() => assertEstimate({ value: 10_001, unit: 'POINTS' }), /point estimate/i);
+    assert.throws(() => assertEstimate({ value: 1.5, unit: 'POINTS' }), /point estimate/i);
+  });
+});
