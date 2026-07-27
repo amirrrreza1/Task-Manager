@@ -2,6 +2,19 @@
 
 All notable changes are recorded here. The project follows semantic versioning after 1.0.0.
 
+## 0.4.0 — 2026-07-27
+
+### Added
+
+- Planned sprint creation and task assignment from board/task editing
+- Administrator-only start and finish lifecycle with configurable target dates and one-active-sprint enforcement
+- Immutable end-of-sprint task snapshots, outcome totals, and explicit carry-over to planned sprints
+- Sprint history/detail screens, estimate totals by unit, and chronological team comments
+- Comment author/admin edit and delete authorization with activity events for all sprint mutations
+- Dedicated `/backlog` page for task creation; workflow board hides the backlog column
+- Add tasks to planned or active sprints; backlog-only task creation enforced by the API
+- Sprint planning and outcome invariants covered by unit tests; v0.4 accessibility review documented
+
 ## 0.3.0 — 2026-07-25
 
 ### Added

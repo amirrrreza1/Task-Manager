@@ -54,6 +54,13 @@ types.
 | POST   | `/board-columns/reorder`             | Atomically set order                                               |
 | DELETE | `/board-columns/:id?moveTasksTo=:id` | Delete, optionally moving contained tasks                          |
 
+`GET /board` accepts optional filters: `search`, `assigneeId`, `sprintId`, `unassigned`, `hasEstimate`,
+`excludeBacklog=true` (omit the backlog column from the workflow board), and `backlogOnly=true` (return only
+the backlog column). `excludeBacklog` and `backlogOnly` are mutually exclusive.
+
+Board columns include `isBacklog`. The backlog column cannot be deleted. `POST /tasks` requires
+`columnId` to reference the backlog column.
+
 ## Tasks and subtasks
 
 | Method | Path                              | Purpose                                            |
@@ -95,6 +102,10 @@ Uploads stream to storage and calculate SHA-256; they are not buffered fully in 
 | POST   | `/sprints/:id/start`               | Admin transition planned → active                  |
 | POST   | `/sprints/:id/finish`              | Admin transition active → completed                |
 | POST   | `/sprints/:id/carry-over`          | Move selected unfinished tasks to a planned sprint |
+| GET    | `/sprints/:id/available-tasks`     | Tasks/subtasks eligible to join this sprint        |
+| GET    | `/sprints/:id/available-subtasks`  | Subtasks eligible to join this sprint              |
+| POST   | `/sprints/:id/tasks`               | Assign tasks to a planned or active sprint         |
+| POST   | `/sprints/:id/subtasks`            | Assign subtasks to a planned or active sprint      |
 | GET    | `/sprints/:id/comments`            | Paginated comments                                 |
 | POST   | `/sprints/:id/comments`            | Add comment                                        |
 | PATCH  | `/sprints/:id/comments/:commentId` | Edit own comment/admin correction                  |

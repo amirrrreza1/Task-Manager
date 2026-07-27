@@ -4,8 +4,8 @@ An open-source, self-hosted task and sprint manager for small teams. Tasks may h
 assignees; subtasks have at most one assignee. The workspace can use either time or story-point
 estimates, and administrators can configure board columns and sprint duration.
 
-The current **v0.3 release** adds the working team board: configurable workflow columns, task and
-subtask management, multi-assignee planning, estimates, filters, and authenticated local files.
+The current **v0.4 release** adds the full sprint workflow: planned sprint creation, an
+administrator-controlled lifecycle, final outcome snapshots, explicit carry-over, and team notes.
 
 ## Stack
 
@@ -28,6 +28,12 @@ subtask management, multi-assignee planning, estimates, filters, and authenticat
 The API container applies committed database migrations before starting. Named Docker volumes keep
 the database and uploaded files between restarts.
 
+To apply migrations from a local checkout (schema lives under `packages/database`):
+
+```bash
+npm run prisma:deploy
+```
+
 ## Local development
 
 ```bash
@@ -47,11 +53,12 @@ For local processes outside Docker, change the database host in `DATABASE_URL` f
 - [API contract](docs/API.md)
 - [Development and operations](docs/DEVELOPMENT.md)
 - [Security model](docs/SECURITY.md)
+- [Accessibility review (v0.4)](docs/ACCESSIBILITY.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Changelog](CHANGELOG.md)
 - [Contributing](CONTRIBUTING.md)
 
-## Available in v0.3
+## Available in v0.4
 
 - Environment-backed bootstrap administrator
 - Argon2id password hashing and rotating refresh sessions
@@ -63,9 +70,13 @@ For local processes outside Docker, change the database host in `DATABASE_URL` f
 - Authenticated attachment upload/download/delete with opaque names, checksums, and uploader history
 - Activity events for board, task, subtask, and attachment mutations
 - Responsive administration, board, task-detail, and profile screens
+- Planned, active, and completed sprints with one-active-sprint protection
+- Outcome summaries that preserve final task state after carry-over
+- Sprint comments with author/admin edit and delete permissions
+- Dedicated backlog page with board exclusion of the backlog column
+- Sprint task assignment while a sprint is planned or active
 
-Sprint planning and lifecycle management are the next milestone. See
-[ROADMAP.md](docs/ROADMAP.md) for the release boundaries.
+See [ROADMAP.md](docs/ROADMAP.md) for the release boundaries and later planned capabilities.
 
 ## License
 

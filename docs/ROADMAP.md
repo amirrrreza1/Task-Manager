@@ -21,7 +21,7 @@ unfinished feature is available.
 - [x] Random deterministic avatar generation
 - [x] Admin settings shell and authorization test matrix
 
-## v0.3 — Board, tasks, and files (current)
+## v0.3 — Board, tasks, and files (complete)
 
 - [x] Configurable columns and accessible board movement
 - [x] Task CRUD, ordering, filtering, multi-assignee support, and estimates
@@ -29,15 +29,18 @@ unfinished feature is available.
 - [x] Local storage adapter and secure attachment lifecycle
 - [x] Activity events for every mutation
 
-## v0.4 — Sprints
+## v0.4 — Sprints (complete)
 
-- [ ] Sprint duration settings and planned sprint creation
-- [ ] One-active-sprint lifecycle with start/finish transactions
-- [ ] Sprint history, outcome summaries, and carry-over
-- [ ] Sprint comments and edit/delete permissions
-- [ ] Full v1 end-to-end test suite and accessibility review
+- [x] Sprint duration settings and planned sprint creation
+- [x] One-active-sprint lifecycle with start/finish transactions
+- [x] Sprint history, outcome summaries, and carry-over
+- [x] Sprint comments and edit/delete permissions
+- [x] Dedicated backlog page, board exclusion of backlog column, and mid-sprint task assignment
+- [x] Sprint/backlog unit tests and documented v0.4 accessibility review ([ACCESSIBILITY.md](ACCESSIBILITY.md))
 
 ## v1.0 — Stable self-hosted release
+
+- [ ] Full browser end-to-end test suite in CI (Playwright or equivalent)
 
 - [ ] Upgrade/migration guide and release images
 - [ ] Production security review and private vulnerability contact

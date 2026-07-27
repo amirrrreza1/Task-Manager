@@ -120,7 +120,8 @@ planning data.
 
 ## 4. Board
 
-- The board shows all configured columns from left to right and tasks ordered within each column.
+- The workflow board shows configured columns except the dedicated backlog column.
+- The backlog column holds newly captured work and is managed on `/backlog`.
 - Initial columns: `Backlog`, `Ready`, `In progress`, `Review`, `Done`.
 - Administrators can add, rename, recolor, reorder, and delete columns.
 - Exactly one column must be designated as the done column.
@@ -141,7 +142,8 @@ It proposes an end date when a sprint is started; the administrator can change t
 ### Lifecycle
 
 1. **Planned:** create a sprint with a name and optional goal; add/remove tasks.
-2. **Active:** an administrator starts it, fixing its start and target end date.
+2. **Active:** an administrator starts it, fixing its start and target end date. Additional tasks may
+   still be assigned while the sprint is active.
 3. **Completed:** an administrator finishes it, recording the actual completion time.
 
 Only one sprint may be active at a time. A completed sprint is immutable except that comments may
@@ -161,7 +163,8 @@ activity event rather than rewriting history.
 ## 6. User interface map
 
 - `/login` — local username/password sign-in.
-- `/board` — primary board, filters, task creation, and task movement.
+- `/board` — primary workflow board, filters, and task movement (excluding backlog).
+- `/backlog` — backlog list and the only place to create new tasks.
 - `/tasks/:id` — task detail, assignments, estimates, subtasks, and files.
 - `/sprints` — sprint list and create action.
 - `/sprints/:id` — sprint details, lifecycle controls, results, and comments.
