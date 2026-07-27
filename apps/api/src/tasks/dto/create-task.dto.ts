@@ -22,8 +22,9 @@ export class CreateTaskDto {
   @MaxLength(50_000)
   description?: string | null;
 
+  @IsOptional()
   @IsUUID()
-  columnId!: string;
+  columnId?: string;
 
   @IsOptional()
   @IsUUID()

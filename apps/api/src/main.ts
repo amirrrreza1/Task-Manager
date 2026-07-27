@@ -32,7 +32,7 @@ async function bootstrap() {
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Task Manager API')
     .setDescription('HTTP API for the open-source Task Manager project')
-    .setVersion('0.3.0')
+    .setVersion('0.4.0')
     .addBearerAuth()
     .build();
   SwaggerModule.setup('api/docs', app, SwaggerModule.createDocument(app, swaggerConfig));

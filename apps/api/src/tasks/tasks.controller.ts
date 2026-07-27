@@ -15,6 +15,7 @@ import type { AuthenticatedUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { CreateSubtaskDto } from './dto/create-subtask.dto';
 import { CreateTaskDto } from './dto/create-task.dto';
+import { MoveSubtaskDto } from './dto/move-subtask.dto';
 import { MoveTaskDto } from './dto/move-task.dto';
 import { ReorderSubtasksDto } from './dto/reorder-subtasks.dto';
 import { TaskQueryDto } from './dto/task-query.dto';
@@ -71,6 +72,14 @@ export class TasksController {
     @CurrentUser() actor: AuthenticatedUser,
   ) {
     return this.tasks.updateSubtask(taskId, id, input, actor.id);
+  }
+  @Post(':taskId/subtasks/:id/move') moveSubtask(
+    @Param('taskId', ParseUUIDPipe) taskId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() input: MoveSubtaskDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.tasks.moveSubtask(taskId, id, input, actor.id);
   }
   @Post(':taskId/subtasks/reorder') reorderSubtasks(
     @Param('taskId', ParseUUIDPipe) taskId: string,

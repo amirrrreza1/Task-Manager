@@ -2,7 +2,24 @@
 
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, type PropsWithChildren, useCallback, useEffect, useState } from 'react';
+import {
+  closestCenter,
+  DndContext,
+  type DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { Avatar } from '../../../../components/avatar';
 import { useAuth } from '../../../../components/auth-provider';
 import type {
@@ -11,6 +28,8 @@ import type {
   BoardColumn,
   EstimateUnit,
   ManagedUser,
+  Paginated,
+  SprintSummary,
   Subtask,
   TaskDetail,
 } from '../../../../lib/types';
@@ -32,6 +51,8 @@ export default function TaskPage() {
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [columns, setColumns] = useState<BoardColumn[]>([]);
   const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [plannedSprints, setPlannedSprints] = useState<SprintSummary[]>([]);
+  const [sprintId, setSprintId] = useState('');
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -41,19 +62,27 @@ export default function TaskPage() {
   const [subtaskForm, setSubtaskForm] = useState<SubtaskForm | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const subtaskSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   const load = useCallback(async () => {
     try {
-      const [nextTask, nextUsers, nextColumns, nextSettings] = await Promise.all([
+      const [nextTask, nextUsers, nextColumns, nextSettings, planned, active] = await Promise.all([
         request<TaskDetail>(`/tasks/${id}`),
         request<ManagedUser[]>('/users'),
         request<BoardColumn[]>('/board-columns'),
         request<AppSettings>('/settings'),
+        request<Paginated<SprintSummary>>('/sprints?status=PLANNED'),
+        request<Paginated<SprintSummary>>('/sprints?status=ACTIVE'),
       ]);
       setTask(nextTask);
       setUsers(nextUsers.filter((user) => user.isActive));
       setColumns(nextColumns);
       setSettings(nextSettings);
+      setPlannedSprints([...active.items, ...planned.items]);
+      setSprintId(nextTask.sprintId ?? '');
       setTitle(nextTask.title);
       setDescription(nextTask.description ?? '');
       setEstimate(nextTask.estimateValue?.toString() ?? '');
@@ -81,6 +110,7 @@ export default function TaskPage() {
           title,
           description: description || null,
           assigneeIds,
+          sprintId: sprintId || null,
           estimate: estimate ? { value: Number(estimate), unit: estimateUnit } : null,
         }),
       });
@@ -185,9 +215,25 @@ export default function TaskPage() {
     if (!task) return;
     const target = index + direction;
     if (target < 0 || target >= task.subtasks.length) return;
-    const reordered = [...task.subtasks];
-    [reordered[index], reordered[target]] = [reordered[target], reordered[index]];
+    await saveSubtaskOrder(arrayMove(task.subtasks, index, target));
+  }
+
+  function finishSubtaskDrag(event: DragEndEvent) {
+    if (!task || !event.over || busy) return;
+    const activeId = String(event.active.id).replace(/^subtask:/, '');
+    const overId = String(event.over.id).replace(/^subtask:/, '');
+    const oldIndex = task.subtasks.findIndex((subtask) => subtask.id === activeId);
+    const newIndex = task.subtasks.findIndex((subtask) => subtask.id === overId);
+    if (oldIndex < 0 || newIndex < 0 || oldIndex === newIndex) return;
+    void saveSubtaskOrder(arrayMove(task.subtasks, oldIndex, newIndex));
+  }
+
+  async function saveSubtaskOrder(reordered: Subtask[]) {
+    if (!task || busy) return;
+    const previousTask = task;
+    setTask({ ...task, subtasks: reordered });
     setBusy(true);
+    setError('');
     try {
       await request(`/tasks/${id}/subtasks/reorder`, {
         method: 'POST',
@@ -195,6 +241,7 @@ export default function TaskPage() {
       });
       await load();
     } catch (caught) {
+      setTask(previousTask);
       setError(caught instanceof Error ? caught.message : 'Could not reorder subtasks.');
     } finally {
       setBusy(false);
@@ -337,119 +384,146 @@ export default function TaskPage() {
                 Add subtask
               </button>
             </header>
-            <div className="subtask-list">
-              {task.subtasks.map((subtask, index) => (
-                <article
-                  className={`subtask-row ${subtask.isCompleted ? 'completed' : ''}`}
-                  key={subtask.id}
-                >
-                  <input
-                    className="subtask-check"
-                    aria-label={`Mark ${subtask.title} ${subtask.isCompleted ? 'incomplete' : 'complete'}`}
-                    type="checkbox"
-                    checked={subtask.isCompleted}
-                    disabled={busy}
-                    onChange={() =>
-                      void patchSubtask(subtask, { isCompleted: !subtask.isCompleted })
-                    }
-                  />
-                  <div className="subtask-copy">
-                    <strong>{subtask.title}</strong>
-                    {subtask.description ? <small>{subtask.description}</small> : null}
-                    <div className="subtask-meta">
-                      {subtask.estimateValue ? (
-                        <span>{formatEstimate(subtask.estimateValue, subtask.estimateUnit)}</span>
-                      ) : null}
-                      {subtask.attachments.length ? (
-                        <span>
-                          {subtask.attachments.length} file
-                          {subtask.attachments.length === 1 ? '' : 's'}
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-                  <select
-                    aria-label={`Assignee for ${subtask.title}`}
-                    value={subtask.assigneeId ?? ''}
-                    disabled={busy}
-                    onChange={(event) =>
-                      void patchSubtask(subtask, { assigneeId: event.target.value || null })
-                    }
-                  >
-                    <option value="">Unassigned</option>
-                    {users.map((member) => (
-                      <option value={member.id} key={member.id}>
-                        {member.displayName}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="subtask-actions">
-                    <button
-                      disabled={busy || index === 0}
-                      aria-label={`Move ${subtask.title} up`}
-                      onClick={() => void reorderSubtask(index, -1)}
-                      type="button"
+            <DndContext
+              sensors={subtaskSensors}
+              collisionDetection={closestCenter}
+              onDragEnd={finishSubtaskDrag}
+            >
+              <SortableContext
+                items={task.subtasks.map((subtask) => `subtask:${subtask.id}`)}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="subtask-list">
+                  {task.subtasks.map((subtask, index) => (
+                    <SortableSubtaskShell
+                      id={subtask.id}
+                      title={subtask.title}
+                      disabled={busy}
+                      key={subtask.id}
                     >
-                      ↑
-                    </button>
-                    <button
-                      disabled={busy || index === task.subtasks.length - 1}
-                      aria-label={`Move ${subtask.title} down`}
-                      onClick={() => void reorderSubtask(index, 1)}
-                      type="button"
-                    >
-                      ↓
-                    </button>
-                    <button
-                      onClick={() =>
-                        setSubtaskForm({
-                          id: subtask.id,
-                          title: subtask.title,
-                          description: subtask.description ?? '',
-                          estimate: subtask.estimateValue?.toString() ?? '',
-                          estimateUnit: subtask.estimateUnit ?? defaultUnit,
-                          assigneeId: subtask.assigneeId ?? '',
-                        })
-                      }
-                      type="button"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      className="danger"
-                      onClick={() => void removeSubtask(subtask)}
-                      type="button"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                  <div className="subtask-files">
-                    <label className="file-button">
-                      Attach file
-                      <input
-                        type="file"
-                        disabled={busy}
-                        onChange={(event) => {
-                          void uploadFile('subtask', subtask.id, event.target.files?.[0]);
-                          event.target.value = '';
+                      <article
+                        className={`subtask-row ${subtask.isCompleted ? 'completed' : ''}`}
+                        onPointerDown={(event) => {
+                          const target = event.target as HTMLElement;
+                          if (target.closest('button, input, select, label, a')) {
+                            event.stopPropagation();
+                          }
                         }}
-                      />
-                    </label>
-                    {subtask.attachments.map((file) => (
-                      <FileRow
-                        file={file}
-                        key={file.id}
-                        onDownload={downloadFile}
-                        onDelete={deleteFile}
-                      />
-                    ))}
-                  </div>
-                </article>
-              ))}
-              {!task.subtasks.length ? (
-                <p className="empty-copy">Break this task into small, independently owned steps.</p>
-              ) : null}
-            </div>
+                      >
+                        <input
+                          className="subtask-check"
+                          aria-label={`Mark ${subtask.title} ${subtask.isCompleted ? 'incomplete' : 'complete'}`}
+                          type="checkbox"
+                          checked={subtask.isCompleted}
+                          disabled={busy}
+                          onChange={() =>
+                            void patchSubtask(subtask, { isCompleted: !subtask.isCompleted })
+                          }
+                        />
+                        <div className="subtask-copy">
+                          <strong>{subtask.title}</strong>
+                          {subtask.description ? <small>{subtask.description}</small> : null}
+                          <div className="subtask-meta">
+                            {subtask.estimateValue ? (
+                              <span>
+                                {formatEstimate(subtask.estimateValue, subtask.estimateUnit)}
+                              </span>
+                            ) : null}
+                            {subtask.attachments.length ? (
+                              <span>
+                                {subtask.attachments.length} file
+                                {subtask.attachments.length === 1 ? '' : 's'}
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+                        <select
+                          aria-label={`Assignee for ${subtask.title}`}
+                          value={subtask.assigneeId ?? ''}
+                          disabled={busy}
+                          onChange={(event) =>
+                            void patchSubtask(subtask, { assigneeId: event.target.value || null })
+                          }
+                        >
+                          <option value="">Unassigned</option>
+                          {users.map((member) => (
+                            <option value={member.id} key={member.id}>
+                              {member.displayName}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="subtask-actions">
+                          <button
+                            disabled={busy || index === 0}
+                            aria-label={`Move ${subtask.title} up`}
+                            onClick={() => void reorderSubtask(index, -1)}
+                            type="button"
+                          >
+                            ↑
+                          </button>
+                          <button
+                            disabled={busy || index === task.subtasks.length - 1}
+                            aria-label={`Move ${subtask.title} down`}
+                            onClick={() => void reorderSubtask(index, 1)}
+                            type="button"
+                          >
+                            ↓
+                          </button>
+                          <button
+                            onClick={() =>
+                              setSubtaskForm({
+                                id: subtask.id,
+                                title: subtask.title,
+                                description: subtask.description ?? '',
+                                estimate: subtask.estimateValue?.toString() ?? '',
+                                estimateUnit: subtask.estimateUnit ?? defaultUnit,
+                                assigneeId: subtask.assigneeId ?? '',
+                              })
+                            }
+                            type="button"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            className="danger"
+                            onClick={() => void removeSubtask(subtask)}
+                            type="button"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                        <div className="subtask-files">
+                          <label className="file-button">
+                            Attach file
+                            <input
+                              type="file"
+                              disabled={busy}
+                              onChange={(event) => {
+                                void uploadFile('subtask', subtask.id, event.target.files?.[0]);
+                                event.target.value = '';
+                              }}
+                            />
+                          </label>
+                          {subtask.attachments.map((file) => (
+                            <FileRow
+                              file={file}
+                              key={file.id}
+                              onDownload={downloadFile}
+                              onDelete={deleteFile}
+                            />
+                          ))}
+                        </div>
+                      </article>
+                    </SortableSubtaskShell>
+                  ))}
+                  {!task.subtasks.length ? (
+                    <p className="empty-copy">
+                      Break this task into small, independently owned steps.
+                    </p>
+                  ) : null}
+                </div>
+              </SortableContext>
+            </DndContext>
           </section>
           <section className="detail-section">
             <header>
@@ -577,6 +651,23 @@ export default function TaskPage() {
                   </select>
                 </label>
               </div>
+              <label>
+                Sprint
+                <select value={sprintId} onChange={(event) => setSprintId(event.target.value)}>
+                  <option value="">No sprint</option>
+                  {task.sprint && !plannedSprints.some((sprint) => sprint.id === task.sprint?.id) ? (
+                    <option value={task.sprint.id}>
+                      {task.sprint.name} ({task.sprint.status.toLowerCase()})
+                    </option>
+                  ) : null}
+                  {plannedSprints.map((sprint) => (
+                    <option key={sprint.id} value={sprint.id}>
+                      {sprint.name}
+                      {sprint.status === 'ACTIVE' ? ' (active)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <fieldset className="assignee-picker">
                 <legend>Assignees</legend>
                 {users.map((member) => (
@@ -704,6 +795,36 @@ export default function TaskPage() {
           </section>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function SortableSubtaskShell({
+  id,
+  title,
+  disabled,
+  children,
+}: PropsWithChildren<{ id: string; title: string; disabled: boolean }>) {
+  const { attributes, isDragging, listeners, setNodeRef, transform, transition } = useSortable({
+    id: `subtask:${id}`,
+    disabled,
+  });
+  const { role, ...subtaskDragAttributes } = attributes;
+  void role;
+  return (
+    <div
+      ref={setNodeRef}
+      className={`sortable-subtask-shell subtask-row--draggable ${isDragging ? 'is-dragging' : ''}`}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      title={disabled ? undefined : `Drag ${title}`}
+      aria-label={
+        disabled
+          ? undefined
+          : `Subtask ${title}. Drag from anywhere on the row to reorder. Use arrow keys while dragging to choose a position.`
+      }
+      {...(disabled ? {} : { ...subtaskDragAttributes, ...listeners })}
+    >
+      {children}
     </div>
   );
 }

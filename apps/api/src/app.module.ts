@@ -14,6 +14,7 @@ import { BoardModule } from './board/board.module';
 import { TasksModule } from './tasks/tasks.module';
 import { AttachmentsModule } from './attachments/attachments.module';
 import { StorageModule } from './infrastructure/storage/storage.module';
+import { SprintsModule } from './sprints/sprints.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { StorageModule } from './infrastructure/storage/storage.module';
     BoardModule,
     TasksModule,
     AttachmentsModule,
+    SprintsModule,
     HealthModule,
   ],
   providers: [

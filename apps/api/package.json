@@ -1,10 +1,10 @@
 {
   "name": "@task-manager/api",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "scripts": {
     "build": "nest build",
-    "dev": "nest start --watch",
+    "dev": "nest build && nest start --watch",
     "start": "node dist/main.js",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.mjs\"",
     "test": "npm run build && node --test test/*.test.mjs",
