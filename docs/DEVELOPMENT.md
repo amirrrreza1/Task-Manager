@@ -38,7 +38,8 @@ through the administration UI.
 | `npm run format:check`                    | Verify formatting                    |
 | `npm run prisma:generate`                 | Generate the typed Prisma client     |
 | `npm run prisma:migrate -- --name <name>` | Create/apply a development migration |
-| `npm run prisma:deploy`                   | Apply committed migrations           |
+| `npm run prisma:deploy`                   | Apply committed migrations (run from repo root) |
+| `npm run prisma:deploy:docker`            | Apply migrations via Docker when the DB runs in Compose |
 | `npm run prisma:studio`                   | Inspect local data                   |
 
 ## Docker workflow
@@ -70,7 +71,8 @@ Never edit an already released migration. Add a new migration. Production startu
 - **API:** NestJS HTTP behavior, validation, authorization, and OpenAPI snapshots.
 - **Web component:** interaction/accessibility for forms, dialogs, filters, and keyboard moves.
 - **End to end:** login, user creation, task/subtask/attachment flows, settings, and sprint lifecycle
-  through a disposable Compose stack.
+  through a disposable Compose stack (automated suite planned for v1.0; see [ACCESSIBILITY.md](ACCESSIBILITY.md)
+  for the v0.4 manual review).
 
 Every bug fix should add the smallest test that would have caught it. Tests must not rely on order,
 wall-clock timezone, external avatar services, Telegram, or email.
