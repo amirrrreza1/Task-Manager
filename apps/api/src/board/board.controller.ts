@@ -32,6 +32,16 @@ export class BoardController {
     return this.board.read(query);
   }
 
+  @Get('board/workflow')
+  readWorkflow(@Query() query: BoardQueryDto) {
+    return this.board.read({ ...query, excludeBacklog: true, backlogOnly: undefined });
+  }
+
+  @Get('board/backlog')
+  readBacklog(@Query() query: BoardQueryDto) {
+    return this.board.read({ ...query, backlogOnly: true, excludeBacklog: undefined });
+  }
+
   @Get('board-columns')
   columns() {
     return this.board.listColumns();

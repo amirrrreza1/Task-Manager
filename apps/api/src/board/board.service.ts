@@ -19,7 +19,25 @@ const taskCardInclude = {
       user: { select: { id: true, displayName: true, avatarSeed: true, isActive: true } },
     },
   },
-  subtasks: { select: { id: true, isCompleted: true } },
+  subtasks: {
+    orderBy: { position: 'asc' },
+    select: {
+      id: true,
+      taskId: true,
+      columnId: true,
+      title: true,
+      description: true,
+      estimateValue: true,
+      estimateUnit: true,
+      isCompleted: true,
+      position: true,
+      assigneeId: true,
+      createdAt: true,
+      updatedAt: true,
+      assignee: { select: { id: true, displayName: true, avatarSeed: true, isActive: true } },
+      _count: { select: { attachments: true } },
+    },
+  },
   _count: { select: { attachments: true } },
 } satisfies Prisma.TaskInclude;
 
@@ -32,7 +50,10 @@ export class BoardService {
   }
 
   async read(query: BoardQueryDto) {
-    const where: Prisma.TaskWhereInput = {
+    if (query.excludeBacklog && query.backlogOnly) {
+      throw new BadRequestException('Choose either excludeBacklog or backlogOnly, not both.');
+    }
+    const taskWhere: Prisma.TaskWhereInput = {
       ...(query.search?.trim()
         ? {
             OR: [
@@ -47,14 +68,78 @@ export class BoardService {
       ...(query.hasEstimate === true ? { estimateValue: { not: null } } : {}),
       ...(query.hasEstimate === false ? { estimateValue: null } : {}),
     };
-    const [columns, settings] = await this.prisma.$transaction([
+    const subtaskWhere: Prisma.SubtaskWhereInput = {
+      ...(query.search?.trim()
+        ? {
+            OR: [
+              { title: { contains: query.search.trim(), mode: 'insensitive' } },
+              { description: { contains: query.search.trim(), mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+      ...(query.assigneeId ? { assigneeId: query.assigneeId } : {}),
+      ...(query.sprintId ? { task: { sprintId: query.sprintId } } : {}),
+      ...(query.unassigned ? { assigneeId: null } : {}),
+      ...(query.hasEstimate === true ? { estimateValue: { not: null } } : {}),
+      ...(query.hasEstimate === false ? { estimateValue: null } : {}),
+    };
+    const columnScope: Prisma.BoardColumnWhereInput = {
+      ...(query.excludeBacklog ? { isBacklog: false } : {}),
+      ...(query.backlogOnly ? { isBacklog: true } : {}),
+    };
+    const [columns, matchingSubtasks, settings] = await this.prisma.$transaction([
       this.prisma.boardColumn.findMany({
+        where: columnScope,
         orderBy: { position: 'asc' },
-        include: { tasks: { where, orderBy: { position: 'asc' }, include: taskCardInclude } },
+        include: {
+          tasks: { where: taskWhere, orderBy: { position: 'asc' }, include: taskCardInclude },
+        },
+      }),
+      this.prisma.subtask.findMany({
+        where: subtaskWhere,
+        orderBy: { position: 'asc' },
+        select: {
+          id: true,
+          taskId: true,
+          columnId: true,
+          title: true,
+          description: true,
+          estimateValue: true,
+          estimateUnit: true,
+          isCompleted: true,
+          position: true,
+          assigneeId: true,
+          createdAt: true,
+          updatedAt: true,
+          assignee: { select: { id: true, displayName: true, avatarSeed: true, isActive: true } },
+          _count: { select: { attachments: true } },
+          task: { select: { id: true, title: true, columnId: true } },
+        },
       }),
       this.prisma.appSettings.findUniqueOrThrow({ where: { id: 'default' } }),
     ]);
-    return { columns, settings };
+    const visibleTaskIds = new Set(columns.flatMap((column) => column.tasks.map((task) => task.id)));
+
+    return {
+      columns: columns.map((column) => ({
+        ...column,
+        tasks: column.tasks.map((task) => ({
+          ...task,
+          subtasks: task.subtasks.filter((subtask) => subtask.columnId === column.id),
+        })),
+        subtasks: matchingSubtasks
+          .filter(
+            (subtask) =>
+              subtask.columnId === column.id &&
+              (subtask.task.columnId !== column.id || !visibleTaskIds.has(subtask.taskId)),
+          )
+          .map(({ task, ...subtask }) => ({
+            ...subtask,
+            parentTask: { id: task.id, title: task.title },
+          })),
+      })),
+      settings,
+    };
   }
 
   async create(input: CreateColumnDto, actor: AuthenticatedUser) {
@@ -144,6 +229,8 @@ export class BoardService {
         throw new BadRequestException('At least two board columns must remain.');
       if (column.isDone)
         throw new BadRequestException('Designate another done column before deleting this one.');
+      if (column.isBacklog)
+        throw new BadRequestException('The backlog column cannot be deleted.');
       const taskCount = await transaction.task.count({ where: { columnId: id } });
       if (taskCount > 0) {
         if (!moveTasksTo || moveTasksTo === id)

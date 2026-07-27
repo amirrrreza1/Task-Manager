@@ -8,6 +8,8 @@ import { useAuth } from './auth-provider';
 
 const memberNavigation = [
   { href: '/board', label: 'Board' },
+  { href: '/backlog', label: 'Backlog' },
+  { href: '/sprints', label: 'Sprints' },
   { href: '/profile', label: 'Profile' },
 ];
 

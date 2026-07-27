@@ -26,4 +26,14 @@ export class BoardQueryDto {
   @Transform(toBoolean)
   @IsBoolean()
   hasEstimate?: boolean;
+
+  @IsOptional()
+  @Transform(toBoolean)
+  @IsBoolean()
+  excludeBacklog?: boolean;
+
+  @IsOptional()
+  @Transform(toBoolean)
+  @IsBoolean()
+  backlogOnly?: boolean;
 }
