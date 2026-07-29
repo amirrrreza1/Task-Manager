@@ -46,7 +46,6 @@ unfinished feature is available.
 - [x] Backup/restore manual for operators (manual commands, before automated backups)
 - [x] Browser/mobile compatibility and performance budgets
 - [x] Contributor-facing issue templates (bug, feature, and security routing)
-- [ ] Published demo media (screenshots / video walkthrough)
 
 ## v1.x / v2 — Requested future capabilities
 
