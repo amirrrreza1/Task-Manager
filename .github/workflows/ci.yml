@@ -17,29 +17,108 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
+          cache: pnpm
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Generate database client
-        run: npm run prisma:generate
+        run: pnpm run prisma:generate
 
       - name: Check formatting
-        run: npm run format:check
+        run: pnpm run format:check
 
       - name: Lint
-        run: npm run lint
+        run: pnpm run lint
 
       - name: Type-check
-        run: npm run typecheck
+        run: pnpm run typecheck
 
       - name: Test
-        run: npm test
+        run: pnpm test
 
       - name: Build
-        run: npm run build
+        run: pnpm run build
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: verify
+    env:
+      POSTGRES_DB: task_manager
+      POSTGRES_USER: task_manager
+      POSTGRES_PASSWORD: change-me-database-password
+      ADMIN_USERNAME: admin
+      ADMIN_PASSWORD: change-me-admin-password
+      JWT_SECRET: ci-jwt-secret-at-least-32-characters
+      NEXT_PUBLIC_API_URL: http://localhost:4000/api/v1
+      CORS_ORIGIN: http://localhost:3000
+      E2E_ADMIN_USERNAME: admin
+      E2E_ADMIN_PASSWORD: change-me-admin-password
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate database client
+        run: pnpm run prisma:generate
+
+      - name: Install Playwright browser dependencies
+        run: pnpm run test:e2e:install
+
+      - name: Start application stack
+        run: docker compose up -d --build
+
+      - name: Wait for API health
+        run: |
+          for i in {1..90}; do
+            if curl -fsS http://localhost:4000/api/v1/health > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "API health check timed out"
+          docker compose logs api
+          exit 1
+
+      - name: Wait for web app
+        run: |
+          for i in {1..90}; do
+            if curl -fsS http://localhost:3000/login > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Web readiness check timed out"
+          docker compose logs web
+          exit 1
+
+      - name: Run browser end-to-end tests
+        run: pnpm run test:e2e
+
+      - name: Stop application stack
+        if: always()
+        run: docker compose down -v

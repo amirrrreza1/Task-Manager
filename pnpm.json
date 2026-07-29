@@ -1,0 +1,6 @@
+{
+  "overrides": {
+    "next>postcss": "8.5.22",
+    "next>sharp": "0.35.3"
+  }
+}

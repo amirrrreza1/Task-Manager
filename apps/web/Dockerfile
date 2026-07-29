@@ -1,28 +1,19 @@
 FROM node:24-alpine AS dependencies
 WORKDIR /app
-COPY package.json package-lock.json ./
+ENV PNPM_HOME=/root/.local/share/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY apps/web/package.json apps/web/package.json
 COPY apps/api/package.json apps/api/package.json
-RUN --mount=type=cache,id=task-manager-npm,target=/root/.npm,sharing=locked \
-  set -eu; \
-  npm config set fetch-retries 5; \
-  npm config set fetch-retry-mintimeout 20000; \
-  npm config set fetch-retry-maxtimeout 120000; \
-  npm config set fetch-timeout 600000; \
-  npm config set maxsockets 3; \
-  attempt=1; \
-  until npm ci --workspace @task-manager/web --include-workspace-root --prefer-offline; do \
-    if [ "$attempt" -ge 3 ]; then exit 1; fi; \
-    echo "npm ci failed (attempt $attempt/3); retrying in 10 seconds..."; \
-    attempt=$((attempt + 1)); \
-    sleep 10; \
-  done
+RUN --mount=type=cache,id=task-manager-pnpm,target=/root/.local/share/pnpm/store,sharing=locked \
+  pnpm install --frozen-lockfile --filter @task-manager/web...
 
 FROM dependencies AS builder
 ARG NEXT_PUBLIC_API_URL=http://localhost:4000/api/v1
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 COPY apps/web apps/web
-RUN npm run build --workspace @task-manager/web
+RUN pnpm --filter @task-manager/web build
 
 FROM node:24-alpine AS runner
 WORKDIR /app

@@ -3,6 +3,7 @@ node_modules/
 dist/
 coverage/
 .turbo/
+package-lock.json
 
 .env
 .env.local

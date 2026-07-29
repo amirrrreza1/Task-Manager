@@ -2,7 +2,8 @@
 
 ## Prerequisites
 
-- Node.js 22 or newer and npm 10 or newer
+- Node.js 22 or newer
+- pnpm 9 or newer (`npm install -g pnpm` or via `corepack enable`)
 - Docker Engine with Docker Compose for the recommended workflow
 - Git
 
@@ -27,20 +28,22 @@ through the administration UI.
 
 ## Commands
 
-| Command                                   | Result                               |
-| ----------------------------------------- | ------------------------------------ |
-| `npm install`                             | Install all workspaces               |
-| `npm run dev`                             | Run API and web in watch mode        |
-| `npm run build`                           | Produce both production builds       |
-| `npm test`                                | Run unit tests                       |
-| `npm run typecheck`                       | Type-check all workspaces            |
-| `npm run lint`                            | Run all linters                      |
-| `npm run format:check`                    | Verify formatting                    |
-| `npm run prisma:generate`                 | Generate the typed Prisma client     |
-| `npm run prisma:migrate -- --name <name>` | Create/apply a development migration |
-| `npm run prisma:deploy`                   | Apply committed migrations (run from repo root) |
-| `npm run prisma:deploy:docker`            | Apply migrations via Docker when the DB runs in Compose |
-| `npm run prisma:studio`                   | Inspect local data                   |
+| Command                                    | Result                                                  |
+| ------------------------------------------ | ------------------------------------------------------- |
+| `pnpm install`                             | Install all workspaces                                  |
+| `pnpm run dev`                             | Run API and web in watch mode                           |
+| `pnpm run build`                           | Produce both production builds                          |
+| `pnpm test`                                | Run unit tests                                          |
+| `pnpm run typecheck`                       | Type-check all workspaces                               |
+| `pnpm run lint`                            | Run all linters                                         |
+| `pnpm run format:check`                    | Verify formatting                                       |
+| `pnpm run prisma:generate`                 | Generate the typed Prisma client                        |
+| `pnpm run prisma:migrate -- --name <name>` | Create/apply a development migration                    |
+| `pnpm run prisma:deploy`                   | Apply committed migrations (run from repo root)         |
+| `pnpm run prisma:deploy:docker`            | Apply migrations via Docker when the DB runs in Compose |
+| `pnpm run prisma:studio`                   | Inspect local data                                      |
+| `pnpm run test:e2e`                        | Run browser end-to-end tests against a running stack    |
+| `pnpm run test:e2e:install`                | Download Playwright browser binaries                    |
 
 ## Docker workflow
 
@@ -71,8 +74,8 @@ Never edit an already released migration. Add a new migration. Production startu
 - **API:** NestJS HTTP behavior, validation, authorization, and OpenAPI snapshots.
 - **Web component:** interaction/accessibility for forms, dialogs, filters, and keyboard moves.
 - **End to end:** login, user creation, task/subtask/attachment flows, settings, and sprint lifecycle
-  through a disposable Compose stack (automated suite planned for v1.0; see [ACCESSIBILITY.md](ACCESSIBILITY.md)
-  for the v0.4 manual review).
+  through a disposable Compose stack. Run `pnpm run test:e2e` after `docker compose up --build`.
+  See [ACCESSIBILITY.md](ACCESSIBILITY.md) for the v0.4 manual review.
 
 Every bug fix should add the smallest test that would have caught it. Tests must not rely on order,
 wall-clock timezone, external avatar services, Telegram, or email.
@@ -100,6 +103,5 @@ wall-clock timezone, external avatar services, Telegram, or email.
 
 ## Release/versioning policy
 
-The project uses semantic versioning after `1.0.0`. During `0.x`, minor versions may contain
-documented breaking changes. Database migrations remain forward-only. API breaking changes require
-a new URL version or a stated pre-1.0 migration path.
+The project uses semantic versioning after `1.0.0`. Database migrations remain forward-only. API
+breaking changes require a new URL version or a migration path stated in release notes.

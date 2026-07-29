@@ -1,28 +1,19 @@
 FROM node:24-alpine AS dependencies
 WORKDIR /app
-COPY package.json package-lock.json ./
+ENV PNPM_HOME=/root/.local/share/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
 COPY packages/database/prisma packages/database/prisma
-RUN --mount=type=cache,id=task-manager-npm,target=/root/.npm,sharing=locked \
-  set -eu; \
-  npm config set fetch-retries 5; \
-  npm config set fetch-retry-mintimeout 20000; \
-  npm config set fetch-retry-maxtimeout 120000; \
-  npm config set fetch-timeout 600000; \
-  npm config set maxsockets 3; \
-  attempt=1; \
-  until npm ci --workspace @task-manager/api --include-workspace-root --prefer-offline; do \
-    if [ "$attempt" -ge 3 ]; then exit 1; fi; \
-    echo "npm ci failed (attempt $attempt/3); retrying in 10 seconds..."; \
-    attempt=$((attempt + 1)); \
-    sleep 10; \
-  done; \
-  npm run prisma:generate
+RUN --mount=type=cache,id=task-manager-pnpm,target=/root/.local/share/pnpm/store,sharing=locked \
+  pnpm install --frozen-lockfile --filter @task-manager/api... && \
+  pnpm run prisma:generate
 
 FROM dependencies AS builder
 COPY apps/api apps/api
-RUN npm run build --workspace @task-manager/api
+RUN pnpm --filter @task-manager/api build
 
 FROM node:24-alpine AS runner
 WORKDIR /app

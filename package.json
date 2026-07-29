@@ -1,29 +1,29 @@
 {
   "name": "task-manager",
-  "version": "0.4.0",
+  "version": "1.0.0",
   "private": true,
   "description": "Open-source collaborative task and sprint manager",
   "license": "MIT",
-  "workspaces": [
-    "apps/*"
-  ],
   "scripts": {
-    "build": "npm run build --workspace @task-manager/api && npm run build --workspace @task-manager/web",
-    "dev": "concurrently -n api,web -c blue,green \"npm run dev --workspace @task-manager/api\" \"npm run dev --workspace @task-manager/web\"",
-    "dev:api": "npm run dev --workspace @task-manager/api",
-    "dev:web": "npm run dev --workspace @task-manager/web",
+    "build": "pnpm --filter @task-manager/api build && pnpm --filter @task-manager/web build",
+    "dev": "concurrently -n api,web -c blue,green \"pnpm --filter @task-manager/api dev\" \"pnpm --filter @task-manager/web dev\"",
+    "dev:api": "pnpm --filter @task-manager/api dev",
+    "dev:web": "pnpm --filter @task-manager/web dev",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "lint": "npm run lint --workspace @task-manager/api && npm run lint --workspace @task-manager/web",
+    "lint": "pnpm --filter @task-manager/api lint && pnpm --filter @task-manager/web lint",
     "prisma:generate": "prisma generate --schema packages/database/prisma/schema.prisma",
     "prisma:migrate": "prisma migrate dev --schema packages/database/prisma/schema.prisma",
     "prisma:deploy": "prisma migrate deploy --schema packages/database/prisma/schema.prisma",
-    "prisma:deploy:docker": "docker compose run --rm --entrypoint npx -v ./packages/database/prisma:/app/packages/database/prisma:ro api prisma migrate deploy --schema packages/database/prisma/schema.prisma",
+    "prisma:deploy:docker": "docker compose run --rm --entrypoint pnpx -v ./packages/database/prisma:/app/packages/database/prisma:ro api prisma migrate deploy --schema packages/database/prisma/schema.prisma",
     "prisma:studio": "prisma studio --schema packages/database/prisma/schema.prisma",
-    "test": "npm run test --workspace @task-manager/api && npm run test --workspace @task-manager/web",
-    "typecheck": "npm run typecheck --workspace @task-manager/api && npm run typecheck --workspace @task-manager/web"
+    "test": "pnpm --filter @task-manager/api test && pnpm --filter @task-manager/web test",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install --with-deps chromium",
+    "typecheck": "pnpm --filter @task-manager/api typecheck && pnpm --filter @task-manager/web typecheck"
   },
   "devDependencies": {
+    "@playwright/test": "1.51.1",
     "concurrently": "9.2.1",
     "prettier": "3.6.2",
     "prisma": "6.19.3",
@@ -31,19 +31,7 @@
   },
   "engines": {
     "node": ">=22.0.0",
-    "npm": ">=10.0.0"
+    "pnpm": ">=9.0.0"
   },
-  "allowScripts": {
-    "@prisma/client@6.19.3": true,
-    "prisma@6.19.3": true,
-    "argon2@0.45.1": true,
-    "sharp@0.35.3": true,
-    "@scarf/scarf": false
-  },
-  "overrides": {
-    "next": {
-      "postcss": "8.5.22",
-      "sharp": "0.35.3"
-    }
-  }
+  "packageManager": "pnpm@9.15.4"
 }
