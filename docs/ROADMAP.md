@@ -47,14 +47,20 @@ unfinished feature is available.
 - [x] Browser/mobile compatibility and performance budgets
 - [x] Contributor-facing issue templates (bug, feature, and security routing)
 
+## v1.1 — Activity logs and reports (complete)
+
+- [x] Admin-only paginated activity log with actor, entity-type, and date filters
+- [x] Member subtask-completion and estimate report, filterable by sprint
+- [x] Sprint breakdown report: tasks, subtasks, who did what, per-member contribution summary
+- [x] Reports index page with direct links to member and sprint reports
+
 ## v1.x / v2 — Requested future capabilities
 
-### Activity logs and personal reports/statistics
+### Reports: extended analytics
 
-- Query/activity UI based on the events captured since v1
-- Personal workload, completion, estimate, and sprint trend reports
 - Versioned metrics definitions so historical reports remain explainable
 - Privacy/retention controls and CSV export
+- Personal workload, completion, estimate, and sprint trend charts
 
 ### Automated database and attachment backup
 

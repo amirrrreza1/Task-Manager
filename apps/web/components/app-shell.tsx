@@ -17,6 +17,7 @@ const adminNavigation = [
   { href: '/settings/users', label: 'People' },
   { href: '/settings/general', label: 'Settings' },
   { href: '/settings/board', label: 'Workflow' },
+  { href: '/reports', label: 'Reports' },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {

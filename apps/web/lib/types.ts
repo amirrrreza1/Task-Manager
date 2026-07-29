@@ -216,3 +216,85 @@ export interface Paginated<T> {
   items: T[];
   nextCursor: string | null;
 }
+
+// ─── Reports ─────────────────────────────────────────────────────────────────
+
+export interface ActivityEventItem {
+  id: string;
+  eventType: string;
+  entityType: string;
+  entityId: string;
+  entityLabel: string | null;
+  actorId: string | null;
+  actor: UserSummary | null;
+  payload: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface ReportSubtask {
+  id: string;
+  title: string;
+  isCompleted: boolean;
+  estimateValue: number | null;
+  estimateUnit: EstimateUnit | null;
+  column: { id: string; name: string; isDone: boolean };
+  task: { id: string; title: string } | null;
+  sprint: { id: string; name: string; status: SprintStatus } | null;
+}
+
+export interface MemberReportTotals {
+  completedCount: number;
+  incompleteCount: number;
+  estimateMinutes: number;
+  estimatePoints: number;
+}
+
+export interface MemberReport {
+  user: UserSummary;
+  sprintFilter: string | null;
+  completedSubtasks: ReportSubtask[];
+  incompleteSubtasks: ReportSubtask[];
+  totals: MemberReportTotals;
+}
+
+export interface SprintReportTask {
+  id: string;
+  title: string;
+  estimateValue: number | null;
+  estimateUnit: EstimateUnit | null;
+  isDone: boolean;
+  column: { id: string; name: string; isDone: boolean };
+  assignees: UserSummary[];
+  subtasks: ReportSubtask[];
+}
+
+export interface MemberContribution {
+  user: UserSummary;
+  completedSubtasks: number;
+  incompleteSubtasks: number;
+  estimateMinutes: number;
+  estimatePoints: number;
+  subtasks: (ReportSubtask & { parentTask: { id: string; title: string } })[];
+}
+
+export interface SprintReport {
+  sprint: {
+    id: string;
+    name: string;
+    goal: string | null;
+    status: SprintStatus;
+    startsAt: string | null;
+    endsAt: string | null;
+    completedAt: string | null;
+  };
+  tasks: SprintReportTask[];
+  standaloneSubtasks: (ReportSubtask & { parentTask: { id: string; title: string } })[];
+  taskSnapshots: SprintTaskSnapshot[];
+  memberContributions: MemberContribution[];
+  totals: {
+    taskCount: number;
+    tasksDone: number;
+    subtaskCount: number;
+    subtasksDone: number;
+  };
+}

@@ -15,6 +15,7 @@ import { TasksModule } from './tasks/tasks.module';
 import { AttachmentsModule } from './attachments/attachments.module';
 import { StorageModule } from './infrastructure/storage/storage.module';
 import { SprintsModule } from './sprints/sprints.module';
+import { ReportsModule } from './reports/reports.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { SprintsModule } from './sprints/sprints.module';
     TasksModule,
     AttachmentsModule,
     SprintsModule,
+    ReportsModule,
     HealthModule,
   ],
   providers: [
