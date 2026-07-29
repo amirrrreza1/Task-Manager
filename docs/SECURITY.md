@@ -64,7 +64,7 @@ content, but settings/user/sprint lifecycle actions remain admin-only.
 
 ## Dependency and supply-chain baseline
 
-- Commit the lockfile and use `npm ci` in containers/CI.
+- Commit the lockfile and use `pnpm install --frozen-lockfile` in containers/CI.
 - Run dependency, container, license, and secret scans in CI.
 - Pin base-image major versions and review automated updates.
 - Publish checksums/signatures for official images when releases begin.
@@ -84,4 +84,5 @@ include secrets.
 - Verify cookies/headers behind the actual TLS reverse proxy.
 - Run authorization matrix and path traversal/upload tests.
 - Confirm `.env`, uploads, dumps, and logs are absent from source and container layers.
-- Document a private vulnerability reporting contact and supported versions.
+- Replace the placeholder security contact (`security@taskmanager.local`) with a monitored inbox
+  before public release.

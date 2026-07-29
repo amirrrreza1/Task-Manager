@@ -28,9 +28,9 @@
 
 ## CI and release checks
 
-Before `1.0.0` and every patch release:
+For every release:
 
-1. Run the browser end-to-end suite.
+1. Run the browser end-to-end suite (automated in CI via `pnpm run test:e2e`).
 2. Verify login/board/backlog/task-detail on desktop and mobile viewport emulation.
-3. Capture lighthouse snapshots for `/login`, `/board`, and `/backlog`.
-4. Record any budget regressions in release notes.
+3. Capture Lighthouse snapshots for `/login`, `/board`, and `/backlog`.
+4. Record any budget regressions in the release notes.

@@ -3,7 +3,8 @@
 ## Prerequisites
 
 - Node.js 22 or newer
-- pnpm 9 or newer (`npm install -g pnpm` or via `corepack enable`)
+- pnpm 9 or newer — enable via `corepack enable` (recommended, included with Node.js 22) or
+  `npm install -g pnpm`
 - Docker Engine with Docker Compose for the recommended workflow
 - Git
 

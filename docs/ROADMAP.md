@@ -45,7 +45,8 @@ unfinished feature is available.
 - [x] Production security review and private vulnerability contact
 - [x] Backup/restore manual for operators (manual commands, before automated backups)
 - [x] Browser/mobile compatibility and performance budgets
-- [ ] Contributor-facing issue templates and published demo media
+- [x] Contributor-facing issue templates (bug, feature, and security routing)
+- [ ] Published demo media (screenshots / video walkthrough)
 
 ## v1.x / v2 — Requested future capabilities
 

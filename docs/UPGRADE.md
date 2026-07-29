@@ -6,8 +6,8 @@ This guide covers upgrades from `0.4.x` to `1.0.0` for self-hosted deployments.
 
 - Database schema migrations
 - Docker image updates
-- environment-variable checks
-- validation and rollback steps
+- Environment-variable checks
+- Validation and rollback steps
 
 ## Before you start
 

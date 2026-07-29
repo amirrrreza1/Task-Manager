@@ -14,7 +14,7 @@ and browser/mobile compatibility and performance budgets.
 - **API:** NestJS 11, TypeScript, REST/OpenAPI
 - **Database:** PostgreSQL 17 with Prisma 6
 - **Files:** local Docker volume behind a storage adapter; S3-compatible storage can be added later
-- **Runtime:** Docker Compose or Node.js 22+ with pnpm 9+
+- **Runtime:** Docker Compose or Node.js 22+ with pnpm 9+ (activate via `corepack enable`)
 
 ## Quick start with Docker
 
