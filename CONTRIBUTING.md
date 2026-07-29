@@ -16,11 +16,11 @@ implementation so contributors can make compatible decisions.
 Follow `docs/DEVELOPMENT.md`. Before requesting review, run:
 
 ```bash
-npm run format:check
-npm run lint
-npm run typecheck
-npm test
-npm run build
+pnpm run format:check
+pnpm run lint
+pnpm run typecheck
+pnpm test
+pnpm run build
 ```
 
 ## Code expectations
@@ -43,6 +43,11 @@ impact, and any follow-up work.
 
 Do not publish suspected vulnerabilities in issues. Follow `docs/SECURITY.md`. Never include real
 credentials, database dumps, uploaded files, or user information in tests or examples.
+
+## Issue templates
+
+Use the repository's bug and feature templates for triage-ready reports. Security issues must use
+the private contact path defined in `docs/SECURITY.md`.
 
 ## License
 

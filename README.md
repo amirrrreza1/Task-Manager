@@ -4,8 +4,9 @@ An open-source, self-hosted task and sprint manager for small teams. Tasks may h
 assignees; subtasks have at most one assignee. The workspace can use either time or story-point
 estimates, and administrators can configure board columns and sprint duration.
 
-The current **v0.4 release** adds the full sprint workflow: planned sprint creation, an
-administrator-controlled lifecycle, final outcome snapshots, explicit carry-over, and team notes.
+The **v1.0 release** delivers the stable self-hosted baseline: full browser end-to-end tests in CI,
+release image publishing, upgrade and backup-restore operator guides, a production security review,
+and browser/mobile compatibility and performance budgets.
 
 ## Stack
 
@@ -13,7 +14,7 @@ administrator-controlled lifecycle, final outcome snapshots, explicit carry-over
 - **API:** NestJS 11, TypeScript, REST/OpenAPI
 - **Database:** PostgreSQL 17 with Prisma 6
 - **Files:** local Docker volume behind a storage adapter; S3-compatible storage can be added later
-- **Runtime:** Docker Compose or Node.js 22+
+- **Runtime:** Docker Compose or Node.js 22+ with pnpm 9+
 
 ## Quick start with Docker
 
@@ -31,16 +32,16 @@ the database and uploaded files between restarts.
 To apply migrations from a local checkout (schema lives under `packages/database`):
 
 ```bash
-npm run prisma:deploy
+pnpm run prisma:deploy
 ```
 
 ## Local development
 
 ```bash
-npm install
+pnpm install
 cp .env.example .env
-npm run prisma:generate
-npm run dev
+pnpm run prisma:generate
+pnpm run dev
 ```
 
 For local processes outside Docker, change the database host in `DATABASE_URL` from `database` to
@@ -53,12 +54,16 @@ For local processes outside Docker, change the database host in `DATABASE_URL` f
 - [API contract](docs/API.md)
 - [Development and operations](docs/DEVELOPMENT.md)
 - [Security model](docs/SECURITY.md)
+- [v1 security review](docs/SECURITY_REVIEW_V1.md)
 - [Accessibility review (v0.4)](docs/ACCESSIBILITY.md)
+- [Upgrade and migration guide](docs/UPGRADE.md)
+- [Backup and restore manual](docs/BACKUP_RESTORE.md)
+- [Compatibility and performance budgets](docs/COMPATIBILITY_PERFORMANCE.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Changelog](CHANGELOG.md)
 - [Contributing](CONTRIBUTING.md)
 
-## Available in v0.4
+## Available in v1.0
 
 - Environment-backed bootstrap administrator
 - Argon2id password hashing and rotating refresh sessions
@@ -75,6 +80,9 @@ For local processes outside Docker, change the database host in `DATABASE_URL` f
 - Sprint comments with author/admin edit and delete permissions
 - Dedicated backlog page with board exclusion of the backlog column
 - Sprint task assignment while a sprint is planned or active
+- Browser end-to-end tests running in CI against a full Docker Compose stack
+- Release images published to GHCR on version tags
+- Operator upgrade, backup-restore, and compatibility documentation
 
 See [ROADMAP.md](docs/ROADMAP.md) for the release boundaries and later planned capabilities.
 

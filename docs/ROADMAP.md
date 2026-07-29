@@ -40,12 +40,11 @@ unfinished feature is available.
 
 ## v1.0 — Stable self-hosted release
 
-- [ ] Full browser end-to-end test suite in CI (Playwright or equivalent)
-
-- [ ] Upgrade/migration guide and release images
-- [ ] Production security review and private vulnerability contact
-- [ ] Backup/restore manual for operators (manual commands, before automated backups)
-- [ ] Browser/mobile compatibility and performance budgets
+- [x] Full browser end-to-end test suite in CI (Playwright or equivalent)
+- [x] Upgrade/migration guide and release images
+- [x] Production security review and private vulnerability contact
+- [x] Backup/restore manual for operators (manual commands, before automated backups)
+- [x] Browser/mobile compatibility and performance budgets
 - [ ] Contributor-facing issue templates and published demo media
 
 ## v1.x / v2 — Requested future capabilities

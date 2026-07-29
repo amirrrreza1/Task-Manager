@@ -2,9 +2,12 @@
 
 ## Supported reporting path
 
-Until a public repository security address exists, do not open a public issue for a suspected
-vulnerability. Contact the repository owner privately. The owner should add a dedicated security
-email before the first public release.
+Do not open a public issue for a suspected vulnerability.
+
+- Private contact: `security@taskmanager.local`
+- Scope and release review: see [SECURITY_REVIEW_V1.md](SECURITY_REVIEW_V1.md)
+
+Replace the placeholder mailbox with a monitored production inbox before public release.
 
 ## Credential rules
 
