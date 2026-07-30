@@ -17,7 +17,7 @@ export default function ReportsIndexPage() {
     setLoading(true);
     Promise.all([
       request<ManagedUser[]>('/users'),
-      request<{ items: SprintSummary[] }>('/sprints?limit=200'),
+      request<{ items: SprintSummary[] }>('/sprints?limit=100'),
     ])
       .then(([users, sprintData]) => {
         setMembers(users.filter((u) => u.isActive));

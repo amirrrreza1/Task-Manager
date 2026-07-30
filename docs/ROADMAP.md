@@ -75,8 +75,3 @@ unfinished feature is available.
 - Backup success/failure notifications and secure download links (never raw dumps)
 - Per-user notification preferences, retries, delivery history, and rate limits
 
-## Backlog principles
-
-Features join a release only with product behavior, permissions, schema/event implications,
-operational impact, API contract, and test acceptance criteria. Future integrations consume the
-outbox/API; they must not query tables ad hoc or embed provider logic in task/sprint modules.
