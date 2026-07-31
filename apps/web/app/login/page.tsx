@@ -1,9 +1,18 @@
 'use client';
 
+import { AlertCircle, ArrowRight, LayoutKanban, Lock, User } from '@appica/icons-react';
+import { Alert, AlertDescription, AlertIcon } from '@appica/ui-react/alert';
+import { BackgroundPattern } from '@appica/ui-react/background-pattern';
+import { Badge } from '@appica/ui-react/badge';
+import { Button } from '@appica/ui-react/button';
+import { Field, FieldDescription, FieldLabel } from '@appica/ui-react/field';
+import { Input } from '@appica/ui-react/input';
+import { Spinner } from '@appica/ui-react/spinner';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { FormEvent, Suspense, useEffect, useState } from 'react';
 import { useAuth } from '../../components/auth-provider';
+import { ThemeToggle } from '../../components/theme-toggle';
 
 function LoginForm() {
   const { login, user, loading } = useAuth();
@@ -38,59 +47,101 @@ function LoginForm() {
   return (
     <main className="login-page">
       <section className="login-intro" aria-labelledby="login-title">
-        <Link className="brand login-brand" href="/">
-          <span className="brand-mark" aria-hidden="true">
-            TM
-          </span>
-          Task Manager
-        </Link>
-        <div>
-          <p className="eyebrow">Your team, clearly aligned</p>
-          <h1 id="login-title">Make the next move obvious.</h1>
+        <BackgroundPattern
+          aria-hidden="true"
+          cellSize={28}
+          className="login-pattern"
+          spotlight={{ size: 540, persistent: true }}
+          track="window"
+          variant="grid"
+        />
+        <div className="login-topline">
+          <Link className="brand login-brand" href="/">
+            <span className="brand-mark" aria-hidden="true">
+              <LayoutKanban />
+            </span>
+            <span className="brand-copy">
+              <strong>Task Manager</strong>
+              <small>Team workspace</small>
+            </span>
+          </Link>
+          <ThemeToggle />
+        </div>
+        <div className="login-message">
+          <Badge size="sm" variant="secondary">
+            Built for focused teams
+          </Badge>
+          <h1 id="login-title">Move work forward, together.</h1>
           <p>
-            A self-hosted workspace for focused teams—clear ownership, flexible estimates, and
-            sprint history without the clutter.
+            Plan the sprint, clarify ownership, and keep every decision connected to the work.
           </p>
         </div>
         <p className="login-footnote">Open source · Docker-ready · Your data stays yours</p>
       </section>
+
       <section className="login-panel" aria-label="Sign in">
         <form className="form-card login-form" onSubmit={submit}>
-          <div>
-            <p className="section-label">Welcome back</p>
-            <h2>Sign in to your workspace</h2>
-            <p className="muted">Use the credentials provided by your administrator.</p>
+          <div className="login-heading">
+            <span className="form-icon" aria-hidden="true">
+              <LayoutKanban />
+            </span>
+            <div>
+              <h2>Welcome back</h2>
+              <p>Sign in to continue to your workspace.</p>
+            </div>
           </div>
-          <label>
-            Username
-            <input
+
+          <Field name="username">
+            <FieldLabel>Username</FieldLabel>
+            <Input
               autoComplete="username"
               autoFocus
               maxLength={64}
+              placeholder="Enter your username"
               required
+              startSlot={<User aria-hidden="true" />}
               value={username}
               onChange={(event) => setUsername(event.target.value)}
             />
-          </label>
-          <label>
-            Password
-            <input
+          </Field>
+
+          <Field name="password">
+            <FieldLabel>Password</FieldLabel>
+            <Input
               autoComplete="current-password"
               maxLength={200}
+              placeholder="Enter your password"
               required
+              startSlot={<Lock aria-hidden="true" />}
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
             />
-          </label>
+            <FieldDescription>Use the credentials provided by your administrator.</FieldDescription>
+          </Field>
+
           {error ? (
-            <p className="form-error" role="alert">
-              {error}
-            </p>
+            <Alert layout="inline" role="alert" variant="error">
+              <AlertIcon>
+                <AlertCircle aria-hidden="true" />
+              </AlertIcon>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           ) : null}
-          <button className="button primary wide" disabled={submitting || loading} type="submit">
-            {submitting ? 'Signing in…' : 'Sign in'}
-          </button>
+
+          <Button className="login-submit" disabled={submitting || loading} size="lg" type="submit">
+            {submitting ? (
+              <>
+                <Spinner currentColor aria-label="Signing in" />
+                Signing in…
+              </>
+            ) : (
+              <>
+                Sign in
+                <ArrowRight aria-hidden="true" />
+              </>
+            )}
+          </Button>
         </form>
       </section>
     </main>
@@ -99,7 +150,14 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<main className="session-loader">Loading sign in…</main>}>
+    <Suspense
+      fallback={
+        <main className="session-loader">
+          <Spinner aria-label="Loading sign in" />
+          Loading sign in…
+        </main>
+      }
+    >
       <LoginForm />
     </Suspense>
   );
