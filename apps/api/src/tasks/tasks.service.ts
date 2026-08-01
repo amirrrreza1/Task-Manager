@@ -5,8 +5,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
-import { assertEstimate } from '../common/estimate';
-import { estimateData } from '../common/dto/estimate.dto';
+import { assertEstimate, assertEstimateMatchesMode } from '../common/estimate';
+import { estimateData, type EstimateDto } from '../common/dto/estimate.dto';
 import { LocalFileStorage } from '../infrastructure/storage/local-file-storage.service';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import type { CreateSubtaskDto } from './dto/create-subtask.dto';
@@ -77,7 +77,7 @@ export class TasksService {
   async create(input: CreateTaskDto, actorId: string) {
     const title = input.title.trim();
     if (!title) throw new BadRequestException('Task title cannot be empty.');
-    assertEstimate(input.estimate);
+    await this.assertWorkspaceEstimate(input.estimate);
     const columnId = await this.resolveCreateColumnId(input.columnId, Boolean(input.sprintId));
     await this.assertReferences(columnId, input.assigneeIds ?? [], input.sprintId);
     const task = await this.prisma.$transaction(async (transaction) => {
@@ -112,7 +112,7 @@ export class TasksService {
     if (!existing) throw new NotFoundException('Task not found.');
     if (input.title !== undefined && !input.title.trim())
       throw new BadRequestException('Task title cannot be empty.');
-    assertEstimate(input.estimate);
+    await this.assertWorkspaceEstimate(input.estimate);
     if (input.assigneeIds !== undefined) await this.assertActiveUsers(input.assigneeIds);
     if (input.sprintId !== undefined) {
       await this.assertSprintMembershipChange(existing.sprintId, input.sprintId);
@@ -277,7 +277,7 @@ export class TasksService {
     });
     if (!task) throw new NotFoundException('Task not found.');
     if (!input.title.trim()) throw new BadRequestException('Subtask title cannot be empty.');
-    assertEstimate(input.estimate);
+    await this.assertWorkspaceEstimate(input.estimate);
     if (input.assigneeId) await this.assertActiveUsers([input.assigneeId]);
     const subtask = await this.prisma.$transaction(async (transaction) => {
       const maximum = await transaction.subtask.aggregate({
@@ -308,7 +308,7 @@ export class TasksService {
     if (!existing) throw new NotFoundException('Subtask not found.');
     if (input.title !== undefined && !input.title.trim())
       throw new BadRequestException('Subtask title cannot be empty.');
-    assertEstimate(input.estimate);
+    await this.assertWorkspaceEstimate(input.estimate);
     if (input.assigneeId) await this.assertActiveUsers([input.assigneeId]);
     const subtask = await this.prisma.$transaction(async (transaction) => {
       const updated = await transaction.subtask.update({
@@ -498,6 +498,16 @@ export class TasksService {
   private async assertTask(id: string) {
     if (!(await this.prisma.task.findUnique({ where: { id }, select: { id: true } })))
       throw new NotFoundException('Task not found.');
+  }
+
+  private async assertWorkspaceEstimate(estimate?: EstimateDto | null) {
+    assertEstimate(estimate);
+    if (!estimate) return;
+    const settings = await this.prisma.appSettings.findUniqueOrThrow({
+      where: { id: 'default' },
+      select: { estimateMode: true },
+    });
+    assertEstimateMatchesMode(estimate, settings.estimateMode);
   }
 
   private event(

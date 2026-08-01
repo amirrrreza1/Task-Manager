@@ -24,6 +24,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { Avatar } from '../../../../components/avatar';
 import { useAuth } from '../../../../components/auth-provider';
+import { formatDateTime } from '../../../../lib/app-config';
 import type {
   AppSettings,
   Attachment,
@@ -41,7 +42,6 @@ interface SubtaskForm {
   title: string;
   description: string;
   estimate: string;
-  estimateUnit: EstimateUnit;
   assigneeId: string;
 }
 
@@ -59,11 +59,12 @@ export default function TaskPage() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [estimate, setEstimate] = useState('');
-  const [estimateUnit, setEstimateUnit] = useState<EstimateUnit>('HOURS');
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [subtaskForm, setSubtaskForm] = useState<SubtaskForm | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const workspaceEstimateUnit: EstimateUnit =
+    settings?.estimateMode === 'POINTS' ? 'POINTS' : 'HOURS';
   const subtaskSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -88,9 +89,6 @@ export default function TaskPage() {
       setTitle(nextTask.title);
       setDescription(nextTask.description ?? '');
       setEstimate(nextTask.estimateValue?.toString() ?? '');
-      setEstimateUnit(
-        nextTask.estimateUnit ?? (nextSettings.estimateMode === 'TIME' ? 'HOURS' : 'POINTS'),
-      );
       setAssigneeIds(nextTask.assignees.map((item) => item.user.id));
       setError('');
     } catch (caught) {
@@ -113,7 +111,7 @@ export default function TaskPage() {
           description: description || null,
           assigneeIds,
           sprintId: sprintId || null,
-          estimate: estimate ? { value: Number(estimate), unit: estimateUnit } : null,
+          estimate: estimate ? { value: Number(estimate), unit: workspaceEstimateUnit } : null,
         }),
       });
       setEditing(false);
@@ -170,7 +168,7 @@ export default function TaskPage() {
             description: subtaskForm.description || null,
             assigneeId: subtaskForm.assigneeId || null,
             estimate: subtaskForm.estimate
-              ? { value: Number(subtaskForm.estimate), unit: subtaskForm.estimateUnit }
+              ? { value: Number(subtaskForm.estimate), unit: workspaceEstimateUnit }
               : null,
           }),
         },
@@ -307,9 +305,8 @@ export default function TaskPage() {
           </>
         )}
       </div>
-    );
+  );
   const completed = task.subtasks.filter((item) => item.isCompleted).length;
-  const defaultUnit: EstimateUnit = settings?.estimateMode === 'POINTS' ? 'POINTS' : 'HOURS';
 
   return (
     <div className="page-stack task-detail-page">
@@ -327,7 +324,7 @@ export default function TaskPage() {
           <h1>{task.title}</h1>
           <p className="muted">
             Created by {task.createdBy.displayName} · Updated{' '}
-            {new Date(task.updatedAt).toLocaleString()}
+            {formatDateTime(task.updatedAt)}
           </p>
         </div>
         <div className="header-actions">
@@ -377,7 +374,6 @@ export default function TaskPage() {
                     title: '',
                     description: '',
                     estimate: '',
-                    estimateUnit: defaultUnit,
                     assigneeId: '',
                   })
                 }
@@ -477,7 +473,6 @@ export default function TaskPage() {
                                 title: subtask.title,
                                 description: subtask.description ?? '',
                                 estimate: subtask.estimateValue?.toString() ?? '',
-                                estimateUnit: subtask.estimateUnit ?? defaultUnit,
                                 assigneeId: subtask.assigneeId ?? '',
                               })
                             }
@@ -634,29 +629,17 @@ export default function TaskPage() {
                   onChange={(event) => setDescription(event.target.value)}
                 />
               </label>
-              <div className="form-grid">
-                <label>
-                  Estimate
-                  <Input
-                    type="number"
-                    min={1}
-                    max={estimateUnit === 'HOURS' ? 8760 : 10000}
-                    value={estimate}
-                    onChange={(event) => setEstimate(event.target.value)}
-                    placeholder="Optional"
-                  />
-                </label>
-                <label>
-                  Unit
-                  <Select
-                    value={estimateUnit}
-                    onChange={(event) => setEstimateUnit(event.target.value as EstimateUnit)}
-                  >
-                    <option value="HOURS">Hours</option>
-                    <option value="POINTS">Points</option>
-                  </Select>
-                </label>
-              </div>
+              <label>
+                Estimate ({workspaceEstimateUnit === 'HOURS' ? 'hours' : 'points'})
+                <Input
+                  type="number"
+                  min={1}
+                  max={workspaceEstimateUnit === 'HOURS' ? 8760 : 10000}
+                  value={estimate}
+                  onChange={(event) => setEstimate(event.target.value)}
+                  placeholder="Optional"
+                />
+              </label>
               <label>
                 Sprint
                 <Select value={sprintId} onChange={(event) => setSprintId(event.target.value)}>
@@ -762,36 +745,19 @@ export default function TaskPage() {
                   ))}
                 </Select>
               </label>
-              <div className="form-grid">
-                <label>
-                  Estimate
-                  <Input
-                    type="number"
-                    min={1}
-                    max={subtaskForm.estimateUnit === 'HOURS' ? 8760 : 10000}
-                    value={subtaskForm.estimate}
-                    onChange={(event) =>
-                      setSubtaskForm({ ...subtaskForm, estimate: event.target.value })
-                    }
-                    placeholder="Optional"
-                  />
-                </label>
-                <label>
-                  Unit
-                  <Select
-                    value={subtaskForm.estimateUnit}
-                    onChange={(event) =>
-                      setSubtaskForm({
-                        ...subtaskForm,
-                        estimateUnit: event.target.value as EstimateUnit,
-                      })
-                    }
-                  >
-                    <option value="HOURS">Hours</option>
-                    <option value="POINTS">Points</option>
-                  </Select>
-                </label>
-              </div>
+              <label>
+                Estimate ({workspaceEstimateUnit === 'HOURS' ? 'hours' : 'points'})
+                <Input
+                  type="number"
+                  min={1}
+                  max={workspaceEstimateUnit === 'HOURS' ? 8760 : 10000}
+                  value={subtaskForm.estimate}
+                  onChange={(event) =>
+                    setSubtaskForm({ ...subtaskForm, estimate: event.target.value })
+                  }
+                  placeholder="Optional"
+                />
+              </label>
               <footer>
                 <Button variant="ghost" type="button" onClick={() => setSubtaskForm(null)}>
                   Cancel
