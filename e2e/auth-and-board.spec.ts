@@ -12,5 +12,5 @@ test('admin can sign in and reach board', async ({ page }) => {
   await page.getByRole('button', { name: 'Sign in' }).click();
 
   await expect(page).toHaveURL(/\/board$/);
-  await expect(page.getByRole('heading', { name: 'Make the work visible.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Board' })).toBeVisible();
 });

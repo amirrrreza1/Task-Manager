@@ -160,9 +160,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                 <Button disabled={avatarBusy} onClick={() => void removeAvatar()} type="button" variant="ghost">
                   Use initial
                 </Button>
-              ) : (
-                <small className="muted">No photo yet — showing the first letter of your name.</small>
-              )}
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -212,7 +210,6 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
             </div>
           </section>
           <footer className="settings-footer">
-            <span>Credentials are never shown or stored in plain text.</span>
             <Button disabled={saving} type="submit" variant="primary">
               {saving ? 'Changing…' : 'Change password'}
             </Button>

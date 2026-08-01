@@ -114,11 +114,7 @@ function UsersAdmin() {
     <div className="page-stack people-page">
       <header className="page-header compact-header">
         <div>
-          <p className="eyebrow">Administration</p>
-          <h1>People &amp; access</h1>
-          <p className="muted">
-            Create accounts, rotate credentials, and control workspace access.
-          </p>
+          <h1>People</h1>
         </div>
         <Button variant="primary" onClick={() => setCreateOpen(true)} type="button">
           Add member
@@ -197,9 +193,7 @@ function UsersAdmin() {
                     {user.isActive ? 'Deactivate' : 'Reactivate'}
                   </Button>
                 </>
-              ) : (
-                <span className="env-note">Protected by environment</span>
-              )}
+              ) : null}
             </div>
           </article>
         ))}
@@ -258,7 +252,6 @@ function UsersAdmin() {
                     setCreateForm({ ...createForm, password: event.target.value })
                   }
                 />
-                <small>At least 12 characters. Share it securely.</small>
               </label>
               <footer>
                 <Button variant="ghost" onClick={() => setCreateOpen(false)} type="button">

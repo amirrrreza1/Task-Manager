@@ -88,11 +88,13 @@ function useAvatarSrc(userId: string | undefined, hasAvatar: boolean | undefined
 export function Avatar({
   name,
   size = 42,
+  initialsSize,
   userId,
   hasAvatar = false,
 }: {
   name: string;
   size?: number;
+  initialsSize?: number;
   userId?: string;
   hasAvatar?: boolean;
 }) {
@@ -100,7 +102,7 @@ export function Avatar({
   const style = {
     width: size,
     height: size,
-    fontSize: Math.max(16, Math.round(size * 0.6)),
+    fontSize: initialsSize ?? Math.max(16, Math.round(size * 0.6)),
   } as CSSProperties;
 
   return (

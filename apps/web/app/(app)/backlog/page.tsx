@@ -102,12 +102,7 @@ export default function BacklogPage() {
     <div className="page-stack backlog-page">
       <header className="page-header compact-header">
         <div>
-          <p className="eyebrow">Product backlog</p>
-          <h1>Capture work before it hits the board.</h1>
-          <p className="muted">
-            New tasks start here. Open a task to move it onto the workflow board or assign it to a
-            sprint.
-          </p>
+          <h1>Backlog</h1>
         </div>
         <div className="header-actions">
           <Button

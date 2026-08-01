@@ -113,7 +113,6 @@ export default function MemberReportPage({ params }: { params: Promise<{ id: str
                 />
                 <h1>{report.user.displayName}</h1>
               </div>
-              <p className="muted">Subtask completion and estimate summary.</p>
             </>
           ) : (
             <h1>Member report</h1>

@@ -2,7 +2,7 @@
 
 import { Button, Input, Modal, Select } from '../../../../components/design-system';
 
-import { FormEvent, type PropsWithChildren, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   closestCenter,
   DndContext,
@@ -156,12 +156,7 @@ function BoardSettings() {
     <div className="page-stack settings-layout">
       <header className="page-header compact-header">
         <div>
-          <p className="eyebrow">Administration</p>
-          <h1>Board workflow</h1>
-          <p className="muted">
-            To Do and Done are fixed endpoints. Drag the columns between them to shape your
-            team&apos;s workflow.
-          </p>
+          <h1>Workflow</h1>
         </div>
         <Button
           variant="primary"
@@ -185,36 +180,23 @@ function BoardSettings() {
           items={reorderableColumns.map((column) => `column:${column.id}`)}
           strategy={verticalListSortingStrategy}
         >
-          <section className="workflow-settings" aria-label="Board workflow">
+          <section className="workflow-settings" aria-label="Workflow settings">
             {todoColumn ? <WorkflowEndpoint column={todoColumn} position="start" /> : null}
             <div className="workflow-reorder-zone">
               <header className="workflow-reorder-header">
                 <div>
                   <p className="section-label">Your workflow</p>
-                  <h2>Drag columns to reorder</h2>
                 </div>
-                <span className="workflow-drag-hint">Drag &amp; drop</span>
               </header>
               <div
                 className="column-settings-list"
-                aria-describedby="workflow-reorder-help"
                 aria-label="Reorderable workflow columns"
               >
-                {reorderableColumns.map((column, index) => (
-                  <SortableColumnShell
-                    id={column.id}
-                    name={column.name}
-                    disabled={busy}
-                    key={column.id}
-                  >
+                {reorderableColumns.map((column) => (
+                  <SortableColumnShell id={column.id} disabled={busy} key={column.id}>
+                    {({ dragAttributes, dragListeners, setActivatorNodeRef }) => (
                     <article
                       className="column-settings-row"
-                      onPointerDown={(event) => {
-                        const target = event.target as HTMLElement;
-                        if (target.closest('button, input, select, label, a')) {
-                          event.stopPropagation();
-                        }
-                      }}
                     >
                       <span
                         className="column-color-large"
@@ -223,11 +205,7 @@ function BoardSettings() {
                       />
                       <div>
                         <strong>{column.name}</strong>
-                        <small>Workflow position {index + 1}</small>
                       </div>
-                      <span className="workflow-drag-handle" aria-hidden="true">
-                        ::
-                      </span>
                       <div className="row-actions">
                         <Button
                           variant="ghost"
@@ -257,7 +235,20 @@ function BoardSettings() {
                           Delete
                         </Button>
                       </div>
+                      <button
+                        aria-label={`Drag ${column.name} to reorder`}
+                        className="workflow-drag-handle"
+                        disabled={busy}
+                        ref={setActivatorNodeRef}
+                        title={`Drag ${column.name} to reorder`}
+                        type="button"
+                        {...dragAttributes}
+                        {...dragListeners}
+                      >
+                        <span className="workflow-drag-handle-dots" aria-hidden="true" />
+                      </button>
                     </article>
+                    )}
                   </SortableColumnShell>
                 ))}
                 {reorderableColumns.length === 0 ? (
@@ -266,18 +257,11 @@ function BoardSettings() {
                   </p>
                 ) : null}
               </div>
-              <p className="workflow-reorder-help" id="workflow-reorder-help">
-                Drag a workflow column anywhere within this area to change its position.
-              </p>
             </div>
             {doneColumn ? <WorkflowEndpoint column={doneColumn} position="end" /> : null}
           </section>
         </SortableContext>
       </DndContext>
-      <p className="settings-note">
-        To Do is always first and Done is always last. Both are locked. New columns are added
-        to the middle area, and tasks in a deleted column move to the destination you select.
-      </p>
 
       {form ? (
         <Modal
@@ -391,7 +375,6 @@ function WorkflowEndpoint({
   column: BoardColumn;
   position: 'start' | 'end';
 }) {
-  const isStart = position === 'start';
   return (
     <article className={`workflow-endpoint workflow-endpoint--${position}`}>
       <div className="workflow-endpoint-heading">
@@ -402,14 +385,7 @@ function WorkflowEndpoint({
         />
         <div>
           <strong>{column.name}</strong>
-          <small>{isStart ? 'First workflow column' : 'Final workflow column'}</small>
         </div>
-      </div>
-      <div className="workflow-endpoint-status">
-        <span className={`status-pill${isStart ? '' : ' done'}`}>
-          {isStart ? 'To Do' : 'Done'}
-        </span>
-        <span className="fixed-column-label">Locked endpoint</span>
       </div>
     </article>
   );
@@ -417,11 +393,26 @@ function WorkflowEndpoint({
 
 function SortableColumnShell({
   id,
-  name,
   disabled,
   children,
-}: PropsWithChildren<{ id: string; name: string; disabled: boolean }>) {
-  const { attributes, isDragging, listeners, setNodeRef, transform, transition } = useSortable({
+}: {
+  id: string;
+  disabled: boolean;
+  children: (handle: {
+    dragAttributes: Partial<Omit<ReturnType<typeof useSortable>['attributes'], 'role'>>;
+    dragListeners: ReturnType<typeof useSortable>['listeners'];
+    setActivatorNodeRef: ReturnType<typeof useSortable>['setActivatorNodeRef'];
+  }) => ReactNode;
+}) {
+  const {
+    attributes,
+    isDragging,
+    listeners,
+    setActivatorNodeRef,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({
     id: `column:${id}`,
     disabled,
   });
@@ -432,15 +423,12 @@ function SortableColumnShell({
       ref={setNodeRef}
       className={`sortable-column-shell column-settings-row--draggable ${isDragging ? 'is-dragging' : ''}`}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      title={disabled ? undefined : `Drag ${name}`}
-      aria-label={
-        disabled
-          ? undefined
-          : `Column ${name}. Drag from anywhere on the row to reorder. Use arrow keys while dragging to choose a position.`
-      }
-      {...(disabled ? {} : { ...columnDragAttributes, ...listeners })}
     >
-      {children}
+      {children({
+        dragAttributes: disabled ? {} : columnDragAttributes,
+        dragListeners: disabled ? {} : listeners,
+        setActivatorNodeRef,
+      })}
     </div>
   );
 }

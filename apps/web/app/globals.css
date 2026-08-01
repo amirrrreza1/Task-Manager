@@ -20,6 +20,7 @@
   --danger: var(--error-emphasis);
   --warning: var(--warning-emphasis);
   --success: var(--success-emphasis);
+  --board-task-card-height: 148px;
 }
 
 * {
@@ -253,7 +254,7 @@ label:not([data-slot='field-label']) small {
   place-items: center;
   overflow: hidden;
   border: 2px solid rgba(255, 255, 255, 0.11);
-  border-radius: 34% 66% 58% 42% / 44% 39% 61% 56%;
+  border-radius: 50%;
   background: var(--accent);
   box-shadow: inset 0 0 20px rgba(255, 255, 255, 0.09);
   color: #fff;
@@ -648,8 +649,12 @@ label:not([data-slot='field-label']) small {
 
 .carry-over { display: grid; gap: 15px; max-width: 760px; }
 .carry-over > p { margin: -8px 0 0; }
+.carry-work-group { display: grid; gap: 4px; }
+.carry-work-group h3 { margin: 0; font-size: 0.82rem; color: var(--muted); }
 .carry-items { display: grid; gap: 8px; }
 .carry-items label { display: flex; align-items: center; gap: 9px; padding: 9px 0; color: var(--text); }
+.carry-items label > span { display: grid; gap: 2px; }
+.carry-items label small { color: var(--faint); font-size: 0.75rem; font-weight: 500; }
 .carry-items input { width: 17px; min-height: 17px; accent-color: var(--accent); }
 
 .sprint-planner { width: min(720px, calc(100vw - 32px)); }
@@ -819,7 +824,7 @@ label:not([data-slot='field-label']) small {
 
 .empty-column {
   display: grid;
-  min-height: 110px;
+  height: var(--board-task-card-height);
   place-items: center;
   border: 1px dashed var(--border);
   border-radius: 10px;
@@ -1064,11 +1069,6 @@ label:not([data-slot='field-label']) small {
   gap: 7px;
 }
 
-.env-note {
-  color: var(--faint);
-  font-size: 0.72rem;
-}
-
 .empty-state {
   margin: 0;
   padding: 40px;
@@ -1097,7 +1097,7 @@ label:not([data-slot='field-label']) small {
 }
 
 .modal > header {
-  padding: 24px 26px 0;
+  padding: 24px 26px 18px;
 }
 
 .modal h2 {
@@ -1220,19 +1220,22 @@ label.check-field {
   text-transform: uppercase;
 }
 .task-column-body {
+  position: relative;
   display: grid;
   min-height: 76px;
   align-content: start;
   gap: 10px;
   padding-top: 7px;
   border-radius: 10px;
-  transition:
-    background 150ms ease,
-    box-shadow 150ms ease;
 }
-.task-column-body.is-drop-target {
-  background: rgba(102, 217, 166, 0.055);
-  box-shadow: inset 0 0 0 1px rgba(102, 217, 166, 0.38);
+.task-drop-placeholder {
+  height: var(--board-task-card-height);
+  min-height: var(--board-task-card-height);
+  border: 1px dashed rgba(102, 217, 166, 0.7);
+  border-radius: 12px;
+  background: rgba(102, 217, 166, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(102, 217, 166, 0.12);
+  pointer-events: none;
 }
 .sortable-task-shell {
   position: relative;
@@ -1240,19 +1243,7 @@ label.check-field {
   z-index: 0;
 }
 .sortable-task-shell.is-dragging {
-  z-index: 1;
-  opacity: 1;
-  border-style: dashed;
-  border-color: rgba(102, 217, 166, 0.55);
-  background: rgba(102, 217, 166, 0.08);
-  box-shadow: none;
-  transform: none !important;
-}
-.sortable-task-shell.is-dragging > * {
-  opacity: 0;
-}
-.sortable-task-shell.is-dragging.task-card:hover {
-  transform: none;
+  visibility: hidden;
 }
 .task-card--draggable {
   cursor: grab;
@@ -1267,6 +1258,7 @@ label.check-field {
 }
 .task-card--overlay {
   width: min(280px, 78vw);
+  height: var(--board-task-card-height);
   cursor: grabbing;
   border-color: var(--accent);
   box-shadow:
@@ -1304,7 +1296,7 @@ label.check-field {
 }
 .task-card-main {
   display: grid;
-  height: 148px;
+  height: var(--board-task-card-height);
   box-sizing: border-box;
   align-content: start;
   grid-template-rows: auto 2.34em auto;
@@ -1619,9 +1611,9 @@ label.check-field {
 
 .workflow-settings {
   display: grid;
-  grid-template-columns: minmax(10rem, 0.8fr) minmax(20rem, 1.7fr) minmax(10rem, 0.8fr);
+  grid-template-columns: 1fr;
   align-items: stretch;
-  gap: clamp(1rem, 2.5vw, 2.25rem);
+  gap: clamp(0.85rem, 1.8vw, 1.25rem);
 }
 .workflow-endpoint,
 .workflow-reorder-zone {
@@ -1631,11 +1623,13 @@ label.check-field {
 }
 .workflow-endpoint {
   display: flex;
-  min-height: 100%;
-  flex-direction: column;
-  justify-content: center;
-  padding: 20px;
-  gap: 22px;
+  min-height: 0;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  gap: 14px 22px;
 }
 .workflow-endpoint-heading {
   display: grid;
@@ -1652,12 +1646,6 @@ label.check-field {
   color: var(--faint);
   font-size: 0.75rem;
   line-height: 1.45;
-}
-.workflow-endpoint-status {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
 }
 .workflow-reorder-zone {
   padding: 14px;
@@ -1678,17 +1666,6 @@ label.check-field {
 .workflow-reorder-header h2 {
   margin: 0;
   font-size: 1rem;
-}
-.workflow-drag-hint {
-  flex: 0 0 auto;
-  padding: 5px 8px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
-  color: var(--accent-strong);
-  font-size: 0.7rem;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 .workflow-reorder-zone .column-settings-list {
   border-color: color-mix(in srgb, var(--accent) 22%, var(--border));
@@ -1725,13 +1702,6 @@ label.check-field {
   background: var(--surface-2);
   box-shadow: 0 14px 34px rgba(0, 0, 0, 0.24);
 }
-.column-settings-row--draggable {
-  cursor: grab;
-  touch-action: none;
-}
-.column-settings-row--draggable:active {
-  cursor: grabbing;
-}
 .column-settings-row {
   display: grid;
   min-height: 78px;
@@ -1741,10 +1711,38 @@ label.check-field {
   gap: 14px;
 }
 .workflow-drag-handle {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
   color: var(--faint);
-  font-size: 1.3rem;
-  letter-spacing: -0.15em;
-  line-height: 1;
+  cursor: grab;
+  touch-action: none;
+}
+.workflow-drag-handle:hover {
+  background: var(--surface-2);
+  color: var(--muted);
+}
+.workflow-drag-handle:active {
+  cursor: grabbing;
+}
+.workflow-drag-handle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.workflow-drag-handle:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.workflow-drag-handle-dots {
+  width: 14px;
+  height: 18px;
+  background-image: radial-gradient(circle, currentColor 1.4px, transparent 1.6px);
+  background-position: 0 0;
+  background-size: 7px 6px;
 }
 .column-color-large {
   width: 13px;
@@ -2108,10 +2106,6 @@ label.check-field {
   .board-filters {
     grid-template-columns: 1fr 1fr 1fr;
   }
-  .workflow-settings {
-    grid-template-columns: minmax(9rem, 0.75fr) minmax(17rem, 1.5fr) minmax(9rem, 0.75fr);
-    gap: 14px;
-  }
   .board-search {
     grid-column: span 2;
   }
@@ -2186,13 +2180,11 @@ label.check-field {
   }
 
   .workflow-settings {
-    grid-template-columns: 1fr;
     gap: 12px;
   }
 
   .workflow-endpoint {
-    min-height: 0;
-    padding: 16px;
+    padding: 14px 16px;
   }
 
   .people-toolbar {
@@ -2718,6 +2710,13 @@ label:not([data-slot='field-label']) {
 .brand-mark svg {
   width: 1.15rem;
   height: 1.15rem;
+}
+
+.brand-mark img {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
 }
 
 .brand-copy {

@@ -59,9 +59,7 @@ function GeneralSettings() {
     <div className="settings-layout">
       <header className="page-header compact-header">
         <div>
-          <p className="eyebrow">Administration</p>
-          <h1>Planning defaults</h1>
-          <p className="muted">Set the language your team uses for estimates and sprint cadence.</p>
+          <h1>Planning</h1>
         </div>
       </header>
 
@@ -121,7 +119,6 @@ function GeneralSettings() {
           </p>
         ) : null}
         <footer className="settings-footer">
-          <span>{settings ? `Revision ${settings.revision}` : 'Loading settings…'}</span>
           <Button variant="primary" disabled={!settings || saving} type="submit">
             {saving ? 'Saving…' : 'Save changes'}
           </Button>
