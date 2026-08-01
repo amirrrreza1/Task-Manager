@@ -9,6 +9,7 @@ import { Prisma, SprintStatus, UserRole } from '@prisma/client';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import type { CarryOverDto } from './dto/carry-over.dto';
+import type { ResolveSprintWorkDto } from './dto/resolve-sprint-work.dto';
 import type { AssignSprintTasksDto } from './dto/assign-sprint-tasks.dto';
 import type { AssignSprintSubtasksDto } from './dto/assign-sprint-subtasks.dto';
 import type { CommentDto } from './dto/comment.dto';
@@ -80,6 +81,14 @@ export class SprintsService {
           orderBy: { title: 'asc' },
           include: { task: { select: { sprintId: true } } },
         },
+        subtaskSnapshots: {
+          orderBy: [{ taskTitle: 'asc' }, { title: 'asc' }],
+          include: {
+            subtask: {
+              select: { sprintId: true, task: { select: { sprintId: true } } },
+            },
+          },
+        },
         comments: {
           take: 50,
           orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
@@ -96,6 +105,14 @@ export class SprintsService {
       taskSnapshots: sprint.taskSnapshots.map(({ task, ...snapshot }) => ({
         ...snapshot,
         canCarryOver: !snapshot.wasDone && snapshot.taskId !== null && task?.sprintId === id,
+      })),
+      subtaskSnapshots: sprint.subtaskSnapshots.map(({ subtask, ...snapshot }) => ({
+        ...snapshot,
+        canCarryOver:
+          !snapshot.wasDone &&
+          snapshot.subtaskId !== null &&
+          (subtask?.sprintId === id ||
+            (subtask?.sprintId === null && subtask.task.sprintId === id)),
       })),
       outcomes,
     };
@@ -151,7 +168,10 @@ export class SprintsService {
 
   async assignTasks(id: string, input: AssignSprintTasksDto, actorId: string) {
     return this.prisma.$transaction(async (transaction) => {
-      const target = await transaction.sprint.findUnique({ where: { id }, select: { status: true } });
+      const target = await transaction.sprint.findUnique({
+        where: { id },
+        select: { status: true },
+      });
       if (!target) throw new NotFoundException('Sprint not found.');
       this.assertSprintAcceptsWork(target.status);
       const tasks = await transaction.task.findMany({
@@ -196,14 +216,19 @@ export class SprintsService {
           data: { sprintId: id, columnId: todoColumnId, position },
         });
       }
-      await this.event(transaction, 'sprint.tasks_assigned', id, actorId, { taskIds: input.taskIds });
+      await this.event(transaction, 'sprint.tasks_assigned', id, actorId, {
+        taskIds: input.taskIds,
+      });
       return { assigned: input.taskIds.length };
     });
   }
 
   async assignSubtasks(id: string, input: AssignSprintSubtasksDto, actorId: string) {
     return this.prisma.$transaction(async (transaction) => {
-      const target = await transaction.sprint.findUnique({ where: { id }, select: { status: true } });
+      const target = await transaction.sprint.findUnique({
+        where: { id },
+        select: { status: true },
+      });
       if (!target) throw new NotFoundException('Sprint not found.');
       this.assertSprintAcceptsWork(target.status);
       const subtasks = await transaction.subtask.findMany({
@@ -272,11 +297,14 @@ export class SprintsService {
       if (!sprint) throw new NotFoundException('Sprint not found.');
       if (sprint.status !== SprintStatus.PLANNED)
         throw new ConflictException('Only planned sprints can be started.');
-      const settings = await transaction.appSettings.findUniqueOrThrow({ where: { id: 'default' } });
+      const settings = await transaction.appSettings.findUniqueOrThrow({
+        where: { id: 'default' },
+      });
       const endsAt = input.endsAt
         ? this.date(input.endsAt, 'end date')
         : new Date(startsAt.getTime() + settings.sprintDurationDays * 86_400_000);
-      if (endsAt <= startsAt) throw new BadRequestException('The sprint end date must be after start.');
+      if (endsAt <= startsAt)
+        throw new BadRequestException('The sprint end date must be after start.');
       const active = await transaction.sprint.findFirst({
         where: { status: SprintStatus.ACTIVE },
         select: { id: true },
@@ -295,7 +323,15 @@ export class SprintsService {
     return this.prisma.$transaction(async (transaction) => {
       const sprint = await transaction.sprint.findUnique({
         where: { id },
-        include: { tasks: { include: { column: { select: { name: true, isDone: true } } } } },
+        include: {
+          tasks: {
+            include: {
+              column: { select: { name: true, isDone: true } },
+              subtasks: true,
+            },
+          },
+          subtasks: { include: { task: { select: { title: true } } } },
+        },
       });
       if (!sprint) throw new NotFoundException('Sprint not found.');
       if (sprint.status !== SprintStatus.ACTIVE)
@@ -315,6 +351,88 @@ export class SprintsService {
           })),
         });
       }
+      const subtasks = new Map<
+        string,
+        {
+          id: string;
+          taskId: string;
+          taskTitle: string;
+          title: string;
+          estimateValue: number | null;
+          estimateUnit: 'HOURS' | 'POINTS' | null;
+          isCompleted: boolean;
+        }
+      >();
+      for (const task of sprint.tasks) {
+        for (const subtask of task.subtasks) {
+          subtasks.set(subtask.id, { ...subtask, taskTitle: task.title });
+        }
+      }
+      for (const subtask of sprint.subtasks) {
+        subtasks.set(subtask.id, { ...subtask, taskTitle: subtask.task.title });
+      }
+      if (subtasks.size) {
+        await transaction.sprintSubtaskSnapshot.createMany({
+          data: Array.from(subtasks.values()).map((subtask) => ({
+            sprintId: id,
+            subtaskId: subtask.id,
+            taskId: subtask.taskId,
+            taskTitle: subtask.taskTitle,
+            title: subtask.title,
+            estimateValue: subtask.estimateValue,
+            estimateUnit: subtask.estimateUnit,
+            wasDone: subtask.isCompleted,
+            completedAt,
+          })),
+        });
+      }
+      const unfinishedTaskIds = sprint.tasks
+        .filter((task) => !task.column.isDone)
+        .map((task) => task.id);
+      const unfinishedSubtasks = Array.from(subtasks.values()).filter(
+        (subtask) => !subtask.isCompleted,
+      );
+      const unfinishedSubtaskIds = unfinishedSubtasks.map((subtask) => subtask.id);
+      const standaloneSubtaskIds = unfinishedSubtasks
+        .filter((subtask) => !unfinishedTaskIds.includes(subtask.taskId))
+        .map((subtask) => subtask.id);
+
+      if (unfinishedTaskIds.length || standaloneSubtaskIds.length) {
+        const columns = await transaction.boardColumn.findMany({
+          select: { id: true, isBacklog: true, position: true },
+          orderBy: { position: 'asc' },
+        });
+        const backlogColumnId = pickBacklogColumnId(columns);
+        if (!backlogColumnId)
+          throw new BadRequestException('The backlog column is not configured.');
+
+        const maximum = await transaction.task.aggregate({
+          where: { columnId: backlogColumnId },
+          _max: { position: true },
+        });
+        let position = Number(maximum._max.position ?? 0);
+        for (const taskId of unfinishedTaskIds) {
+          position += 1024;
+          await transaction.subtask.updateMany({
+            where: { taskId, isCompleted: false },
+            data: { sprintId: null, columnId: backlogColumnId },
+          });
+          await transaction.task.update({
+            where: { id: taskId },
+            data: { sprintId: null, columnId: backlogColumnId, position },
+          });
+        }
+        if (standaloneSubtaskIds.length) {
+          await transaction.subtask.updateMany({
+            where: { id: { in: standaloneSubtaskIds } },
+            data: { sprintId: null, columnId: backlogColumnId },
+          });
+          await transaction.sprintSubtaskSnapshot.updateMany({
+            where: { sprintId: id, subtaskId: { in: standaloneSubtaskIds } },
+            data: { subtaskId: null },
+          });
+        }
+      }
       const updated = await transaction.sprint.update({
         where: { id },
         data: { status: SprintStatus.COMPLETED, completedAt },
@@ -323,18 +441,26 @@ export class SprintsService {
         completedAt,
         totalTasks: sprint.tasks.length,
         completedTasks: sprint.tasks.filter((task) => task.column.isDone).length,
+        totalSubtasks: subtasks.size,
+        completedSubtasks: subtasks.size - unfinishedSubtaskIds.length,
       });
       return updated;
     });
   }
 
   async carryOver(id: string, input: CarryOverDto, actorId: string) {
+    const taskIds = input.taskIds ?? [];
+    const subtaskIds = input.subtaskIds ?? [];
+    this.assertWorkSelected(taskIds, subtaskIds);
     if (id === input.targetSprintId)
       throw new BadRequestException('Choose a different planned sprint for carry-over.');
     return this.prisma.$transaction(async (transaction) => {
       const [source, target] = await Promise.all([
         transaction.sprint.findUnique({ where: { id }, select: { status: true } }),
-        transaction.sprint.findUnique({ where: { id: input.targetSprintId }, select: { status: true } }),
+        transaction.sprint.findUnique({
+          where: { id: input.targetSprintId },
+          select: { status: true },
+        }),
       ]);
       if (!source) throw new NotFoundException('Source sprint not found.');
       if (!target) throw new BadRequestException('Target sprint not found.');
@@ -342,18 +468,40 @@ export class SprintsService {
         throw new ConflictException('Carry-over is available after a sprint is completed.');
       if (target.status !== SprintStatus.PLANNED)
         throw new BadRequestException('Carry-over target must be a planned sprint.');
-      const snapshots = await transaction.sprintTaskSnapshot.findMany({
-        where: { sprintId: id, taskId: { in: input.taskIds }, wasDone: false },
-        select: { taskId: true },
-      });
-      if (snapshots.length !== input.taskIds.length)
-        throw new BadRequestException('Select unfinished tasks from this sprint only.');
-      const tasks = await transaction.task.findMany({
-        where: { id: { in: input.taskIds }, sprintId: id },
-        select: { id: true, columnId: true },
-      });
-      if (tasks.length !== input.taskIds.length)
-        throw new ConflictException('One or more tasks have already been moved or removed.');
+      const [taskSnapshots, subtaskSnapshots] = await Promise.all([
+        transaction.sprintTaskSnapshot.findMany({
+          where: { sprintId: id, taskId: { in: taskIds }, wasDone: false },
+          select: { taskId: true },
+        }),
+        transaction.sprintSubtaskSnapshot.findMany({
+          where: { sprintId: id, subtaskId: { in: subtaskIds }, wasDone: false },
+          select: { subtaskId: true },
+        }),
+      ]);
+      if (taskSnapshots.length !== taskIds.length || subtaskSnapshots.length !== subtaskIds.length)
+        throw new BadRequestException('Select unfinished work from this sprint only.');
+      const [tasks, subtasks] = await Promise.all([
+        transaction.task.findMany({
+          where: { id: { in: taskIds }, sprintId: id },
+          select: { id: true, columnId: true },
+        }),
+        transaction.subtask.findMany({
+          where: {
+            id: { in: subtaskIds },
+            isCompleted: false,
+            OR: [{ sprintId: id }, { sprintId: null, task: { is: { sprintId: id } } }],
+          },
+          select: { id: true, taskId: true, columnId: true },
+        }),
+      ]);
+      if (tasks.length !== taskIds.length || subtasks.length !== subtaskIds.length)
+        throw new ConflictException(
+          'One or more selected items have already been moved or removed.',
+        );
+      const selectedTaskIds = new Set(tasks.map((task) => task.id));
+      const standaloneSubtaskIds = subtasks
+        .filter((subtask) => !selectedTaskIds.has(subtask.taskId))
+        .map((subtask) => subtask.id);
       const columns = await transaction.boardColumn.findMany({
         select: { id: true, isBacklog: true, isTodo: true, isDone: true, position: true },
         orderBy: { position: 'asc' },
@@ -376,35 +524,77 @@ export class SprintsService {
           data: { sprintId: input.targetSprintId, columnId: todoColumnId, position },
         });
       }
-      await this.event(transaction, 'sprint.tasks_carried_over', id, actorId, {
-        taskIds: input.taskIds,
+      if (standaloneSubtaskIds.length) {
+        await transaction.subtask.updateMany({
+          where: { id: { in: standaloneSubtaskIds } },
+          data: { sprintId: input.targetSprintId, columnId: todoColumnId },
+        });
+      }
+      await this.event(transaction, 'sprint.work_carried_over', id, actorId, {
+        taskIds,
+        subtaskIds: standaloneSubtaskIds,
         targetSprintId: input.targetSprintId,
       });
-      return { moved: tasks.length, targetSprintId: input.targetSprintId };
+      return {
+        moved: tasks.length + standaloneSubtaskIds.length,
+        movedTasks: tasks.length,
+        movedSubtasks: standaloneSubtaskIds.length,
+        targetSprintId: input.targetSprintId,
+      };
     });
   }
 
-  async moveToBacklog(id: string, taskIds: string[], actorId: string) {
+  async moveToBacklog(id: string, input: ResolveSprintWorkDto, actorId: string) {
+    const taskIds = input.taskIds ?? [];
+    const subtaskIds = input.subtaskIds ?? [];
+    this.assertWorkSelected(taskIds, subtaskIds);
     return this.prisma.$transaction(async (transaction) => {
-      const source = await transaction.sprint.findUnique({ where: { id }, select: { status: true } });
+      const source = await transaction.sprint.findUnique({
+        where: { id },
+        select: { status: true },
+      });
       if (!source) throw new NotFoundException('Source sprint not found.');
       if (source.status !== SprintStatus.COMPLETED)
-        throw new ConflictException('Moving work to the backlog is available after a sprint is completed.');
+        throw new ConflictException(
+          'Moving work to the backlog is available after a sprint is completed.',
+        );
 
-      const snapshots = await transaction.sprintTaskSnapshot.findMany({
-        where: { sprintId: id, taskId: { in: taskIds }, wasDone: false },
-        select: { taskId: true },
-      });
-      if (snapshots.length !== taskIds.length)
-        throw new BadRequestException('Select unfinished tasks from this sprint only.');
+      const [taskSnapshots, subtaskSnapshots] = await Promise.all([
+        transaction.sprintTaskSnapshot.findMany({
+          where: { sprintId: id, taskId: { in: taskIds }, wasDone: false },
+          select: { taskId: true },
+        }),
+        transaction.sprintSubtaskSnapshot.findMany({
+          where: { sprintId: id, subtaskId: { in: subtaskIds }, wasDone: false },
+          select: { subtaskId: true },
+        }),
+      ]);
+      if (taskSnapshots.length !== taskIds.length || subtaskSnapshots.length !== subtaskIds.length)
+        throw new BadRequestException('Select unfinished work from this sprint only.');
 
-      const tasks = await transaction.task.findMany({
-        where: { id: { in: taskIds }, sprintId: id },
-        select: { id: true, columnId: true },
-      });
-      if (tasks.length !== taskIds.length)
-        throw new ConflictException('One or more tasks have already been moved or removed.');
+      const [tasks, subtasks] = await Promise.all([
+        transaction.task.findMany({
+          where: { id: { in: taskIds }, sprintId: id },
+          select: { id: true, columnId: true },
+        }),
+        transaction.subtask.findMany({
+          where: {
+            id: { in: subtaskIds },
+            isCompleted: false,
+            OR: [{ sprintId: id }, { sprintId: null, task: { is: { sprintId: id } } }],
+          },
+          select: { id: true, taskId: true, columnId: true },
+        }),
+      ]);
+      if (tasks.length !== taskIds.length || subtasks.length !== subtaskIds.length)
+        throw new ConflictException(
+          'One or more selected items have already been moved or removed.',
+        );
 
+      const selectedTaskIds = new Set(tasks.map((task) => task.id));
+      const standaloneSubtaskIds = subtasks
+        .filter((subtask) => !selectedTaskIds.has(subtask.taskId))
+        .map((subtask) => subtask.id);
       const columns = await transaction.boardColumn.findMany({
         select: { id: true, isBacklog: true, position: true },
         orderBy: { position: 'asc' },
@@ -428,8 +618,28 @@ export class SprintsService {
           data: { sprintId: null, columnId: backlogColumnId, position },
         });
       }
-      await this.event(transaction, 'sprint.tasks_moved_to_backlog', id, actorId, { taskIds });
-      return { moved: tasks.length };
+      if (standaloneSubtaskIds.length) {
+        await transaction.subtask.updateMany({
+          where: { id: { in: standaloneSubtaskIds } },
+          data: { sprintId: null, columnId: backlogColumnId },
+        });
+        // A standalone subtask that returns to the backlog still has its parent task
+        // in this completed sprint. Clearing this live reference marks it as resolved
+        // without changing the historical snapshot itself.
+        await transaction.sprintSubtaskSnapshot.updateMany({
+          where: { sprintId: id, subtaskId: { in: standaloneSubtaskIds } },
+          data: { subtaskId: null },
+        });
+      }
+      await this.event(transaction, 'sprint.work_moved_to_backlog', id, actorId, {
+        taskIds,
+        subtaskIds: standaloneSubtaskIds,
+      });
+      return {
+        moved: tasks.length + standaloneSubtaskIds.length,
+        movedTasks: tasks.length,
+        movedSubtasks: standaloneSubtaskIds.length,
+      };
     });
   }
 
@@ -456,7 +666,9 @@ export class SprintsService {
         data: { sprintId: id, authorId: actorId, body },
         include: { author: { select: authorSelect } },
       });
-      await this.event(transaction, 'sprint.comment_created', id, actorId, { commentId: comment.id });
+      await this.event(transaction, 'sprint.comment_created', id, actorId, {
+        commentId: comment.id,
+      });
       return comment;
     });
   }
@@ -464,13 +676,17 @@ export class SprintsService {
   async updateComment(id: string, commentId: string, input: CommentDto, actor: AuthenticatedUser) {
     const body = input.body.trim();
     if (!body) throw new BadRequestException('Comment cannot be empty.');
-    const comment = await this.prisma.sprintComment.findFirst({ where: { id: commentId, sprintId: id } });
+    const comment = await this.prisma.sprintComment.findFirst({
+      where: { id: commentId, sprintId: id },
+    });
     if (!comment) throw new NotFoundException('Sprint comment not found.');
     if (comment.authorId !== actor.id && actor.role !== UserRole.ADMIN)
       throw new ForbiddenException('You can only edit your own comments.');
     return this.prisma.$transaction(async (transaction) => {
       const updated = await transaction.sprintComment.update({
-        where: { id: commentId }, data: { body }, include: { author: { select: authorSelect } },
+        where: { id: commentId },
+        data: { body },
+        include: { author: { select: authorSelect } },
       });
       await this.event(transaction, 'sprint.comment_updated', id, actor.id, { commentId });
       return updated;
@@ -478,7 +694,9 @@ export class SprintsService {
   }
 
   async removeComment(id: string, commentId: string, actor: AuthenticatedUser) {
-    const comment = await this.prisma.sprintComment.findFirst({ where: { id: commentId, sprintId: id } });
+    const comment = await this.prisma.sprintComment.findFirst({
+      where: { id: commentId, sprintId: id },
+    });
     if (!comment) throw new NotFoundException('Sprint comment not found.');
     if (comment.authorId !== actor.id && actor.role !== UserRole.ADMIN)
       throw new ForbiddenException('You can only delete your own comments.');
@@ -491,6 +709,11 @@ export class SprintsService {
   private assertSprintAcceptsWork(status: SprintStatus) {
     if (!sprintAcceptsNewWork(status))
       throw new ConflictException('Completed sprints cannot accept new work.');
+  }
+
+  private assertWorkSelected(taskIds: string[], subtaskIds: string[]) {
+    if (!taskIds.length && !subtaskIds.length)
+      throw new BadRequestException('Select at least one unfinished task or subtask.');
   }
 
   private outcomes(
@@ -523,7 +746,13 @@ export class SprintsService {
     details: object,
   ) {
     return transaction.activityEvent.create({
-      data: { eventType, entityType: 'sprint', entityId, actorId, payload: { version: 1, ...details } },
+      data: {
+        eventType,
+        entityType: 'sprint',
+        entityId,
+        actorId,
+        payload: { version: 1, ...details },
+      },
     });
   }
 }

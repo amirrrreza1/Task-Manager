@@ -148,7 +148,7 @@ It proposes an end date when a sprint is started; the administrator can change t
 
 Only one sprint may be active at a time. A completed sprint is immutable except that comments may
 still be added and administrators may correct its name/goal. Completed sprints cannot be restarted.
-Tasks not in the done column when the sprint finishes remain in the historical sprint snapshot and
+Tasks not in the done column, and incomplete subtasks, remain in the historical sprint snapshot and
 may be moved to a planned sprint through an explicit carry-over action. The carry-over creates an
 activity event rather than rewriting history.
 

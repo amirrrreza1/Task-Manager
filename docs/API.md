@@ -103,8 +103,8 @@ Uploads stream to storage and calculate SHA-256; they are not buffered fully in 
 | PATCH  | `/sprints/:id`                     | Edit allowed sprint metadata                       |
 | POST   | `/sprints/:id/start`               | Admin transition planned → active                  |
 | POST   | `/sprints/:id/finish`              | Admin transition active → completed                |
-| POST   | `/sprints/:id/carry-over`          | Move selected unfinished tasks to a planned sprint |
-| POST   | `/sprints/:id/move-to-backlog`     | Move selected unfinished tasks to the backlog      |
+| POST   | `/sprints/:id/carry-over`          | Move selected unfinished tasks or subtasks to a planned sprint |
+| POST   | `/sprints/:id/move-to-backlog`     | Move selected unfinished tasks or subtasks to the backlog      |
 | GET    | `/sprints/:id/available-tasks`     | Tasks/subtasks eligible to join this sprint        |
 | GET    | `/sprints/:id/available-subtasks`  | Subtasks eligible to join this sprint              |
 | POST   | `/sprints/:id/tasks`               | Assign tasks to a planned or active sprint         |

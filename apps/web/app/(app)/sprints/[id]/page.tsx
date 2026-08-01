@@ -7,6 +7,7 @@ import { useParams } from 'next/navigation';
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { Avatar } from '../../../../components/avatar';
 import { useAuth } from '../../../../components/auth-provider';
+import { formatDate, formatDateTime } from '../../../../lib/app-config';
 import type {
   AvailableSprintTask,
   Paginated,
@@ -17,7 +18,7 @@ import type {
 import { isSprintWorkSelectionLocked } from '../../../../lib/sprint-work';
 
 const statusLabel = { PLANNED: 'Planned', ACTIVE: 'Active', COMPLETED: 'Completed' };
-const date = (value: string | null, withTime = false) => value ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', ...(withTime ? { timeStyle: 'short' } : {}) }).format(new Date(value)) : 'Not scheduled';
+const date = (value: string | null, withTime = false) => withTime ? formatDateTime(value) : formatDate(value);
 const localInput = (value: string | null) => value ? new Date(value).toISOString().slice(0, 16) : '';
 
 export default function SprintDetailPage() {
@@ -30,6 +31,7 @@ export default function SprintDetailPage() {
   const [startAt, setStartAt] = useState('');
   const [endAt, setEndAt] = useState('');
   const [carryIds, setCarryIds] = useState<string[]>([]);
+  const [carrySubtaskIds, setCarrySubtaskIds] = useState<string[]>([]);
   const [targetSprintId, setTargetSprintId] = useState('');
   const [newSprintName, setNewSprintName] = useState('');
   const [creatingCarryTarget, setCreatingCarryTarget] = useState(false);
@@ -60,6 +62,10 @@ export default function SprintDetailPage() {
     () => (sprint?.taskSnapshots ?? []).filter((item) => item.canCarryOver && item.taskId),
     [sprint],
   );
+  const unfinishedSubtasks = useMemo(
+    () => (sprint?.subtaskSnapshots ?? []).filter((item) => item.canCarryOver && item.subtaskId),
+    [sprint],
+  );
   const availablePlannerTasks = useMemo(
     () =>
       availableTasks
@@ -77,8 +83,15 @@ export default function SprintDetailPage() {
 
   async function mutation(path: string, method = 'POST', body?: object) {
     setBusy(true); setError('');
-    try { await request(path, { method, ...(body ? { body: JSON.stringify(body) } : {}) }); await load(); }
-    catch (caught) { setError(caught instanceof Error ? caught.message : 'Could not save the sprint.'); }
+    try {
+      await request(path, { method, ...(body ? { body: JSON.stringify(body) } : {}) });
+      await load();
+      return true;
+    }
+    catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Could not save the sprint.');
+      return false;
+    }
     finally { setBusy(false); }
   }
 
@@ -89,15 +102,28 @@ export default function SprintDetailPage() {
   function saveComment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const path = editingComment ? `/sprints/${id}/comments/${editingComment.id}` : `/sprints/${id}/comments`;
-    void mutation(path, editingComment ? 'PATCH' : 'POST', { body: comment }).then(() => { setComment(''); setEditingComment(null); });
+    void mutation(path, editingComment ? 'PATCH' : 'POST', { body: comment }).then((saved) => {
+      if (saved) { setComment(''); setEditingComment(null); }
+    });
   }
   function carryOver(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    void mutation(`/sprints/${id}/carry-over`, 'POST', { targetSprintId, taskIds: carryIds }).then(() => setCarryIds([]));
+    void mutation(`/sprints/${id}/carry-over`, 'POST', {
+      targetSprintId,
+      taskIds: carryIds,
+      subtaskIds: carrySubtaskIds,
+    }).then((saved) => {
+      if (saved) { setCarryIds([]); setCarrySubtaskIds([]); }
+    });
   }
 
   function moveToBacklog() {
-    void mutation(`/sprints/${id}/move-to-backlog`, 'POST', { taskIds: carryIds }).then(() => setCarryIds([]));
+    void mutation(`/sprints/${id}/move-to-backlog`, 'POST', {
+      taskIds: carryIds,
+      subtaskIds: carrySubtaskIds,
+    }).then((saved) => {
+      if (saved) { setCarryIds([]); setCarrySubtaskIds([]); }
+    });
   }
 
   async function createCarryOverSprint() {
@@ -188,7 +214,19 @@ export default function SprintDetailPage() {
         <div className="comment-list">{sprint.comments.map((item) => <article className="sprint-comment" key={item.id}><Avatar hasAvatar={item.author.hasAvatar} name={item.author.displayName} size={30} userId={item.author.id} /><div><strong>{item.author.displayName}</strong><small>{date(item.createdAt, true)}{item.updatedAt !== item.createdAt ? ' · edited' : ''}</small><p>{item.body}</p>{(item.authorId === user?.id || admin) ? <div className="comment-actions"><Button className="comment-action" onClick={() => { setEditingComment(item); setComment(item.body); }} size="sm" type="button" variant="ghost">Edit</Button><Button className="comment-action comment-action-delete" onClick={() => void mutation(`/sprints/${id}/comments/${item.id}`, 'DELETE')} size="sm" type="button" variant="ghost">Delete</Button></div> : null}</div></article>)}</div>
       </div>
     </section>
-    {admin && sprint.status === 'COMPLETED' && unfinished.length ? <form className="sprint-panel carry-over" onSubmit={carryOver}><h2>Carry unfinished work forward</h2><p className="muted">The completed sprint keeps this final snapshot; selected tasks can move to a planned sprint or back to the backlog.</p><label>Planned sprint<Select onChange={(event) => setTargetSprintId(event.target.value)} required value={targetSprintId}><option value="">Choose a sprint</option>{planned.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></label>{!planned.length ? <div><p className="empty-copy">No planned sprint is available yet. Create one here to continue.</p><label>New sprint name<Input maxLength={120} onChange={(event) => setNewSprintName(event.target.value)} placeholder="For example, Sprint 3" value={newSprintName} /></label><Button disabled={creatingCarryTarget || !newSprintName.trim()} onClick={() => void createCarryOverSprint()} type="button" variant="outline">{creatingCarryTarget ? 'Creating…' : 'Create and select sprint'}</Button></div> : null}<div className="carry-items">{unfinished.map((task) => <label key={task.id}><Checkbox checked={carryIds.includes(task.taskId!)} onChange={() => setCarryIds((current) => current.includes(task.taskId!) ? current.filter((value) => value !== task.taskId) : [...current, task.taskId!])} />{task.title}</label>)}</div><div><Button variant="outline" disabled={busy || !targetSprintId || !carryIds.length || !planned.length} type="submit">Carry over selected work</Button><Button variant="ghost" disabled={busy || !carryIds.length} onClick={moveToBacklog} type="button">Move selected work to backlog</Button></div></form> : null}
+    {admin && sprint.status === 'COMPLETED' && (unfinished.length || unfinishedSubtasks.length) ? <form className="sprint-panel carry-over" onSubmit={carryOver}>
+      <h2>Resolve unfinished work</h2>
+      <p className="muted">The completed sprint keeps its final snapshot. Move selected tasks or subtasks to a planned sprint, or return them to the backlog.</p>
+      <label>Planned sprint<Select onChange={(event) => setTargetSprintId(event.target.value)} required value={targetSprintId}><option value="">Choose a sprint</option>{planned.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></label>
+      {!planned.length ? <div><p className="empty-copy">No planned sprint is available yet. Create one here to continue.</p><label>New sprint name<Input maxLength={120} onChange={(event) => setNewSprintName(event.target.value)} placeholder="For example, Sprint 3" value={newSprintName} /></label><Button disabled={creatingCarryTarget || !newSprintName.trim()} onClick={() => void createCarryOverSprint()} type="button" variant="outline">{creatingCarryTarget ? 'Creating…' : 'Create and select sprint'}</Button></div> : null}
+      {unfinished.length ? <div className="carry-work-group"><h3>Tasks</h3><div className="carry-items">{unfinished.map((task) => <label key={task.id}><Checkbox checked={carryIds.includes(task.taskId!)} onChange={(event) => {
+        const selected = event.target.checked;
+        setCarryIds((current) => selected ? [...current, task.taskId!] : current.filter((value) => value !== task.taskId));
+        if (selected) setCarrySubtaskIds((current) => current.filter((subtaskId) => !unfinishedSubtasks.some((subtask) => subtask.subtaskId === subtaskId && subtask.taskId === task.taskId)));
+      }} />{task.title}</label>)}</div></div> : null}
+      {unfinishedSubtasks.length ? <div className="carry-work-group"><h3>Subtasks</h3><div className="carry-items">{unfinishedSubtasks.map((subtask) => <label key={subtask.id}><Checkbox checked={carrySubtaskIds.includes(subtask.subtaskId!)} disabled={subtask.taskId ? carryIds.includes(subtask.taskId) : false} onChange={(event) => setCarrySubtaskIds((current) => event.target.checked ? [...current, subtask.subtaskId!] : current.filter((value) => value !== subtask.subtaskId))} /><span>{subtask.title}<small>From {subtask.taskTitle}</small></span></label>)}</div></div> : null}
+      <div><Button variant="outline" disabled={busy || !targetSprintId || (!carryIds.length && !carrySubtaskIds.length) || !planned.length} type="submit">Carry over selected work</Button><Button variant="ghost" disabled={busy || (!carryIds.length && !carrySubtaskIds.length)} onClick={moveToBacklog} type="button">Move selected work to backlog</Button></div>
+    </form> : null}
     {plannerOpen ? <Modal className="modal sprint-planner" labelledBy="sprint-planner-title" onOpenChange={(open) => { if (!open) setPlannerOpen(false); }}><header><p className="section-label">Sprint planning</p><h2 id="sprint-planner-title">Add work to {sprint.name}</h2><p className="muted">Choose a parent task, or select only the subtasks you want to plan beneath it.</p></header><form onSubmit={assignTasks}><div className="planner-task-list">{loadingTasks ? <p className="muted">Loading work…</p> : <>{availablePlannerTasks.map((task) => { const parentSelected = selectedTaskIds.includes(task.id); return <div className="planner-task" key={task.id}>{task.parentLocked ? <div className="planner-task-main"><div><strong>{task.title}</strong><small>{task.column.name} · Choose eligible subtasks below</small></div></div> : <label className="planner-task-main"><Checkbox checked={parentSelected} onChange={(event) => { setSelectedTaskIds((current) => event.target.checked ? [...current, task.id] : current.filter((item) => item !== task.id)); if (event.target.checked) setSelectedSubtaskIds((current) => current.filter((item) => !task.subtasks.some((subtask) => subtask.id === item))); }} /><div><strong>{task.title}</strong><small>{task.column.name}{task.sprint ? ` · Currently in ${task.sprint.name}` : ' · No sprint'}</small></div></label>}{task.subtasks.length ? <div className="planner-subtasks">{task.subtasks.map((subtask) => <label key={subtask.id}><Checkbox checked={selectedSubtaskIds.includes(subtask.id)} disabled={parentSelected} onChange={(event) => setSelectedSubtaskIds((current) => event.target.checked ? [...current, subtask.id] : current.filter((item) => item !== subtask.id))} /><i className={subtask.isCompleted ? 'done-marker' : 'open-marker'} /><span>{subtask.title}</span><small>{subtask.sprint ? `In ${subtask.sprint.name}` : 'No sprint'}</small></label>)}</div> : !task.parentLocked ? <p className="empty-copy">No subtasks</p> : null}</div>; })}{!availablePlannerTasks.length ? <p className="empty-copy">Every task and subtask is already in this sprint or locked to an active/completed sprint.</p> : null}</>}</div><footer><Button variant="ghost" onClick={() => setPlannerOpen(false)} type="button">Cancel</Button><Button variant="primary" disabled={busy || (!selectedTaskIds.length && !selectedSubtaskIds.length)} type="submit">Add selected work</Button></footer></form></Modal> : null}
   </div>;
 }

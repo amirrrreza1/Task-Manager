@@ -167,6 +167,19 @@ export interface SprintTaskSnapshot {
   canCarryOver: boolean;
 }
 
+export interface SprintSubtaskSnapshot {
+  id: string;
+  subtaskId: string | null;
+  taskId: string | null;
+  taskTitle: string;
+  title: string;
+  estimateValue: number | null;
+  estimateUnit: EstimateUnit | null;
+  wasDone: boolean;
+  completedAt: string;
+  canCarryOver: boolean;
+}
+
 export interface SprintWorkSubtask {
   id: string;
   title: string;
@@ -210,6 +223,7 @@ export interface SprintDetail extends Omit<SprintSummary, '_count'> {
   tasks: SprintWorkTask[];
   subtasks: SprintStandaloneSubtask[];
   taskSnapshots: SprintTaskSnapshot[];
+  subtaskSnapshots: SprintSubtaskSnapshot[];
   comments: SprintComment[];
   outcomes: { total: number; completed: number; incomplete: number; estimates: Record<string, number> };
 }

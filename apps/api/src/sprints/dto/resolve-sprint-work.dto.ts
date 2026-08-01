@@ -1,9 +1,6 @@
 import { ArrayUnique, IsArray, IsOptional, IsUUID } from 'class-validator';
 
-export class CarryOverDto {
-  @IsUUID()
-  targetSprintId!: string;
-
+export class ResolveSprintWorkDto {
   @IsOptional()
   @IsArray()
   @ArrayUnique()

@@ -16,6 +16,7 @@ import { AuthenticatedUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CarryOverDto } from './dto/carry-over.dto';
+import { ResolveSprintWorkDto } from './dto/resolve-sprint-work.dto';
 import { AssignSprintTasksDto } from './dto/assign-sprint-tasks.dto';
 import { AssignSprintSubtasksDto } from './dto/assign-sprint-subtasks.dto';
 import { CommentDto } from './dto/comment.dto';
@@ -91,10 +92,10 @@ export class SprintsController {
   @Roles(UserRole.ADMIN)
   moveToBacklog(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() input: AssignSprintTasksDto,
+    @Body() input: ResolveSprintWorkDto,
     @CurrentUser() actor: AuthenticatedUser,
   ) {
-    return this.sprints.moveToBacklog(id, input.taskIds, actor.id);
+    return this.sprints.moveToBacklog(id, input, actor.id);
   }
 
   @Post(':id/carry-over')
