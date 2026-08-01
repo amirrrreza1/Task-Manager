@@ -4,23 +4,27 @@ import { Button, Checkbox, Input, Select } from '../../../components/design-syst
 
 import Link from 'next/link';
 import {
+  Fragment,
   type PropsWithChildren,
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from 'react';
 import {
   closestCorners,
+  type CollisionDetection,
   DndContext,
   type DragEndEvent,
+  type DragMoveEvent,
   type DragOverEvent,
   DragOverlay,
   type DragStartEvent,
   KeyboardSensor,
+  MeasuringStrategy,
   PointerSensor,
   defaultDropAnimationSideEffects,
+  pointerWithin,
   useDroppable,
   useSensor,
   useSensors,
@@ -38,6 +42,7 @@ import { Avatar } from '../../../components/avatar';
 import { useAuth } from '../../../components/auth-provider';
 import type { BoardResponse, BoardSubtask, ManagedUser, TaskCard } from '../../../lib/types';
 import { workflowBoard } from '../../../lib/board-columns';
+import { taskDropIndex } from '../../../lib/board-dnd';
 
 type ActiveDrag =
   | { type: 'task'; task: TaskCard }
@@ -49,12 +54,68 @@ type ActiveDrag =
       standalone: boolean;
     };
 
+interface TaskDropPreview {
+  columnId: string;
+  index: number;
+}
+
 const dropAnimation: DropAnimation = {
   duration: 220,
   easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
   sideEffects: defaultDropAnimationSideEffects({
     styles: { active: { opacity: '0.35' } },
   }),
+};
+
+const boardCollisionDetection: CollisionDetection = (arguments_) => {
+  const pointerCollisions = pointerWithin(arguments_);
+  const activeType = arguments_.active.data.current?.type;
+  const directWorkItem =
+    activeType === 'task'
+      ? pointerCollisions.find(
+          (collision) =>
+            collision.id !== arguments_.active.id && String(collision.id).startsWith('task:'),
+        )
+      : activeType === 'subtask'
+        ? (pointerCollisions.find((collision) =>
+            String(collision.id).startsWith('subtask:'),
+          ) ?? pointerCollisions.find((collision) => String(collision.id).startsWith('task:')))
+        : pointerCollisions.find(
+            (collision) => !String(collision.id).startsWith('column:'),
+          );
+  if (directWorkItem) return [directWorkItem];
+
+  const columnCollision = pointerCollisions.find((collision) =>
+    String(collision.id).startsWith('column:'),
+  );
+  if (columnCollision) {
+    const hoveredColumn = arguments_.droppableContainers.find(
+      (container) => container.id === columnCollision.id,
+    );
+    const columnId = hoveredColumn?.data.current?.columnId;
+    const workItemsInColumn = arguments_.droppableContainers.filter(
+      (container) =>
+        container.id !== columnCollision.id &&
+        container.id !== arguments_.active.id &&
+        container.data.current?.columnId === columnId &&
+        (activeType !== 'task' || String(container.id).startsWith('task:')),
+    );
+    const nearestWorkItem = closestCorners({
+      ...arguments_,
+      droppableContainers: workItemsInColumn,
+    });
+    return nearestWorkItem.length ? nearestWorkItem : [columnCollision];
+  }
+
+  return closestCorners({
+    ...arguments_,
+    droppableContainers:
+      activeType === 'task'
+        ? arguments_.droppableContainers.filter(
+            (container) => container.id !== arguments_.active.id,
+          )
+        : arguments_.droppableContainers,
+  });
 };
 
 interface Filters {
@@ -81,6 +142,8 @@ export default function BoardPage() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [activeDrag, setActiveDrag] = useState<ActiveDrag | null>(null);
+  const [taskDropPreview, setTaskDropPreview] = useState<TaskDropPreview | null>(null);
+  const taskDropPreviewRef = useRef<TaskDropPreview | null>(null);
   const dragOriginBoard = useRef<BoardResponse | null>(null);
   const suppressClickRef = useRef(false);
   const sensors = useSensors(
@@ -99,6 +162,13 @@ export default function BoardPage() {
     if (!suppressClickRef.current) return;
     event.preventDefault();
     event.stopPropagation();
+  }
+
+  function updateTaskDropPreview(next: TaskDropPreview | null) {
+    taskDropPreviewRef.current = next;
+    setTaskDropPreview((current) =>
+      current?.columnId === next?.columnId && current?.index === next?.index ? current : next,
+    );
   }
 
   useEffect(() => {
@@ -161,15 +231,6 @@ export default function BoardPage() {
   useEffect(() => {
     void load();
   }, [load]);
-
-  const workItemCount = useMemo(
-    () =>
-      board?.columns.reduce(
-        (sum, column) => sum + column.tasks.length + column.subtasks.length,
-        0,
-      ) ?? 0,
-    [board],
-  );
 
   async function moveTask(task: TaskCard, targetColumnIndex: number, targetIndex: number) {
     if (!board || busy) return;
@@ -281,15 +342,56 @@ export default function BoardPage() {
     return -1;
   }
 
+  function taskPointerY(event: DragMoveEvent) {
+    const activator = event.activatorEvent as Event & { clientY?: number };
+    if (typeof activator.clientY === 'number') return activator.clientY + event.delta.y;
+    const activeRect = event.active.rect.current.translated;
+    return activeRect ? activeRect.top + activeRect.height / 2 : undefined;
+  }
+
+  function taskRectsInColumn(columnId: string) {
+    const columnBody = Array.from(
+      document.querySelectorAll<HTMLElement>('[data-board-column-id]'),
+    ).find((element) => element.dataset.boardColumnId === columnId);
+    if (!columnBody) return [];
+
+    const placeholder = columnBody.querySelector<HTMLElement>(':scope > .task-drop-placeholder');
+    const placeholderRect = placeholder?.getBoundingClientRect();
+    const rowGap = Number.parseFloat(window.getComputedStyle(columnBody).rowGap) || 0;
+    const placeholderSpace = placeholderRect ? placeholderRect.height + rowGap : 0;
+
+    return Array.from(columnBody.querySelectorAll<HTMLElement>('[data-board-task-id]')).map(
+      (element) => {
+        const rect = element.getBoundingClientRect();
+        const followsPlaceholder = placeholderRect && rect.top > placeholderRect.top;
+        return {
+          taskId: element.dataset.boardTaskId ?? '',
+          top: rect.top - (followsPlaceholder ? placeholderSpace : 0),
+          height: rect.height,
+        };
+      },
+    );
+  }
+
   function startBoardDrag(event: DragStartEvent) {
     if (!board || busy) return;
     armClickSuppression();
+    updateTaskDropPreview(null);
     dragOriginBoard.current = board;
     const activeId = String(event.active.id);
     if (activeId.startsWith('task:')) {
       const taskId = activeId.replace(/^task:/, '');
-      const task = board.columns.flatMap((column) => column.tasks).find((item) => item.id === taskId);
-      if (task) setActiveDrag({ type: 'task', task });
+      const location = findTaskLocation(taskId);
+      if (location) {
+        setActiveDrag({ type: 'task', task: location.task });
+        setBoard({
+          ...board,
+          columns: board.columns.map((column) => ({
+            ...column,
+            tasks: column.tasks.filter((task) => task.id !== taskId),
+          })),
+        });
+      }
       return;
     }
     if (activeId.startsWith('subtask:')) {
@@ -323,50 +425,37 @@ export default function BoardPage() {
     }
   }
 
+  function previewTaskDrag(event: DragMoveEvent) {
+    if (!board || !event.over || busy || !String(event.active.id).startsWith('task:')) {
+      if (!event.over) updateTaskDropPreview(null);
+      return;
+    }
+
+    const activeTaskId = String(event.active.id).replace(/^task:/, '');
+    const targetColumnIndex = resolveColumnIndex(String(event.over.id));
+    const pointerY = taskPointerY(event);
+    if (targetColumnIndex < 0 || pointerY === undefined) {
+      updateTaskDropPreview(null);
+      return;
+    }
+
+    const targetColumn = board.columns[targetColumnIndex];
+    const targetIndex = taskDropIndex({
+      taskIds: targetColumn.tasks.map((task) => task.id),
+      activeTaskId,
+      pointerY,
+      taskRects: taskRectsInColumn(targetColumn.id),
+    });
+    updateTaskDropPreview({ columnId: targetColumn.id, index: targetIndex });
+  }
+
   function previewBoardDrag(event: DragOverEvent) {
     if (!board || !event.over || busy) return;
     const activeId = String(event.active.id);
     const overId = String(event.over.id);
     if (activeId === overId) return;
 
-    if (activeId.startsWith('task:')) {
-      const taskId = activeId.replace(/^task:/, '');
-      const from = findTaskLocation(taskId);
-      const targetColumnIndex = resolveColumnIndex(overId);
-      if (!from || targetColumnIndex < 0) return;
-
-      const targetColumn = board.columns[targetColumnIndex];
-      let targetIndex = targetColumn.tasks.length;
-      if (overId.startsWith('task:')) {
-        const overTaskId = overId.replace(/^task:/, '');
-        const overIndex = targetColumn.tasks.findIndex((item) => item.id === overTaskId);
-        if (overIndex >= 0) targetIndex = overIndex;
-      }
-
-      if (from.columnIndex === targetColumnIndex) {
-        return;
-      }
-
-      const moving = { ...from.task, columnId: targetColumn.id };
-      setBoard({
-        ...board,
-        columns: board.columns.map((column, index) => {
-          if (index === from.columnIndex) {
-            return { ...column, tasks: column.tasks.filter((item) => item.id !== taskId) };
-          }
-          if (index === targetColumnIndex) {
-            const tasks = column.tasks.filter((item) => item.id !== taskId);
-            const insertAt = Math.max(0, Math.min(targetIndex, tasks.length));
-            return {
-              ...column,
-              tasks: [...tasks.slice(0, insertAt), moving, ...tasks.slice(insertAt)],
-            };
-          }
-          return column;
-        }),
-      });
-      return;
-    }
+    if (activeId.startsWith('task:')) return;
 
     if (activeId.startsWith('subtask:')) {
       const targetColumnIndex = resolveColumnIndex(overId);
@@ -382,12 +471,15 @@ export default function BoardPage() {
     if (dragOriginBoard.current) setBoard(dragOriginBoard.current);
     dragOriginBoard.current = null;
     setActiveDrag(null);
+    updateTaskDropPreview(null);
   }
 
   function finishBoardDrag(event: DragEndEvent) {
     const origin = dragOriginBoard.current;
     const active = activeDrag;
+    const taskPreview = taskDropPreviewRef.current;
     setActiveDrag(null);
+    updateTaskDropPreview(null);
 
     if (!board || busy) {
       dragOriginBoard.current = null;
@@ -462,39 +554,24 @@ export default function BoardPage() {
       return;
     }
 
-    const overId = String(event.over.id);
-    const targetColumnIndex = resolveColumnIndex(overId);
+    const targetColumnIndex = taskPreview
+      ? origin.columns.findIndex((column) => column.id === taskPreview.columnId)
+      : -1;
     if (targetColumnIndex < 0) {
       setBoard(origin);
       dragOriginBoard.current = null;
       return;
     }
 
-    if (previous.columnIndex === targetColumnIndex) {
-      const columnTasks = origin.columns[targetColumnIndex].tasks;
-      let targetIndex = previous.taskIndex;
-      if (overId.startsWith('task:')) {
-        const overTaskId = overId.replace(/^task:/, '');
-        const overIndex = columnTasks.findIndex((item) => item.id === overTaskId);
-        if (overIndex >= 0) targetIndex = overIndex;
-      } else if (overId.startsWith('column:')) {
-        targetIndex = columnTasks.length - 1;
-      }
-      if (targetIndex === previous.taskIndex) {
-        dragOriginBoard.current = null;
-        return;
-      }
-      void moveTask(previous.task, targetColumnIndex, targetIndex);
-      return;
-    }
-
-    const current = findTaskLocation(taskId);
-    if (!current) {
+    if (
+      targetColumnIndex === previous.columnIndex &&
+      taskPreview?.index === previous.taskIndex
+    ) {
       setBoard(origin);
       dragOriginBoard.current = null;
       return;
     }
-    void moveTask(previous.task, current.columnIndex, current.taskIndex);
+    void moveTask(previous.task, targetColumnIndex, taskPreview?.index ?? 0);
   }
 
   async function saveBoardSubtaskOrder(task: TaskCard, reordered: BoardSubtask[]) {
@@ -529,12 +606,7 @@ export default function BoardPage() {
     <div className="page-stack board-page">
       <header className="page-header compact-header board-header">
         <div>
-          <p className="eyebrow">Workspace board</p>
-          <h1>Make the work visible.</h1>
-          <p className="muted">
-            {workItemCount} {workItemCount === 1 ? 'work item' : 'work items'} across{' '}
-            {board?.columns.length ?? 0} workflow columns.
-          </p>
+          <h1>Board</h1>
         </div>
         <div className="header-actions">
           {user?.role === 'ADMIN' ? (
@@ -644,68 +716,98 @@ export default function BoardPage() {
       ) : (
         <DndContext
           sensors={sensors}
-          collisionDetection={closestCorners}
+          collisionDetection={boardCollisionDetection}
+          measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
           onDragStart={startBoardDrag}
+          onDragMove={previewTaskDrag}
           onDragOver={previewBoardDrag}
           onDragCancel={cancelBoardDrag}
           onDragEnd={finishBoardDrag}
         >
           <section className={`task-board ${busy ? 'is-busy' : ''}`} aria-label="Task board">
-            {board.columns.map((column) => (
-              <article
-                className="task-column"
-                key={column.id}
-                aria-label={`${column.name}, ${column.tasks.length + column.subtasks.length} work items`}
-              >
-                <header>
-                  <span className="column-dot" style={{ backgroundColor: column.color }} />
-                  <strong>{column.name}</strong>
-                  {column.isDone ? <span className="done-label">Done</span> : null}
-                  <small>{column.tasks.length + column.subtasks.length}</small>
-                </header>
-                <TaskColumnBody columnId={column.id} taskIds={column.tasks.map((task) => task.id)}>
-                  {column.tasks.map((task) => (
-                    <SortableTaskShell
-                      id={task.id}
-                      columnId={column.id}
-                      title={task.title}
-                      disabled={busy}
-                      key={task.id}
-                      onNavigateGuard={guardCardNavigation}
-                    >
-                      <TaskCardContent
-                        task={task}
-                        disabled={busy}
-                        onNavigateGuard={guardCardNavigation}
-                      />
-                    </SortableTaskShell>
-                  ))}
-                  {column.subtasks.length ? (
-                    <SortableContext
-                      items={column.subtasks.map((subtask) => `subtask:${subtask.id}`)}
-                      strategy={verticalListSortingStrategy}
-                    >
-                      {column.subtasks.map((subtask) => (
-                        <SortableBoardSubtaskCard
-                          key={subtask.id}
-                          subtask={subtask}
-                          task={{
-                            id: subtask.taskId,
-                            title: subtask.parentTask?.title ?? 'Parent task',
-                          }}
-                          disabled={busy}
-                          standalone
-                          onNavigateGuard={guardCardNavigation}
-                        />
-                      ))}
-                    </SortableContext>
-                  ) : null}
-                  {!column.tasks.length && !column.subtasks.length ? (
-                    <div className="empty-column">Drop a task here</div>
-                  ) : null}
-                </TaskColumnBody>
-              </article>
-            ))}
+            {board.columns.map((column) => {
+              const activeTaskId = activeDrag?.type === 'task' ? activeDrag.task.id : null;
+              const visibleTaskCount = column.tasks.filter(
+                (task) => task.id !== activeTaskId,
+              ).length;
+              const showsTaskPlaceholder = taskDropPreview?.columnId === column.id;
+
+              return (
+                <article
+                  className="task-column"
+                  key={column.id}
+                  aria-label={`${column.name}, ${column.tasks.length + column.subtasks.length} work items`}
+                >
+                  <header>
+                    <span className="column-dot" style={{ backgroundColor: column.color }} />
+                    <strong>{column.name}</strong>
+                    {column.isDone ? <span className="done-label">Done</span> : null}
+                    <small>{column.tasks.length + column.subtasks.length}</small>
+                  </header>
+                  <TaskColumnBody
+                    columnId={column.id}
+                    taskIds={column.tasks.map((task) => task.id)}
+                  >
+                    {column.tasks.map((task, taskIndex) => {
+                      const visibleIndex = column.tasks
+                        .slice(0, taskIndex)
+                        .filter((item) => item.id !== activeTaskId).length;
+                      const showPlaceholderBefore =
+                        task.id !== activeTaskId &&
+                        showsTaskPlaceholder &&
+                        taskDropPreview.index === visibleIndex;
+
+                      return (
+                        <Fragment key={task.id}>
+                          {showPlaceholderBefore ? <TaskDropPlaceholder /> : null}
+                          <SortableTaskShell
+                            id={task.id}
+                            columnId={column.id}
+                            title={task.title}
+                            disabled={busy}
+                            onNavigateGuard={guardCardNavigation}
+                          >
+                            <TaskCardContent
+                              task={task}
+                              disabled={busy}
+                              onNavigateGuard={guardCardNavigation}
+                            />
+                          </SortableTaskShell>
+                        </Fragment>
+                      );
+                    })}
+                    {showsTaskPlaceholder && taskDropPreview.index === visibleTaskCount ? (
+                      <TaskDropPlaceholder />
+                    ) : null}
+                    {column.subtasks.length ? (
+                      <SortableContext
+                        items={column.subtasks.map((subtask) => `subtask:${subtask.id}`)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        {column.subtasks.map((subtask) => (
+                          <SortableBoardSubtaskCard
+                            key={subtask.id}
+                            subtask={subtask}
+                            task={{
+                              id: subtask.taskId,
+                              title: subtask.parentTask?.title ?? 'Parent task',
+                            }}
+                            disabled={busy}
+                            standalone
+                            onNavigateGuard={guardCardNavigation}
+                          />
+                        ))}
+                      </SortableContext>
+                    ) : null}
+                    {!column.tasks.length &&
+                    !column.subtasks.length &&
+                    !showsTaskPlaceholder ? (
+                      <div className="empty-column">Drop a task here</div>
+                    ) : null}
+                  </TaskColumnBody>
+                </article>
+              );
+            })}
           </section>
           <DragOverlay dropAnimation={dropAnimation}>
             {activeDrag?.type === 'task' ? (
@@ -734,7 +836,7 @@ function TaskColumnBody({
   taskIds,
   children,
 }: PropsWithChildren<{ columnId: string; taskIds: string[] }>) {
-  const { isOver, setNodeRef } = useDroppable({
+  const { setNodeRef } = useDroppable({
     id: `column:${columnId}`,
     data: { type: 'column', columnId },
   });
@@ -743,11 +845,15 @@ function TaskColumnBody({
       items={taskIds.map((taskId) => `task:${taskId}`)}
       strategy={verticalListSortingStrategy}
     >
-      <div ref={setNodeRef} className={`task-column-body ${isOver ? 'is-drop-target' : ''}`}>
+      <div ref={setNodeRef} className="task-column-body" data-board-column-id={columnId}>
         {children}
       </div>
     </SortableContext>
   );
+}
+
+function TaskDropPlaceholder() {
+  return <div className="task-drop-placeholder" aria-hidden="true" />;
 }
 
 function TaskCardContent({
@@ -792,6 +898,7 @@ function TaskCardContent({
                   {task.assignees.slice(0, 3).map((item) => (
                     <Avatar
                       hasAvatar={item.user.hasAvatar}
+                      initialsSize={18}
                       key={item.user.id}
                       name={item.user.displayName}
                       size={24}
@@ -884,7 +991,7 @@ function SortableTaskShell({
   disabled: boolean;
   onNavigateGuard?: (event: { preventDefault(): void; stopPropagation(): void }) => void;
 }>) {
-  const { attributes, isDragging, listeners, setNodeRef, transform, transition } = useSortable({
+  const { attributes, isDragging, listeners, setNodeRef } = useSortable({
     id: `task:${id}`,
     data: { type: 'task', columnId },
     disabled,
@@ -895,10 +1002,7 @@ function SortableTaskShell({
     <article
       ref={setNodeRef}
       className={`task-card task-card--draggable sortable-task-shell ${isDragging ? 'is-dragging' : ''}`}
-      style={{
-        transform: CSS.Transform.toString(transform),
-        transition: transition ?? 'transform 200ms cubic-bezier(0.25, 1, 0.5, 1)',
-      }}
+      data-board-task-id={id}
       title={disabled ? undefined : `Drag ${title}`}
       aria-label={
         disabled
@@ -1009,6 +1113,7 @@ function BoardSubtaskCard({
         {subtask.assignee ? (
           <Avatar
             hasAvatar={subtask.assignee.hasAvatar}
+            initialsSize={18}
             name={subtask.assignee.displayName}
             size={24}
             userId={subtask.assignee.id}
