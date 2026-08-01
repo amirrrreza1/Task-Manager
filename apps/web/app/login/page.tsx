@@ -3,17 +3,13 @@
 import { AlertCircle, ArrowRight, LayoutKanban, Lock, User } from '@appica/icons-react';
 import { Alert, AlertDescription, AlertIcon } from '@appica/ui-react/alert';
 import { BackgroundPattern } from '@appica/ui-react/background-pattern';
-import { Badge } from '@appica/ui-react/badge';
 import { Button } from '@appica/ui-react/button';
-import { Field, FieldDescription, FieldLabel } from '@appica/ui-react/field';
+import { Field, FieldLabel } from '@appica/ui-react/field';
 import { Input } from '@appica/ui-react/input';
 import { Spinner } from '@appica/ui-react/spinner';
-import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { FormEvent, Suspense, useEffect, useState } from 'react';
 import { useAuth } from '../../components/auth-provider';
-import { ThemeToggle } from '../../components/theme-toggle';
-import { companyIcon, companyName } from '../../lib/app-config';
 
 function LoginForm() {
   const { login, user, loading } = useAuth();
@@ -47,41 +43,14 @@ function LoginForm() {
 
   return (
     <main className="login-page">
-      <section className="login-intro" aria-labelledby="login-title">
-        <BackgroundPattern
-          aria-hidden="true"
-          cellSize={28}
-          className="login-pattern"
-          spotlight={{ size: 540, persistent: true }}
-          track="window"
-          variant="grid"
-        />
-        <div className="login-topline">
-          <Link className="brand login-brand" href="/">
-            <span className="brand-mark" aria-hidden="true">
-              {/* The administrator controls this URL through .env, so it cannot use Next's fixed image allowlist. */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img alt="" src={companyIcon} />
-            </span>
-            <span className="brand-copy">
-              <strong>{companyName}</strong>
-              <small>Team workspace</small>
-            </span>
-          </Link>
-          <ThemeToggle />
-        </div>
-        <div className="login-message">
-          <Badge size="sm" variant="secondary">
-            Built for focused teams
-          </Badge>
-          <h1 id="login-title">Move work forward, together.</h1>
-          <p>
-            Plan the sprint, clarify ownership, and keep every decision connected to the work.
-          </p>
-        </div>
-        <p className="login-footnote">Open source · Docker-ready · Your data stays yours</p>
-      </section>
-
+      <BackgroundPattern
+        aria-hidden="true"
+        cellSize={28}
+        className="login-pattern"
+        spotlight={{ size: 540, persistent: true }}
+        track="window"
+        variant="grid"
+      />
       <section className="login-panel" aria-label="Sign in">
         <form className="form-card login-form" onSubmit={submit}>
           <div className="login-heading">
@@ -120,7 +89,6 @@ function LoginForm() {
               value={password}
               onChange={(event) => setPassword(event.target.value)}
             />
-            <FieldDescription>Use the credentials provided by your administrator.</FieldDescription>
           </Field>
 
           {error ? (
