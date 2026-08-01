@@ -18,7 +18,7 @@ unfinished feature is available.
 - [x] Bootstrap protected admin from environment
 - [x] Argon2id login, access/refresh token rotation, logout, and session revocation
 - [x] User CRUD/deactivation/password reset
-- [x] Random deterministic avatar generation
+- [x] Profile photos with display-name initial fallback
 - [x] Admin settings shell and authorization test matrix
 
 ## v0.3 — Board, tasks, and files (complete)
@@ -74,4 +74,3 @@ unfinished feature is available.
 - End-of-sprint reports generated from stable report read models
 - Backup success/failure notifications and secure download links (never raw dumps)
 - Per-user notification preferences, retries, delivery history, and rate limits
-

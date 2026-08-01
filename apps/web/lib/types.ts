@@ -5,7 +5,7 @@ export interface CurrentUser {
   username: string;
   displayName: string;
   role: UserRole;
-  avatarSeed: string;
+  hasAvatar: boolean;
   isBootstrapAdmin: boolean;
 }
 
@@ -29,7 +29,7 @@ export interface ApiErrorBody {
   code?: string;
 }
 
-export type EstimateUnit = 'MINUTES' | 'POINTS';
+export type EstimateUnit = 'HOURS' | 'POINTS';
 
 export interface Estimate {
   value: number;
@@ -39,7 +39,7 @@ export interface Estimate {
 export interface UserSummary {
   id: string;
   displayName: string;
-  avatarSeed: string;
+  hasAvatar: boolean;
   isActive: boolean;
 }
 
@@ -49,6 +49,7 @@ export interface BoardColumn {
   color: string;
   position: number;
   isBacklog?: boolean;
+  isTodo?: boolean;
   isDone: boolean;
   tasks?: TaskCard[];
 }
@@ -163,6 +164,7 @@ export interface SprintTaskSnapshot {
   columnName: string;
   wasDone: boolean;
   completedAt: string;
+  canCarryOver: boolean;
 }
 
 export interface SprintWorkSubtask {
@@ -245,7 +247,7 @@ export interface ReportSubtask {
 export interface MemberReportTotals {
   completedCount: number;
   incompleteCount: number;
-  estimateMinutes: number;
+  estimateHours: number;
   estimatePoints: number;
 }
 
@@ -272,7 +274,7 @@ export interface MemberContribution {
   user: UserSummary;
   completedSubtasks: number;
   incompleteSubtasks: number;
-  estimateMinutes: number;
+  estimateHours: number;
   estimatePoints: number;
   subtasks: (ReportSubtask & { parentTask: { id: string; title: string } })[];
 }

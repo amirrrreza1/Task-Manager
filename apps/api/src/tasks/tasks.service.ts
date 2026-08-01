@@ -17,12 +17,12 @@ import type { ReorderSubtasksDto } from './dto/reorder-subtasks.dto';
 import type { TaskQueryDto } from './dto/task-query.dto';
 import type { UpdateSubtaskDto } from './dto/update-subtask.dto';
 import type { UpdateTaskDto } from './dto/update-task.dto';
-import { pickBacklogColumnId } from './task-work';
+import { pickBacklogColumnId, pickTodoColumnId } from './task-work';
 
 const userSummary = {
   id: true,
   displayName: true,
-  avatarSeed: true,
+  hasAvatar: true,
   isActive: true,
 } satisfies Prisma.UserSelect;
 const attachmentInclude = {
@@ -78,7 +78,7 @@ export class TasksService {
     const title = input.title.trim();
     if (!title) throw new BadRequestException('Task title cannot be empty.');
     assertEstimate(input.estimate);
-    const columnId = await this.resolveCreateColumnId(input.columnId);
+    const columnId = await this.resolveCreateColumnId(input.columnId, Boolean(input.sprintId));
     await this.assertReferences(columnId, input.assigneeIds ?? [], input.sprintId);
     const task = await this.prisma.$transaction(async (transaction) => {
       const maximum = await transaction.task.aggregate({
@@ -118,6 +118,10 @@ export class TasksService {
       await this.assertSprintMembershipChange(existing.sprintId, input.sprintId);
       if (input.sprintId) await this.assertSprint(input.sprintId);
     }
+    const todoColumnId =
+      input.sprintId && input.sprintId !== existing.sprintId
+        ? await this.resolveTodoColumnId()
+        : null;
     const task = await this.prisma.$transaction(async (transaction) => {
       if (input.assigneeIds !== undefined) {
         await transaction.taskAssignment.deleteMany({ where: { taskId: id } });
@@ -125,6 +129,18 @@ export class TasksService {
           await transaction.taskAssignment.createMany({
             data: input.assigneeIds.map((userId) => ({ taskId: id, userId })),
           });
+      }
+      let sprintPosition = 0;
+      if (todoColumnId) {
+        const maximum = await transaction.task.aggregate({
+          where: { columnId: todoColumnId },
+          _max: { position: true },
+        });
+        sprintPosition = Number(maximum._max.position ?? 0) + 1024;
+        await transaction.subtask.updateMany({
+          where: { taskId: id, columnId: existing.columnId },
+          data: { columnId: todoColumnId },
+        });
       }
       const updated = await transaction.task.update({
         where: { id },
@@ -134,6 +150,7 @@ export class TasksService {
             ? { description: input.description?.trim() || null }
             : {}),
           ...(input.sprintId !== undefined ? { sprintId: input.sprintId } : {}),
+          ...(todoColumnId ? { columnId: todoColumnId, position: sprintPosition } : {}),
           ...(input.estimate !== undefined ? estimateData(input.estimate) : {}),
         },
         include: taskDetailInclude,
@@ -412,17 +429,31 @@ export class TasksService {
     };
   }
 
-  private async resolveCreateColumnId(requestedColumnId?: string) {
+  private async resolveCreateColumnId(requestedColumnId?: string, isSprintTask = false) {
     const columns = await this.prisma.boardColumn.findMany({
-      select: { id: true, isBacklog: true, position: true },
+      select: { id: true, isBacklog: true, isTodo: true, isDone: true, position: true },
       orderBy: { position: 'asc' },
     });
-    const backlogId = pickBacklogColumnId(columns);
-    if (!backlogId) throw new BadRequestException('No board columns are configured.');
-    if (requestedColumnId && requestedColumnId !== backlogId) {
-      throw new BadRequestException('New tasks can only be created in the backlog.');
+    const targetColumnId = isSprintTask ? pickTodoColumnId(columns) : pickBacklogColumnId(columns);
+    if (!targetColumnId) throw new BadRequestException('No board columns are configured.');
+    if (requestedColumnId && requestedColumnId !== targetColumnId) {
+      throw new BadRequestException(
+        isSprintTask
+          ? 'New sprint tasks are placed in To Do.'
+          : 'New tasks can only be created in the backlog.',
+      );
     }
-    return backlogId;
+    return targetColumnId;
+  }
+
+  private async resolveTodoColumnId() {
+    const columns = await this.prisma.boardColumn.findMany({
+      select: { id: true, isBacklog: true, isTodo: true, isDone: true, position: true },
+      orderBy: { position: 'asc' },
+    });
+    const todoColumnId = pickTodoColumnId(columns);
+    if (!todoColumnId) throw new BadRequestException('The To Do column is not configured.');
+    return todoColumnId;
   }
 
   private async assertReferences(

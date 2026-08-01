@@ -24,6 +24,7 @@ interface AuthContextValue {
   loading: boolean;
   login(username: string, password: string): Promise<void>;
   logout(): Promise<void>;
+  updateUser(patch: Partial<CurrentUser>): void;
   request<T>(path: string, init?: RequestInit): Promise<T>;
   requestBlob(path: string): Promise<Blob>;
 }
@@ -88,6 +89,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [router]);
 
+  const updateUser = useCallback((patch: Partial<CurrentUser>) => {
+    setUser((current) => (current ? { ...current, ...patch } : current));
+  }, []);
+
   const request = useCallback(
     async <T,>(path: string, init: RequestInit = {}): Promise<T> => {
       let token = tokenRef.current ?? (await refresh());
@@ -142,8 +147,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({ user, loading, login, logout, request, requestBlob }),
-    [user, loading, login, logout, request, requestBlob],
+    () => ({ user, loading, login, logout, updateUser, request, requestBlob }),
+    [user, loading, login, logout, updateUser, request, requestBlob],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

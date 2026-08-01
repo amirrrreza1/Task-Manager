@@ -1,5 +1,7 @@
 'use client';
 
+import { Button, Checkbox, Input, Select } from '../../../components/design-system';
+
 import Link from 'next/link';
 import {
   type PropsWithChildren,
@@ -59,10 +61,17 @@ interface Filters {
   search: string;
   assigneeId: string;
   unassigned: boolean;
+  mine: boolean;
   estimate: '' | 'true' | 'false';
 }
 
-const emptyFilters: Filters = { search: '', assigneeId: '', unassigned: false, estimate: '' };
+const emptyFilters: Filters = {
+  search: '',
+  assigneeId: '',
+  unassigned: false,
+  mine: false,
+  estimate: '',
+};
 
 export default function BoardPage() {
   const { user, request } = useAuth();
@@ -94,10 +103,12 @@ export default function BoardPage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    const mine = params.get('mine') === 'true';
     setFilters({
       search: params.get('search') ?? '',
-      assigneeId: params.get('assigneeId') ?? '',
-      unassigned: params.get('unassigned') === 'true',
+      assigneeId: mine ? '' : (params.get('assigneeId') ?? ''),
+      unassigned: !mine && params.get('unassigned') === 'true',
+      mine,
       estimate:
         params.get('hasEstimate') === 'true'
           ? 'true'
@@ -108,16 +119,35 @@ export default function BoardPage() {
   }, []);
 
   const load = useCallback(async () => {
-    const params = new URLSearchParams();
-    if (filters.search.trim()) params.set('search', filters.search.trim());
-    if (filters.assigneeId) params.set('assigneeId', filters.assigneeId);
-    if (filters.unassigned) params.set('unassigned', 'true');
-    if (filters.estimate) params.set('hasEstimate', filters.estimate);
-    const query = params.toString();
-    window.history.replaceState(null, '', query ? `/board?${query}` : '/board');
+    if (filters.mine && !user?.id) return;
+
+    const browserParams = new URLSearchParams();
+    const apiParams = new URLSearchParams();
+    if (filters.search.trim()) {
+      browserParams.set('search', filters.search.trim());
+      apiParams.set('search', filters.search.trim());
+    }
+    if (filters.mine && user?.id) {
+      browserParams.set('mine', 'true');
+      apiParams.set('assigneeId', user.id);
+    } else if (filters.assigneeId) {
+      browserParams.set('assigneeId', filters.assigneeId);
+      apiParams.set('assigneeId', filters.assigneeId);
+    }
+    if (filters.unassigned) {
+      browserParams.set('unassigned', 'true');
+      apiParams.set('unassigned', 'true');
+    }
+    if (filters.estimate) {
+      browserParams.set('hasEstimate', filters.estimate);
+      apiParams.set('hasEstimate', filters.estimate);
+    }
+    const browserQuery = browserParams.toString();
+    const apiQuery = apiParams.toString();
+    window.history.replaceState(null, '', browserQuery ? `/board?${browserQuery}` : '/board');
     try {
       const [nextBoard, nextUsers] = await Promise.all([
-        request<BoardResponse>(`/board${query ? `?${query}` : ''}`),
+        request<BoardResponse>(`/board${apiQuery ? `?${apiQuery}` : ''}`),
         request<ManagedUser[]>('/users'),
       ]);
       setBoard(workflowBoard(nextBoard));
@@ -126,7 +156,7 @@ export default function BoardPage() {
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Could not load the board.');
     }
-  }, [filters, request]);
+  }, [filters, request, user?.id]);
 
   useEffect(() => {
     void load();
@@ -508,20 +538,20 @@ export default function BoardPage() {
         </div>
         <div className="header-actions">
           {user?.role === 'ADMIN' ? (
-            <Link className="button secondary" href="/settings/board">
+            <Button nativeButton={false} variant="outline" render={<Link href="/settings/board" />}>
               Configure board
-            </Link>
+            </Button>
           ) : null}
-          <Link className="button primary" href="/backlog">
+          <Button nativeButton={false} variant="primary" render={<Link href="/backlog" />}>
             Backlog
-          </Link>
+          </Button>
         </div>
       </header>
 
       <section className="board-filters" aria-label="Board filters">
         <label className="board-search">
           <span>Search</span>
-          <input
+          <Input
             type="search"
             value={filters.search}
             onChange={(event) => setFilters({ ...filters, search: event.target.value })}
@@ -530,10 +560,17 @@ export default function BoardPage() {
         </label>
         <label>
           <span>Assignee</span>
-          <select
-            value={filters.assigneeId}
-            disabled={filters.unassigned}
-            onChange={(event) => setFilters({ ...filters, assigneeId: event.target.value })}
+          <Select
+            value={filters.mine ? (user?.id ?? '') : filters.assigneeId}
+            disabled={filters.unassigned || filters.mine}
+            onChange={(event) =>
+              setFilters({
+                ...filters,
+                assigneeId: event.target.value,
+                unassigned: false,
+                mine: false,
+              })
+            }
           >
             <option value="">Everyone</option>
             {users.map((member) => (
@@ -541,11 +578,11 @@ export default function BoardPage() {
                 {member.displayName}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <label>
           <span>Estimate</span>
-          <select
+          <Select
             value={filters.estimate}
             onChange={(event) =>
               setFilters({ ...filters, estimate: event.target.value as Filters['estimate'] })
@@ -554,29 +591,45 @@ export default function BoardPage() {
             <option value="">Any</option>
             <option value="true">Estimated</option>
             <option value="false">No estimate</option>
-          </select>
+          </Select>
         </label>
-        <label className="check-field">
-          <input
-            type="checkbox"
-            checked={filters.unassigned}
-            onChange={(event) =>
-              setFilters({
-                ...filters,
-                unassigned: event.target.checked,
-                assigneeId: event.target.checked ? '' : filters.assigneeId,
-              })
-            }
-          />
-          <span>Unassigned only</span>
-        </label>
-        <button
-          className="button ghost compact"
+        <div className="board-filter-toggles">
+          <label className="check-field">
+            <Checkbox
+              checked={filters.mine}
+              onChange={(event) =>
+                setFilters({
+                  ...filters,
+                  mine: event.target.checked,
+                  unassigned: event.target.checked ? false : filters.unassigned,
+                  assigneeId: event.target.checked ? '' : filters.assigneeId,
+                })
+              }
+            />
+            <span>My assignees</span>
+          </label>
+          <label className="check-field">
+            <Checkbox
+              checked={filters.unassigned}
+              onChange={(event) =>
+                setFilters({
+                  ...filters,
+                  unassigned: event.target.checked,
+                  mine: event.target.checked ? false : filters.mine,
+                  assigneeId: event.target.checked ? '' : filters.assigneeId,
+                })
+              }
+            />
+            <span>Unassigned only</span>
+          </label>
+        </div>
+        <Button
+          variant="ghost" size="sm"
           type="button"
           onClick={() => setFilters(emptyFilters)}
         >
           Clear
-        </button>
+        </Button>
       </section>
 
       {error ? (
@@ -735,15 +788,23 @@ function TaskCardContent({
           >
             {task.assignees.length ? (
               <>
-                {task.assignees.slice(0, 3).map((item) => (
-                  <Avatar
-                    key={item.user.id}
-                    name={item.user.displayName}
-                    seed={item.user.avatarSeed}
-                    size={24}
-                  />
-                ))}
-                {task.assignees.length > 3 ? <span>+{task.assignees.length - 3}</span> : null}
+                <div className="card-assignee-avatars">
+                  {task.assignees.slice(0, 3).map((item) => (
+                    <Avatar
+                      hasAvatar={item.user.hasAvatar}
+                      key={item.user.id}
+                      name={item.user.displayName}
+                      size={24}
+                      userId={item.user.id}
+                    />
+                  ))}
+                  {task.assignees.length > 3 ? <span>+{task.assignees.length - 3}</span> : null}
+                </div>
+                <span className="card-assignee-name" title={task.assignees.map((item) => item.user.displayName).join(', ')}>
+                  {task.assignees.length === 1
+                    ? task.assignees[0].user.displayName
+                    : `${task.assignees[0].user.displayName} +${task.assignees.length - 1}`}
+                </span>
               </>
             ) : (
               <span className="unassigned-label" title="Unassigned">
@@ -758,8 +819,8 @@ function TaskCardContent({
         <div className="task-card-facts">
           {task.estimateValue ? (
             <span>
-              {task.estimateUnit === 'MINUTES'
-                ? formatMinutes(task.estimateValue)
+              {task.estimateUnit === 'HOURS'
+                ? formatHours(task.estimateValue)
                 : `${task.estimateValue} pt`}
             </span>
           ) : null}
@@ -932,8 +993,8 @@ function BoardSubtaskCard({
         <div className="task-card-facts">
           {subtask.estimateValue ? (
             <span>
-              {subtask.estimateUnit === 'MINUTES'
-                ? formatMinutes(subtask.estimateValue)
+              {subtask.estimateUnit === 'HOURS'
+                ? formatHours(subtask.estimateValue)
                 : `${subtask.estimateValue} pt`}
             </span>
           ) : null}
@@ -947,9 +1008,10 @@ function BoardSubtaskCard({
       <div className="board-subtask-assignee" aria-hidden={!subtask.assignee}>
         {subtask.assignee ? (
           <Avatar
+            hasAvatar={subtask.assignee.hasAvatar}
             name={subtask.assignee.displayName}
-            seed={subtask.assignee.avatarSeed}
             size={24}
+            userId={subtask.assignee.id}
           />
         ) : (
           <span className="board-subtask-assignee-empty" />
@@ -1017,8 +1079,6 @@ function placeSubtaskOnColumn(board: BoardResponse, subtaskId: string, targetCol
   };
 }
 
-function formatMinutes(value: number) {
-  const hours = Math.floor(value / 60);
-  const minutes = value % 60;
-  return hours ? `${hours}h${minutes ? ` ${minutes}m` : ''}` : `${minutes}m`;
+function formatHours(value: number) {
+  return `${value}h`;
 }

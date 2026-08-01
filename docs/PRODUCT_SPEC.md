@@ -178,10 +178,8 @@ devices must not require precise drag gestures.
 
 ## 7. Avatar behavior
 
-Creating a user generates a cryptographically random avatar seed. The UI derives a consistent,
-local geometric avatar from that seed plus the display-name initials. This requires no third-party
-service, avoids privacy leakage, is reproducible across devices, and gives every new user a random
-visual identity. An administrator can regenerate the seed. Custom image uploads are outside v1.
+Users can upload a profile photo. When no photo is present, the UI shows the first letter of the
+user's display name.
 
 ## 8. Cross-cutting behavior
 
@@ -198,7 +196,7 @@ visual identity. An administrator can regenerate the seed. Custom image uploads 
 V1 is complete when a fresh Docker Compose installation can:
 
 - bootstrap the administrator securely and sign in;
-- create/deactivate members and reset their credentials with a random avatar for each new account;
+- create/deactivate members and reset their credentials;
 - configure estimates, sprint duration, and board columns;
 - create/edit/delete/move/filter tasks and manage multiple assignees;
 - create/edit/complete/reorder subtasks with no more than one assignee;

@@ -1,5 +1,7 @@
 'use client';
 
+import { Button, Input, Textarea } from '../../../components/design-system';
+
 import Link from 'next/link';
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../../../components/auth-provider';
@@ -50,12 +52,12 @@ export default function SprintsPage() {
     <div className="page-stack">
       <header className="page-header">
         <div><p className="eyebrow">Delivery cadence</p><h1>Sprints</h1><p className="muted">Plan work, run one focused sprint at a time, and keep the outcome visible after it closes.</p></div>
-        <div className="header-actions"><button className="button primary" onClick={() => setShowForm((value) => !value)} type="button">{showForm ? 'Close' : 'Plan sprint'}</button></div>
+        <div className="header-actions"><Button variant="primary" onClick={() => setShowForm((value) => !value)} type="button">{showForm ? 'Close' : 'Plan sprint'}</Button></div>
       </header>
       {showForm ? <form className="sprint-form" onSubmit={create}>
-        <label>Sprint name<input autoFocus maxLength={120} onChange={(event) => setName(event.target.value)} required value={name} /></label>
-        <label>Goal <small>Optional</small><textarea maxLength={10000} onChange={(event) => setGoal(event.target.value)} rows={2} value={goal} /></label>
-        <button className="button primary" disabled={creating} type="submit">{creating ? 'Creating…' : 'Create planned sprint'}</button>
+        <label>Sprint name<Input autoFocus maxLength={120} onChange={(event) => setName(event.target.value)} required value={name} /></label>
+        <label>Goal <small>Optional</small><Textarea maxLength={10000} onChange={(event) => setGoal(event.target.value)} rows={2} value={goal} /></label>
+        <Button variant="primary" disabled={creating} type="submit">{creating ? 'Creating…' : 'Create planned sprint'}</Button>
       </form> : null}
       {error ? <p className="form-error" role="alert">{error}</p> : null}
       <section className="sprint-list" aria-label="Sprint history">

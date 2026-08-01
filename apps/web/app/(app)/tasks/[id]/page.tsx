@@ -1,5 +1,7 @@
 'use client';
 
+import { Button, Checkbox, Input, Modal, Select, Textarea } from '../../../../components/design-system';
+
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { FormEvent, type PropsWithChildren, useCallback, useEffect, useState } from 'react';
@@ -57,7 +59,7 @@ export default function TaskPage() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [estimate, setEstimate] = useState('');
-  const [estimateUnit, setEstimateUnit] = useState<EstimateUnit>('MINUTES');
+  const [estimateUnit, setEstimateUnit] = useState<EstimateUnit>('HOURS');
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [subtaskForm, setSubtaskForm] = useState<SubtaskForm | null>(null);
   const [error, setError] = useState('');
@@ -87,7 +89,7 @@ export default function TaskPage() {
       setDescription(nextTask.description ?? '');
       setEstimate(nextTask.estimateValue?.toString() ?? '');
       setEstimateUnit(
-        nextTask.estimateUnit ?? (nextSettings.estimateMode === 'TIME' ? 'MINUTES' : 'POINTS'),
+        nextTask.estimateUnit ?? (nextSettings.estimateMode === 'TIME' ? 'HOURS' : 'POINTS'),
       );
       setAssigneeIds(nextTask.assignees.map((item) => item.user.id));
       setError('');
@@ -307,7 +309,7 @@ export default function TaskPage() {
       </div>
     );
   const completed = task.subtasks.filter((item) => item.isCompleted).length;
-  const defaultUnit: EstimateUnit = settings?.estimateMode === 'POINTS' ? 'POINTS' : 'MINUTES';
+  const defaultUnit: EstimateUnit = settings?.estimateMode === 'POINTS' ? 'POINTS' : 'HOURS';
 
   return (
     <div className="page-stack task-detail-page">
@@ -329,17 +331,17 @@ export default function TaskPage() {
           </p>
         </div>
         <div className="header-actions">
-          <button className="button secondary" onClick={() => setEditing(true)} type="button">
+          <Button variant="outline" onClick={() => setEditing(true)} type="button">
             Edit task
-          </button>
-          <button
-            className="button danger-ghost"
+          </Button>
+          <Button
+            variant="destructive"
             disabled={busy}
             onClick={() => void deleteTask()}
             type="button"
           >
             Delete
-          </button>
+          </Button>
         </div>
       </header>
       {error ? (
@@ -368,8 +370,8 @@ export default function TaskPage() {
                   {completed} of {task.subtasks.length} complete
                 </p>
               </div>
-              <button
-                className="button secondary compact"
+              <Button
+                variant="outline" size="sm"
                 onClick={() =>
                   setSubtaskForm({
                     title: '',
@@ -382,7 +384,7 @@ export default function TaskPage() {
                 type="button"
               >
                 Add subtask
-              </button>
+              </Button>
             </header>
             <DndContext
               sensors={subtaskSensors}
@@ -410,10 +412,9 @@ export default function TaskPage() {
                           }
                         }}
                       >
-                        <input
+                        <Checkbox
                           className="subtask-check"
                           aria-label={`Mark ${subtask.title} ${subtask.isCompleted ? 'incomplete' : 'complete'}`}
-                          type="checkbox"
                           checked={subtask.isCompleted}
                           disabled={busy}
                           onChange={() =>
@@ -437,7 +438,7 @@ export default function TaskPage() {
                             ) : null}
                           </div>
                         </div>
-                        <select
+                        <Select
                           aria-label={`Assignee for ${subtask.title}`}
                           value={subtask.assigneeId ?? ''}
                           disabled={busy}
@@ -451,25 +452,25 @@ export default function TaskPage() {
                               {member.displayName}
                             </option>
                           ))}
-                        </select>
+                        </Select>
                         <div className="subtask-actions">
-                          <button
+                          <Button
                             disabled={busy || index === 0}
                             aria-label={`Move ${subtask.title} up`}
                             onClick={() => void reorderSubtask(index, -1)}
                             type="button"
                           >
                             ↑
-                          </button>
-                          <button
+                          </Button>
+                          <Button
                             disabled={busy || index === task.subtasks.length - 1}
                             aria-label={`Move ${subtask.title} down`}
                             onClick={() => void reorderSubtask(index, 1)}
                             type="button"
                           >
                             ↓
-                          </button>
-                          <button
+                          </Button>
+                          <Button
                             onClick={() =>
                               setSubtaskForm({
                                 id: subtask.id,
@@ -483,19 +484,19 @@ export default function TaskPage() {
                             type="button"
                           >
                             Edit
-                          </button>
-                          <button
+                          </Button>
+                          <Button
                             className="danger"
                             onClick={() => void removeSubtask(subtask)}
                             type="button"
                           >
                             Delete
-                          </button>
+                          </Button>
                         </div>
                         <div className="subtask-files">
                           <label className="file-button">
                             Attach file
-                            <input
+                            <Input
                               type="file"
                               disabled={busy}
                               onChange={(event) => {
@@ -533,7 +534,7 @@ export default function TaskPage() {
               </div>
               <label className="button secondary compact file-button">
                 Upload file
-                <input
+                <Input
                   type="file"
                   disabled={busy}
                   onChange={(event) => {
@@ -559,7 +560,7 @@ export default function TaskPage() {
         <aside className="task-sidebar">
           <section>
             <h2>Status</h2>
-            <select
+            <Select
               value={task.columnId}
               disabled={busy}
               onChange={(event) => void moveToColumn(event.target.value)}
@@ -569,7 +570,7 @@ export default function TaskPage() {
                   {column.name}
                 </option>
               ))}
-            </select>
+            </Select>
           </section>
           <section>
             <h2>Estimate</h2>
@@ -585,7 +586,12 @@ export default function TaskPage() {
               <div className="sidebar-assignees">
                 {task.assignees.map((item) => (
                   <span key={item.user.id}>
-                    <Avatar name={item.user.displayName} seed={item.user.avatarSeed} size={31} />
+                    <Avatar
+                      hasAvatar={item.user.hasAvatar}
+                      name={item.user.displayName}
+                      size={31}
+                      userId={item.user.id}
+                    />
                     {item.user.displayName}
                   </span>
                 ))}
@@ -598,13 +604,13 @@ export default function TaskPage() {
       </div>
 
       {editing ? (
-        <div className="modal-backdrop" role="presentation">
-          <section
-            className="modal task-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="edit-task-title"
-          >
+        <Modal
+          className="modal task-modal"
+          labelledBy="edit-task-title"
+          onOpenChange={(open) => {
+            if (!open) setEditing(false);
+          }}
+        >
             <header>
               <p className="section-label">Task details</p>
               <h2 id="edit-task-title">Edit task</h2>
@@ -612,7 +618,7 @@ export default function TaskPage() {
             <form onSubmit={saveTask}>
               <label>
                 Title
-                <input
+                <Input
                   required
                   maxLength={240}
                   value={title}
@@ -621,7 +627,7 @@ export default function TaskPage() {
               </label>
               <label>
                 Description
-                <textarea
+                <Textarea
                   rows={5}
                   maxLength={50000}
                   value={description}
@@ -631,10 +637,10 @@ export default function TaskPage() {
               <div className="form-grid">
                 <label>
                   Estimate
-                  <input
+                  <Input
                     type="number"
                     min={1}
-                    max={estimateUnit === 'MINUTES' ? 525600 : 10000}
+                    max={estimateUnit === 'HOURS' ? 8760 : 10000}
                     value={estimate}
                     onChange={(event) => setEstimate(event.target.value)}
                     placeholder="Optional"
@@ -642,18 +648,18 @@ export default function TaskPage() {
                 </label>
                 <label>
                   Unit
-                  <select
+                  <Select
                     value={estimateUnit}
                     onChange={(event) => setEstimateUnit(event.target.value as EstimateUnit)}
                   >
-                    <option value="MINUTES">Minutes</option>
+                    <option value="HOURS">Hours</option>
                     <option value="POINTS">Points</option>
-                  </select>
+                  </Select>
                 </label>
               </div>
               <label>
                 Sprint
-                <select value={sprintId} onChange={(event) => setSprintId(event.target.value)}>
+                <Select value={sprintId} onChange={(event) => setSprintId(event.target.value)}>
                   <option value="">No sprint</option>
                   {task.sprint && !plannedSprints.some((sprint) => sprint.id === task.sprint?.id) ? (
                     <option value={task.sprint.id}>
@@ -666,14 +672,13 @@ export default function TaskPage() {
                       {sprint.status === 'ACTIVE' ? ' (active)' : ''}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
               <fieldset className="assignee-picker">
                 <legend>Assignees</legend>
                 {users.map((member) => (
                   <label key={member.id}>
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={assigneeIds.includes(member.id)}
                       onChange={(event) =>
                         setAssigneeIds(
@@ -683,32 +688,36 @@ export default function TaskPage() {
                         )
                       }
                     />
-                    <Avatar name={member.displayName} seed={member.avatarSeed} size={26} />
+                    <Avatar
+                      hasAvatar={member.hasAvatar}
+                      name={member.displayName}
+                      size={26}
+                      userId={member.id}
+                    />
                     <span>{member.displayName}</span>
                   </label>
                 ))}
               </fieldset>
               <footer>
-                <button className="button ghost" type="button" onClick={() => setEditing(false)}>
+                <Button variant="ghost" type="button" onClick={() => setEditing(false)}>
                   Cancel
-                </button>
-                <button className="button primary" disabled={busy} type="submit">
+                </Button>
+                <Button variant="primary" disabled={busy} type="submit">
                   Save task
-                </button>
+                </Button>
               </footer>
             </form>
-          </section>
-        </div>
+        </Modal>
       ) : null}
 
       {subtaskForm ? (
-        <div className="modal-backdrop" role="presentation">
-          <section
-            className="modal task-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="subtask-title"
-          >
+        <Modal
+          className="modal task-modal"
+          labelledBy="subtask-title"
+          onOpenChange={(open) => {
+            if (!open) setSubtaskForm(null);
+          }}
+        >
             <header>
               <p className="section-label">Checklist</p>
               <h2 id="subtask-title">{subtaskForm.id ? 'Edit subtask' : 'Add subtask'}</h2>
@@ -716,7 +725,7 @@ export default function TaskPage() {
             <form onSubmit={saveSubtask}>
               <label>
                 Title
-                <input
+                <Input
                   autoFocus
                   required
                   maxLength={240}
@@ -728,7 +737,7 @@ export default function TaskPage() {
               </label>
               <label>
                 Description
-                <textarea
+                <Textarea
                   rows={3}
                   maxLength={50000}
                   value={subtaskForm.description}
@@ -739,7 +748,7 @@ export default function TaskPage() {
               </label>
               <label>
                 Assignee
-                <select
+                <Select
                   value={subtaskForm.assigneeId}
                   onChange={(event) =>
                     setSubtaskForm({ ...subtaskForm, assigneeId: event.target.value })
@@ -751,15 +760,15 @@ export default function TaskPage() {
                       {member.displayName}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
               <div className="form-grid">
                 <label>
                   Estimate
-                  <input
+                  <Input
                     type="number"
                     min={1}
-                    max={subtaskForm.estimateUnit === 'MINUTES' ? 525600 : 10000}
+                    max={subtaskForm.estimateUnit === 'HOURS' ? 8760 : 10000}
                     value={subtaskForm.estimate}
                     onChange={(event) =>
                       setSubtaskForm({ ...subtaskForm, estimate: event.target.value })
@@ -769,7 +778,7 @@ export default function TaskPage() {
                 </label>
                 <label>
                   Unit
-                  <select
+                  <Select
                     value={subtaskForm.estimateUnit}
                     onChange={(event) =>
                       setSubtaskForm({
@@ -778,22 +787,21 @@ export default function TaskPage() {
                       })
                     }
                   >
-                    <option value="MINUTES">Minutes</option>
+                    <option value="HOURS">Hours</option>
                     <option value="POINTS">Points</option>
-                  </select>
+                  </Select>
                 </label>
               </div>
               <footer>
-                <button className="button ghost" type="button" onClick={() => setSubtaskForm(null)}>
+                <Button variant="ghost" type="button" onClick={() => setSubtaskForm(null)}>
                   Cancel
-                </button>
-                <button className="button primary" disabled={busy} type="submit">
+                </Button>
+                <Button variant="primary" disabled={busy} type="submit">
                   Save subtask
-                </button>
+                </Button>
               </footer>
             </form>
-          </section>
-        </div>
+        </Modal>
       ) : null}
     </div>
   );
@@ -846,21 +854,19 @@ function FileRow({
           {formatBytes(file.sizeBytes)} · uploaded by {file.uploadedBy.displayName}
         </small>
       </div>
-      <button className="button ghost compact" type="button" onClick={() => onDownload(file)}>
+      <Button variant="ghost" size="sm" type="button" onClick={() => onDownload(file)}>
         Download
-      </button>
-      <button className="button danger-ghost compact" type="button" onClick={() => onDelete(file)}>
+      </Button>
+      <Button variant="destructive" size="sm" type="button" onClick={() => onDelete(file)}>
         Delete
-      </button>
+      </Button>
     </article>
   );
 }
 
 function formatEstimate(value: number, unit: EstimateUnit | null) {
   if (unit === 'POINTS') return `${value} ${value === 1 ? 'point' : 'points'}`;
-  const hours = Math.floor(value / 60);
-  const minutes = value % 60;
-  return hours ? `${hours}h${minutes ? ` ${minutes}m` : ''}` : `${minutes}m`;
+  return `${value}h`;
 }
 function formatBytes(value: number) {
   if (value < 1024) return `${value} B`;

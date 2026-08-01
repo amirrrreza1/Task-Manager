@@ -22,8 +22,14 @@ import {
   sprintAcceptsNewWork,
   sprintOutcomeTotals,
 } from './sprint-work';
+import { pickBacklogColumnId, pickTodoColumnId } from '../tasks/task-work';
 
-const authorSelect = { id: true, displayName: true, avatarSeed: true, isActive: true };
+const authorSelect = {
+  id: true,
+  displayName: true,
+  hasAvatar: true,
+  isActive: true,
+};
 const taskInclude = {
   column: { select: { id: true, name: true, isDone: true } },
   assignees: { include: { user: { select: authorSelect } }, orderBy: { assignedAt: 'asc' } },
@@ -70,7 +76,10 @@ export class SprintsService {
             assignee: { select: authorSelect },
           },
         },
-        taskSnapshots: { orderBy: { title: 'asc' } },
+        taskSnapshots: {
+          orderBy: { title: 'asc' },
+          include: { task: { select: { sprintId: true } } },
+        },
         comments: {
           take: 50,
           orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
@@ -82,7 +91,14 @@ export class SprintsService {
     const outcomes = this.outcomes(
       sprint.status === SprintStatus.COMPLETED ? sprint.taskSnapshots : sprint.tasks,
     );
-    return { ...sprint, outcomes };
+    return {
+      ...sprint,
+      taskSnapshots: sprint.taskSnapshots.map(({ task, ...snapshot }) => ({
+        ...snapshot,
+        canCarryOver: !snapshot.wasDone && snapshot.taskId !== null && task?.sprintId === id,
+      })),
+      outcomes,
+    };
   }
 
   async availableTasks(id: string) {
@@ -140,7 +156,12 @@ export class SprintsService {
       this.assertSprintAcceptsWork(target.status);
       const tasks = await transaction.task.findMany({
         where: { id: { in: input.taskIds } },
-        select: { id: true, sprintId: true, sprint: { select: { id: true, status: true } } },
+        select: {
+          id: true,
+          columnId: true,
+          sprintId: true,
+          sprint: { select: { id: true, status: true } },
+        },
       });
       if (tasks.length !== input.taskIds.length)
         throw new BadRequestException('One or more selected tasks no longer exist.');
@@ -153,10 +174,28 @@ export class SprintsService {
           );
         }
       }
-      await transaction.task.updateMany({
-        where: { id: { in: input.taskIds } },
-        data: { sprintId: id },
+      const columns = await transaction.boardColumn.findMany({
+        select: { id: true, isBacklog: true, isTodo: true, isDone: true, position: true },
+        orderBy: { position: 'asc' },
       });
+      const todoColumnId = pickTodoColumnId(columns);
+      if (!todoColumnId) throw new BadRequestException('The To Do column is not configured.');
+      const maximum = await transaction.task.aggregate({
+        where: { columnId: todoColumnId },
+        _max: { position: true },
+      });
+      let position = Number(maximum._max.position ?? 0);
+      for (const task of tasks) {
+        position += 1024;
+        await transaction.subtask.updateMany({
+          where: { taskId: task.id, columnId: task.columnId },
+          data: { columnId: todoColumnId },
+        });
+        await transaction.task.update({
+          where: { id: task.id },
+          data: { sprintId: id, columnId: todoColumnId, position },
+        });
+      }
       await this.event(transaction, 'sprint.tasks_assigned', id, actorId, { taskIds: input.taskIds });
       return { assigned: input.taskIds.length };
     });
@@ -309,17 +348,88 @@ export class SprintsService {
       });
       if (snapshots.length !== input.taskIds.length)
         throw new BadRequestException('Select unfinished tasks from this sprint only.');
-      const updated = await transaction.task.updateMany({
+      const tasks = await transaction.task.findMany({
         where: { id: { in: input.taskIds }, sprintId: id },
-        data: { sprintId: input.targetSprintId },
+        select: { id: true, columnId: true },
       });
-      if (updated.count !== input.taskIds.length)
+      if (tasks.length !== input.taskIds.length)
         throw new ConflictException('One or more tasks have already been moved or removed.');
+      const columns = await transaction.boardColumn.findMany({
+        select: { id: true, isBacklog: true, isTodo: true, isDone: true, position: true },
+        orderBy: { position: 'asc' },
+      });
+      const todoColumnId = pickTodoColumnId(columns);
+      if (!todoColumnId) throw new BadRequestException('The To Do column is not configured.');
+      const maximum = await transaction.task.aggregate({
+        where: { columnId: todoColumnId },
+        _max: { position: true },
+      });
+      let position = Number(maximum._max.position ?? 0);
+      for (const task of tasks) {
+        position += 1024;
+        await transaction.subtask.updateMany({
+          where: { taskId: task.id, columnId: task.columnId },
+          data: { columnId: todoColumnId },
+        });
+        await transaction.task.update({
+          where: { id: task.id },
+          data: { sprintId: input.targetSprintId, columnId: todoColumnId, position },
+        });
+      }
       await this.event(transaction, 'sprint.tasks_carried_over', id, actorId, {
         taskIds: input.taskIds,
         targetSprintId: input.targetSprintId,
       });
-      return { moved: updated.count, targetSprintId: input.targetSprintId };
+      return { moved: tasks.length, targetSprintId: input.targetSprintId };
+    });
+  }
+
+  async moveToBacklog(id: string, taskIds: string[], actorId: string) {
+    return this.prisma.$transaction(async (transaction) => {
+      const source = await transaction.sprint.findUnique({ where: { id }, select: { status: true } });
+      if (!source) throw new NotFoundException('Source sprint not found.');
+      if (source.status !== SprintStatus.COMPLETED)
+        throw new ConflictException('Moving work to the backlog is available after a sprint is completed.');
+
+      const snapshots = await transaction.sprintTaskSnapshot.findMany({
+        where: { sprintId: id, taskId: { in: taskIds }, wasDone: false },
+        select: { taskId: true },
+      });
+      if (snapshots.length !== taskIds.length)
+        throw new BadRequestException('Select unfinished tasks from this sprint only.');
+
+      const tasks = await transaction.task.findMany({
+        where: { id: { in: taskIds }, sprintId: id },
+        select: { id: true, columnId: true },
+      });
+      if (tasks.length !== taskIds.length)
+        throw new ConflictException('One or more tasks have already been moved or removed.');
+
+      const columns = await transaction.boardColumn.findMany({
+        select: { id: true, isBacklog: true, position: true },
+        orderBy: { position: 'asc' },
+      });
+      const backlogColumnId = pickBacklogColumnId(columns);
+      if (!backlogColumnId) throw new BadRequestException('The backlog column is not configured.');
+
+      const maximum = await transaction.task.aggregate({
+        where: { columnId: backlogColumnId },
+        _max: { position: true },
+      });
+      let position = Number(maximum._max.position ?? 0);
+      for (const task of tasks) {
+        position += 1024;
+        await transaction.subtask.updateMany({
+          where: { taskId: task.id, columnId: task.columnId },
+          data: { columnId: backlogColumnId },
+        });
+        await transaction.task.update({
+          where: { id: task.id },
+          data: { sprintId: null, columnId: backlogColumnId, position },
+        });
+      }
+      await this.event(transaction, 'sprint.tasks_moved_to_backlog', id, actorId, { taskIds });
+      return { moved: tasks.length };
     });
   }
 

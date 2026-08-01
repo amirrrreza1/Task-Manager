@@ -46,7 +46,7 @@ export class AccessTokenGuard implements CanActivate {
         username: true,
         displayName: true,
         role: true,
-        avatarSeed: true,
+        hasAvatar: true,
         isBootstrapAdmin: true,
         isActive: true,
       },
@@ -61,7 +61,7 @@ export class AccessTokenGuard implements CanActivate {
       username: user.username,
       displayName: user.displayName,
       role: user.role,
-      avatarSeed: user.avatarSeed,
+      hasAvatar: user.hasAvatar,
       isBootstrapAdmin: user.isBootstrapAdmin,
     };
     return true;

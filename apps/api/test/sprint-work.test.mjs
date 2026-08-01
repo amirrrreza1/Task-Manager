@@ -10,7 +10,7 @@ const {
   sprintAcceptsNewWork,
   sprintOutcomeTotals,
 } = sprintWorkModule;
-const { pickBacklogColumnId } = taskWorkModule;
+const { pickBacklogColumnId, pickTodoColumnId } = taskWorkModule;
 
 const sprint = (id, status) => ({ id, status });
 
@@ -75,7 +75,7 @@ describe('assertSubtaskCanJoinSprint', () => {
 describe('sprintOutcomeTotals', () => {
   it('counts completion and estimate totals per unit', () => {
     const result = sprintOutcomeTotals([
-      { estimateValue: 30, estimateUnit: 'MINUTES', column: { isDone: false } },
+      { estimateValue: 4, estimateUnit: 'HOURS', column: { isDone: false } },
       { estimateValue: 5, estimateUnit: 'POINTS', column: { isDone: true } },
       { estimateValue: null, estimateUnit: null, wasDone: true },
     ]);
@@ -83,7 +83,7 @@ describe('sprintOutcomeTotals', () => {
       total: 3,
       completed: 2,
       incomplete: 1,
-      estimates: { MINUTES: 30, POINTS: 5 },
+      estimates: { HOURS: 4, POINTS: 5 },
     });
   });
 });
@@ -106,6 +106,29 @@ describe('pickBacklogColumnId', () => {
         { id: 'right', position: 1, isBacklog: false },
       ]),
       'left',
+    );
+  });
+});
+
+describe('pickTodoColumnId', () => {
+  it('prefers the marked To Do column', () => {
+    assert.equal(
+      pickTodoColumnId([
+        { id: 'ready', position: 1, isBacklog: false, isTodo: false, isDone: false },
+        { id: 'todo', position: 2, isBacklog: false, isTodo: true, isDone: false },
+      ]),
+      'todo',
+    );
+  });
+
+  it('falls back to the first workflow column', () => {
+    assert.equal(
+      pickTodoColumnId([
+        { id: 'backlog', position: 0, isBacklog: true, isDone: false },
+        { id: 'ready', position: 1, isBacklog: false, isDone: false },
+        { id: 'done', position: 2, isBacklog: false, isDone: true },
+      ]),
+      'ready',
     );
   });
 });

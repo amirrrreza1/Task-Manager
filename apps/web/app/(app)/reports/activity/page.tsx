@@ -1,5 +1,15 @@
 'use client';
 
+import { Button, Input, Select } from '../../../../components/design-system';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@appica/ui-react/table';
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../../../components/auth-provider';
 import { Avatar } from '../../../../components/avatar';
@@ -139,40 +149,40 @@ export default function ActivityLogPage() {
       <section className="board-filters" aria-label="Activity log filters">
         <label>
           <span>Actor</span>
-          <select value={filters.actorId} onChange={(e) => setFilters({ ...filters, actorId: e.target.value })}>
+          <Select value={filters.actorId} onChange={(e) => setFilters({ ...filters, actorId: e.target.value })}>
             <option value="">Everyone</option>
             {users.map((u) => (
               <option key={u.id} value={u.id}>
                 {u.displayName}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <label>
           <span>Entity type</span>
-          <select value={filters.entityType} onChange={(e) => setFilters({ ...filters, entityType: e.target.value })}>
+          <Select value={filters.entityType} onChange={(e) => setFilters({ ...filters, entityType: e.target.value })}>
             <option value="">All types</option>
             {ENTITY_TYPES.map((et) => (
               <option key={et} value={et}>
                 {entityTypeLabel(et)}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <label>
           <span>From</span>
-          <input type="date" value={filters.from} onChange={(e) => setFilters({ ...filters, from: e.target.value })} />
+          <Input type="date" value={filters.from} onChange={(e) => setFilters({ ...filters, from: e.target.value })} />
         </label>
         <label>
           <span>To</span>
-          <input type="date" value={filters.to} onChange={(e) => setFilters({ ...filters, to: e.target.value })} />
+          <Input type="date" value={filters.to} onChange={(e) => setFilters({ ...filters, to: e.target.value })} />
         </label>
-        <button className="button primary compact" type="button" onClick={applyFilters}>
+        <Button variant="primary" size="sm" type="button" onClick={applyFilters}>
           Apply
-        </button>
-        <button className="button ghost compact" type="button" onClick={clearFilters}>
+        </Button>
+        <Button variant="ghost" size="sm" type="button" onClick={clearFilters}>
           Clear
-        </button>
+        </Button>
       </section>
 
       {error && (
@@ -190,55 +200,60 @@ export default function ActivityLogPage() {
       ) : (
         <>
           <div className="report-table-wrap" role="region" aria-label="Activity log">
-            <table className="report-table">
-              <thead>
-                <tr>
-                  <th scope="col">When</th>
-                  <th scope="col">Actor</th>
-                  <th scope="col">Event</th>
-                  <th scope="col">Entity type</th>
-                  <th scope="col">Entity</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table size="sm" hoverableRows className="report-table">
+              <TableHeader>
+                <TableRow>
+                  <TableHead scope="col">When</TableHead>
+                  <TableHead scope="col">Actor</TableHead>
+                  <TableHead scope="col">Event</TableHead>
+                  <TableHead scope="col">Entity type</TableHead>
+                  <TableHead scope="col">Entity</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {items.map((ev) => (
-                  <tr key={ev.id}>
-                    <td className="report-cell-mono">
+                  <TableRow key={ev.id}>
+                    <TableCell className="report-cell-mono">
                       {new Date(ev.createdAt).toLocaleString()}
-                    </td>
-                    <td>
+                    </TableCell>
+                    <TableCell>
                       {ev.actor ? (
                         <span className="report-actor">
-                          <Avatar name={ev.actor.displayName} seed={ev.actor.avatarSeed} size={20} />
+                          <Avatar
+                            hasAvatar={ev.actor.hasAvatar}
+                            name={ev.actor.displayName}
+                            size={20}
+                            userId={ev.actor.id}
+                          />
                           <span>{ev.actor.displayName}</span>
                         </span>
                       ) : (
                         <span className="muted">System</span>
                       )}
-                    </td>
-                    <td>
+                    </TableCell>
+                    <TableCell>
                       <span className="report-event-type">{eventLabel(ev.eventType)}</span>
-                    </td>
-                    <td>
+                    </TableCell>
+                    <TableCell>
                       <span className="tag">{entityTypeLabel(ev.entityType)}</span>
-                    </td>
-                    <td>{ev.entityLabel ?? <span className="muted">{ev.entityId.slice(0, 8)}…</span>}</td>
-                  </tr>
+                    </TableCell>
+                    <TableCell>{ev.entityLabel ?? <span className="muted">{ev.entityId.slice(0, 8)}…</span>}</TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
 
           {nextCursor && (
             <div style={{ textAlign: 'center', paddingTop: '1rem' }}>
-              <button
-                className="button secondary"
+              <Button
+                variant="outline"
                 type="button"
                 disabled={loadingMore}
                 onClick={() => void loadMore()}
               >
                 {loadingMore ? 'Loading…' : 'Load more'}
-              </button>
+              </Button>
             </div>
           )}
         </>

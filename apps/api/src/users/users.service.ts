@@ -1,22 +1,36 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
+  PayloadTooLargeException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { Prisma, UserRole } from '@prisma/client';
-import { randomBytes } from 'node:crypto';
+import { rm } from 'node:fs/promises';
+import { basename } from 'node:path';
 import { PasswordService } from '../auth/password.service';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
+import { LocalFileStorage } from '../infrastructure/storage/local-file-storage.service';
 import type { CreateUserDto } from './dto/create-user.dto';
 import type { UpdateUserDto } from './dto/update-user.dto';
+
+interface UploadedFile {
+  path: string;
+  originalname: string;
+  mimetype: string;
+  size: number;
+}
+
+const AVATAR_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
 
 const userSelect = {
   id: true,
   username: true,
   displayName: true,
   role: true,
-  avatarSeed: true,
+  hasAvatar: true,
   isActive: true,
   isBootstrapAdmin: true,
   createdAt: true,
@@ -25,10 +39,19 @@ const userSelect = {
 
 @Injectable()
 export class UsersService {
+  private readonly maximumAvatarBytes: number;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly passwords: PasswordService,
-  ) {}
+    private readonly storage: LocalFileStorage,
+    config: ConfigService,
+  ) {
+    this.maximumAvatarBytes = Math.min(
+      (config.get<number>('MAX_UPLOAD_SIZE_MB', 25) * 1024 * 1024) / 5,
+      2 * 1024 * 1024,
+    );
+  }
 
   list(viewerRole: UserRole) {
     return this.prisma.user.findMany({
@@ -56,7 +79,6 @@ export class UsersService {
           username,
           displayName: input.displayName.trim(),
           passwordHash: await this.passwords.hash(input.password),
-          avatarSeed: randomBytes(32).toString('hex'),
         },
         select: userSelect,
       });
@@ -145,26 +167,114 @@ export class UsersService {
     ]);
   }
 
-  async regenerateAvatar(id: string, actorId: string) {
+  async uploadAvatar(id: string, file: UploadedFile | undefined, actorId: string) {
+    if (actorId !== id) throw new ForbiddenException('You can only change your own avatar.');
+    if (!file) throw new BadRequestException('Choose an image to upload.');
+
+    try {
+      if (file.size < 1) throw new BadRequestException('Empty files cannot be used as avatars.');
+      if (file.size > this.maximumAvatarBytes) {
+        throw new PayloadTooLargeException('Avatars must be 2 MB or smaller.');
+      }
+      const mimeType = (file.mimetype || '').toLowerCase();
+      if (!AVATAR_MIME_TYPES.has(mimeType)) {
+        throw new BadRequestException('Avatars must be a PNG, JPEG, GIF, or WebP image.');
+      }
+      const existing = await this.prisma.user.findUnique({ where: { id } });
+      if (!existing || !existing.isActive) throw new NotFoundException('User not found.');
+
+      const originalName = [...basename(file.originalname)]
+        .filter((character) => character.charCodeAt(0) > 31 && character.charCodeAt(0) !== 127)
+        .join('')
+        .trim()
+        .slice(0, 255);
+      if (!originalName) throw new BadRequestException('The filename is invalid.');
+
+      const stored = await this.storage.put(file.path);
+      const previousKey = existing.avatarStorageKey;
+      try {
+        const user = await this.prisma.$transaction(async (transaction) => {
+          const updated = await transaction.user.update({
+            where: { id },
+            data: {
+              avatarStorageKey: stored.storageKey,
+              avatarMimeType: mimeType.slice(0, 127),
+              hasAvatar: true,
+            },
+            select: userSelect,
+          });
+          await transaction.activityEvent.create({
+            data: {
+              eventType: 'user.avatar_uploaded',
+              entityType: 'user',
+              entityId: id,
+              actorId,
+              payload: { version: 1, mimeType, sizeBytes: file.size },
+            },
+          });
+          return updated;
+        });
+        if (previousKey) await this.storage.delete(previousKey);
+        return user;
+      } catch (error) {
+        await this.storage.delete(stored.storageKey);
+        throw error;
+      }
+    } finally {
+      if (file) await rm(file.path, { force: true });
+    }
+  }
+
+  async removeAvatar(id: string, actorId: string) {
+    if (actorId !== id) throw new ForbiddenException('You can only change your own avatar.');
     const existing = await this.prisma.user.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('User not found.');
-    return this.prisma.$transaction(async (transaction) => {
-      const user = await transaction.user.update({
+    if (!existing.hasAvatar || !existing.avatarStorageKey) {
+      return this.prisma.user.findUniqueOrThrow({ where: { id }, select: userSelect });
+    }
+    const previousKey = existing.avatarStorageKey;
+    const user = await this.prisma.$transaction(async (transaction) => {
+      const updated = await transaction.user.update({
         where: { id },
-        data: { avatarSeed: randomBytes(32).toString('hex') },
+        data: {
+          avatarStorageKey: null,
+          avatarMimeType: null,
+          hasAvatar: false,
+        },
         select: userSelect,
       });
       await transaction.activityEvent.create({
         data: {
-          eventType: 'user.avatar_regenerated',
+          eventType: 'user.avatar_removed',
           entityType: 'user',
           entityId: id,
           actorId,
           payload: { version: 1 },
         },
       });
-      return user;
+      return updated;
     });
+    await this.storage.delete(previousKey);
+    return user;
+  }
+
+  async openAvatar(id: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: {
+        isActive: true,
+        hasAvatar: true,
+        avatarStorageKey: true,
+        avatarMimeType: true,
+      },
+    });
+    if (!user?.isActive || !user.hasAvatar || !user.avatarStorageKey || !user.avatarMimeType) {
+      throw new NotFoundException('Avatar not found.');
+    }
+    return {
+      mimeType: user.avatarMimeType,
+      stream: this.storage.open(user.avatarStorageKey),
+    };
   }
 
   private async assertUsernameAvailable(username: string, excludedId?: string) {

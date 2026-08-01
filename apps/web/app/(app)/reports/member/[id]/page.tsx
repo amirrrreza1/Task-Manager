@@ -1,5 +1,15 @@
 'use client';
 
+import { Select } from '../../../../../components/design-system';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@appica/ui-react/table';
+
 import Link from 'next/link';
 import { use, useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../../../../../components/auth-provider';
@@ -8,21 +18,17 @@ import type { MemberReport, ReportSubtask, SprintSummary } from '../../../../../
 
 function formatEstimate(value: number | null, unit: string | null) {
   if (!value || !unit) return null;
-  if (unit === 'MINUTES') {
-    const h = Math.floor(value / 60);
-    const m = value % 60;
-    return h ? `${h}h${m ? ` ${m}m` : ''}` : `${m}m`;
-  }
+  if (unit === 'HOURS') return `${value}h`;
   return `${value} pt`;
 }
 
 function SubtaskRow({ subtask }: { subtask: ReportSubtask }) {
   return (
-    <tr>
-      <td>
+    <TableRow>
+      <TableCell>
         <span className={subtask.isCompleted ? 'report-done' : undefined}>{subtask.title}</span>
-      </td>
-      <td>
+      </TableCell>
+      <TableCell>
         {subtask.task ? (
           <Link href={`/tasks/${subtask.task.id}`} className="report-link">
             {subtask.task.title}
@@ -30,20 +36,20 @@ function SubtaskRow({ subtask }: { subtask: ReportSubtask }) {
         ) : (
           <span className="muted">—</span>
         )}
-      </td>
-      <td>{subtask.sprint?.name ?? <span className="muted">Backlog</span>}</td>
-      <td>
+      </TableCell>
+      <TableCell>{subtask.sprint?.name ?? <span className="muted">Backlog</span>}</TableCell>
+      <TableCell>
         <span className="tag">{subtask.column.name}</span>
-      </td>
-      <td>{formatEstimate(subtask.estimateValue, subtask.estimateUnit) ?? <span className="muted">—</span>}</td>
-      <td>
+      </TableCell>
+      <TableCell>{formatEstimate(subtask.estimateValue, subtask.estimateUnit) ?? <span className="muted">—</span>}</TableCell>
+      <TableCell>
         {subtask.isCompleted ? (
           <span className="report-badge done">Done</span>
         ) : (
           <span className="report-badge pending">In progress</span>
         )}
-      </td>
-    </tr>
+      </TableCell>
+    </TableRow>
   );
 }
 
@@ -99,7 +105,12 @@ export default function MemberReportPage({ params }: { params: Promise<{ id: str
           {report ? (
             <>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <Avatar name={report.user.displayName} seed={report.user.avatarSeed} size={40} />
+                <Avatar
+                  hasAvatar={report.user.hasAvatar}
+                  name={report.user.displayName}
+                  size={40}
+                  userId={report.user.id}
+                />
                 <h1>{report.user.displayName}</h1>
               </div>
               <p className="muted">Subtask completion and estimate summary.</p>
@@ -113,14 +124,14 @@ export default function MemberReportPage({ params }: { params: Promise<{ id: str
       <section className="board-filters" aria-label="Report filters">
         <label>
           <span>Sprint</span>
-          <select value={sprintFilter} onChange={(e) => setSprintFilter(e.target.value)}>
+          <Select value={sprintFilter} onChange={(e) => setSprintFilter(e.target.value)}>
             <option value="">All time</option>
             {sprints.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
       </section>
 
@@ -146,9 +157,9 @@ export default function MemberReportPage({ params }: { params: Promise<{ id: str
               <strong>{report.totals.incompleteCount}</strong>
               <span>In progress</span>
             </div>
-            {report.totals.estimateMinutes > 0 && (
+            {report.totals.estimateHours > 0 && (
               <div className="report-stat">
-                <strong>{formatEstimate(report.totals.estimateMinutes, 'MINUTES')}</strong>
+                <strong>{formatEstimate(report.totals.estimateHours, 'HOURS')}</strong>
                 <span>Completed estimate (time)</span>
               </div>
             )}
@@ -167,23 +178,23 @@ export default function MemberReportPage({ params }: { params: Promise<{ id: str
                 Completed subtasks ({report.completedSubtasks.length})
               </h2>
               <div className="report-table-wrap">
-                <table className="report-table">
-                  <thead>
-                    <tr>
-                      <th scope="col">Subtask</th>
-                      <th scope="col">Parent task</th>
-                      <th scope="col">Sprint</th>
-                      <th scope="col">Column</th>
-                      <th scope="col">Estimate</th>
-                      <th scope="col">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                <Table size="sm" hoverableRows className="report-table">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead scope="col">Subtask</TableHead>
+                      <TableHead scope="col">Parent task</TableHead>
+                      <TableHead scope="col">Sprint</TableHead>
+                      <TableHead scope="col">Column</TableHead>
+                      <TableHead scope="col">Estimate</TableHead>
+                      <TableHead scope="col">Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {report.completedSubtasks.map((s) => (
                       <SubtaskRow key={s.id} subtask={s} />
                     ))}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               </div>
             </section>
           )}
@@ -195,23 +206,23 @@ export default function MemberReportPage({ params }: { params: Promise<{ id: str
                 In-progress subtasks ({report.incompleteSubtasks.length})
               </h2>
               <div className="report-table-wrap">
-                <table className="report-table">
-                  <thead>
-                    <tr>
-                      <th scope="col">Subtask</th>
-                      <th scope="col">Parent task</th>
-                      <th scope="col">Sprint</th>
-                      <th scope="col">Column</th>
-                      <th scope="col">Estimate</th>
-                      <th scope="col">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                <Table size="sm" hoverableRows className="report-table">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead scope="col">Subtask</TableHead>
+                      <TableHead scope="col">Parent task</TableHead>
+                      <TableHead scope="col">Sprint</TableHead>
+                      <TableHead scope="col">Column</TableHead>
+                      <TableHead scope="col">Estimate</TableHead>
+                      <TableHead scope="col">Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {report.incompleteSubtasks.map((s) => (
                       <SubtaskRow key={s.id} subtask={s} />
                     ))}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               </div>
             </section>
           )}

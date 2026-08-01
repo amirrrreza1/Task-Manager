@@ -4,7 +4,7 @@ import { IsEnum, IsInt, Max, Min } from 'class-validator';
 export class EstimateDto {
   @IsInt()
   @Min(1)
-  @Max(525_600)
+  @Max(8_760)
   value!: number;
 
   @IsEnum(EstimateUnit)

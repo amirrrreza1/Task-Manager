@@ -1,5 +1,7 @@
 'use client';
 
+import { Button, Checkbox, Input, Modal, Select, Textarea } from '../../../components/design-system';
+
 import Link from 'next/link';
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { Avatar } from '../../../components/avatar';
@@ -7,10 +9,8 @@ import { useAuth } from '../../../components/auth-provider';
 import type { BoardResponse, ManagedUser, Paginated, SprintSummary, TaskCard } from '../../../lib/types';
 import { backlogBoard, primaryBacklogColumn } from '../../../lib/board-columns';
 
-function formatMinutes(value: number) {
-  const hours = Math.floor(value / 60);
-  const minutes = value % 60;
-  return hours ? `${hours}h${minutes ? ` ${minutes}m` : ''}` : `${minutes}m`;
+function formatHours(value: number) {
+  return `${value}h`;
 }
 
 export default function BacklogPage() {
@@ -71,7 +71,6 @@ export default function BacklogPage() {
         method: 'POST',
         body: JSON.stringify({
           title,
-          columnId: backlogColumn.id,
           ...(description.trim() ? { description } : {}),
           ...(sprintId ? { sprintId } : {}),
           assigneeIds,
@@ -79,7 +78,7 @@ export default function BacklogPage() {
             ? {
                 estimate: {
                   value: Number(estimate),
-                  unit: board.settings.estimateMode === 'TIME' ? 'MINUTES' : 'POINTS',
+                  unit: board.settings.estimateMode === 'TIME' ? 'HOURS' : 'POINTS',
                 },
               }
             : {}),
@@ -111,21 +110,21 @@ export default function BacklogPage() {
           </p>
         </div>
         <div className="header-actions">
-          <button
-            className="button primary"
+          <Button
+            variant="primary"
             type="button"
             onClick={() => setCreateOpen(true)}
             disabled={!backlogColumn}
           >
             New task
-          </button>
+          </Button>
         </div>
       </header>
 
       <section className="board-filters" aria-label="Backlog filters">
         <label className="board-search">
           <span>Search</span>
-          <input
+          <Input
             type="search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -156,13 +155,13 @@ export default function BacklogPage() {
       )}
 
       {createOpen && board && backlogColumn ? (
-        <div className="modal-backdrop" role="presentation">
-          <section
-            className="modal task-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="backlog-new-task-title"
-          >
+        <Modal
+          className="modal task-modal"
+          labelledBy="backlog-new-task-title"
+          onOpenChange={(open) => {
+            if (!open) setCreateOpen(false);
+          }}
+        >
             <header>
               <p className="section-label">New work</p>
               <h2 id="backlog-new-task-title">Create a backlog task</h2>
@@ -170,7 +169,7 @@ export default function BacklogPage() {
             <form onSubmit={createTask}>
               <label>
                 Title
-                <input
+                <Input
                   autoFocus
                   required
                   maxLength={240}
@@ -180,7 +179,7 @@ export default function BacklogPage() {
               </label>
               <label>
                 Description <small>Optional, plain text or Markdown</small>
-                <textarea
+                <Textarea
                   rows={4}
                   maxLength={50000}
                   value={description}
@@ -188,10 +187,10 @@ export default function BacklogPage() {
                 />
               </label>
               <label>
-                {board.settings.estimateMode === 'TIME' ? 'Minutes' : 'Points'}
-                <input
+                {board.settings.estimateMode === 'TIME' ? 'Hours' : 'Points'}
+                <Input
                   min={1}
-                  max={board.settings.estimateMode === 'TIME' ? 525600 : 10000}
+                  max={board.settings.estimateMode === 'TIME' ? 8760 : 10000}
                   type="number"
                   value={estimate}
                   onChange={(event) => setEstimate(event.target.value)}
@@ -200,7 +199,7 @@ export default function BacklogPage() {
               </label>
               <label>
                 Sprint <small>Optional — planned or active</small>
-                <select value={sprintId} onChange={(event) => setSprintId(event.target.value)}>
+                <Select value={sprintId} onChange={(event) => setSprintId(event.target.value)}>
                   <option value="">No sprint</option>
                   {sprintOptions.map((sprint) => (
                     <option value={sprint.id} key={sprint.id}>
@@ -208,14 +207,13 @@ export default function BacklogPage() {
                       {sprint.status === 'ACTIVE' ? ' (active)' : ''}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
               <fieldset className="assignee-picker">
                 <legend>Assignees</legend>
                 {users.map((member) => (
                   <label key={member.id}>
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={assigneeIds.includes(member.id)}
                       onChange={(event) =>
                         setAssigneeIds(
@@ -225,23 +223,27 @@ export default function BacklogPage() {
                         )
                       }
                     />
-                    <Avatar name={member.displayName} seed={member.avatarSeed} size={26} />
+                    <Avatar
+                      hasAvatar={member.hasAvatar}
+                      name={member.displayName}
+                      size={26}
+                      userId={member.id}
+                    />
                     <span>{member.displayName}</span>
                   </label>
                 ))}
                 {!users.length ? <p className="muted">No active members.</p> : null}
               </fieldset>
               <footer>
-                <button className="button ghost" type="button" onClick={() => setCreateOpen(false)}>
+                <Button variant="ghost" type="button" onClick={() => setCreateOpen(false)}>
                   Cancel
-                </button>
-                <button className="button primary" disabled={busy} type="submit">
+                </Button>
+                <Button variant="primary" disabled={busy} type="submit">
                   {busy ? 'Creating…' : 'Create task'}
-                </button>
+                </Button>
               </footer>
             </form>
-          </section>
-        </div>
+        </Modal>
       ) : null}
     </div>
   );
@@ -257,8 +259,8 @@ function BacklogTaskRow({ task }: { task: TaskCard }) {
         <div className="task-card-facts">
           {task.estimateValue ? (
             <span>
-              {task.estimateUnit === 'MINUTES'
-                ? formatMinutes(task.estimateValue)
+              {task.estimateUnit === 'HOURS'
+                ? formatHours(task.estimateValue)
                 : `${task.estimateValue} pt`}
             </span>
           ) : null}
@@ -274,10 +276,11 @@ function BacklogTaskRow({ task }: { task: TaskCard }) {
           <div className="card-assignees" aria-label="Assignees">
             {task.assignees.slice(0, 4).map((item) => (
               <Avatar
+                hasAvatar={item.user.hasAvatar}
                 key={item.user.id}
                 name={item.user.displayName}
-                seed={item.user.avatarSeed}
                 size={28}
+                userId={item.user.id}
               />
             ))}
           </div>

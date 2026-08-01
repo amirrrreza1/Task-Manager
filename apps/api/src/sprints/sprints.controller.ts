@@ -87,6 +87,16 @@ export class SprintsController {
     return this.sprints.finish(id, actor.id);
   }
 
+  @Post(':id/move-to-backlog')
+  @Roles(UserRole.ADMIN)
+  moveToBacklog(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() input: AssignSprintTasksDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.sprints.moveToBacklog(id, input.taskIds, actor.id);
+  }
+
   @Post(':id/carry-over')
   @Roles(UserRole.ADMIN)
   carryOver(

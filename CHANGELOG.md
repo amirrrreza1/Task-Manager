@@ -35,8 +35,7 @@ All notable changes are recorded here. The project follows semantic versioning a
 - Argon2id password hashing and rate-limited local login
 - Short-lived JWT access tokens and rotating, hashed refresh sessions with reuse detection
 - Logout, current-user profile, and password change with session revocation
-- Administrator user creation, activation/deactivation, password reset, and avatar regeneration
-- Deterministic locally rendered avatars generated from cryptographically random seeds
+- Administrator user creation, activation/deactivation, password reset, and profile photo upload
 - Revision-checked estimate-mode and sprint-duration settings
 - Responsive login, member administration, profile, settings, and authenticated board-preview screens
 - Role authorization tests and a second identity-focused database migration

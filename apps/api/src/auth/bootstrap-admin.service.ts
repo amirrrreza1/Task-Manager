@@ -1,6 +1,5 @@
 import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { randomBytes } from 'node:crypto';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import { PasswordService } from './password.service';
 
@@ -34,7 +33,6 @@ export class BootstrapAdminService implements OnApplicationBootstrap {
           displayName: 'Administrator',
           passwordHash: await this.passwords.hash(password),
           role: 'ADMIN',
-          avatarSeed: randomBytes(32).toString('hex'),
           isActive: true,
           isBootstrapAdmin: true,
         },

@@ -18,7 +18,7 @@ enum EstimateMode {
 }
 
 enum EstimateUnit {
-  MINUTES
+  HOURS
   POINTS
 }
 
@@ -39,7 +39,9 @@ model User {
   displayName       String              @db.VarChar(100)
   passwordHash      String
   role              UserRole            @default(MEMBER)
-  avatarSeed        String              @db.VarChar(64)
+  avatarStorageKey  String?             @db.VarChar(64)
+  avatarMimeType    String?             @db.VarChar(127)
+  hasAvatar         Boolean             @default(false)
   isActive          Boolean             @default(true)
   isBootstrapAdmin  Boolean             @default(false)
   createdAt         DateTime            @default(now())
@@ -71,6 +73,7 @@ model BoardColumn {
   color       String   @db.VarChar(9)
   position    Int
   isBacklog   Boolean  @default(false)
+  isTodo      Boolean  @default(false)
   isDone      Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

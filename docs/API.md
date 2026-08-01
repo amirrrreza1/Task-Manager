@@ -35,11 +35,13 @@ types.
 | Method | Path                           | Purpose                                                            |
 | ------ | ------------------------------ | ------------------------------------------------------------------ |
 | GET    | `/users`                       | List users; active members are readable by all authenticated users |
-| POST   | `/users`                       | Create user and random avatar seed                                 |
+| POST   | `/users`                       | Create user                                                        |
 | GET    | `/users/:id`                   | Read user profile                                                  |
 | PATCH  | `/users/:id`                   | Edit username/display name/active status                           |
 | PUT    | `/users/:id/password`          | Reset password and revoke sessions                                 |
-| POST   | `/users/:id/avatar/regenerate` | Replace random avatar seed                                         |
+| GET    | `/users/:id/avatar`            | Retrieve a user's profile photo                                    |
+| POST   | `/users/:id/avatar`            | Upload the current user's profile photo                            |
+| DELETE | `/users/:id/avatar`            | Remove the current user's profile photo                            |
 
 ## Board and settings
 
@@ -102,6 +104,7 @@ Uploads stream to storage and calculate SHA-256; they are not buffered fully in 
 | POST   | `/sprints/:id/start`               | Admin transition planned → active                  |
 | POST   | `/sprints/:id/finish`              | Admin transition active → completed                |
 | POST   | `/sprints/:id/carry-over`          | Move selected unfinished tasks to a planned sprint |
+| POST   | `/sprints/:id/move-to-backlog`     | Move selected unfinished tasks to the backlog      |
 | GET    | `/sprints/:id/available-tasks`     | Tasks/subtasks eligible to join this sprint        |
 | GET    | `/sprints/:id/available-subtasks`  | Subtasks eligible to join this sprint              |
 | POST   | `/sprints/:id/tasks`               | Assign tasks to a planned or active sprint         |

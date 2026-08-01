@@ -6,7 +6,7 @@ import type { MemberReportQueryDto } from './dto/member-report-query.dto';
 const actorSelect = {
   id: true,
   displayName: true,
-  avatarSeed: true,
+  hasAvatar: true,
   isActive: true,
 };
 
@@ -75,7 +75,12 @@ export class ReportsService {
     actorId: string | null;
     payload: unknown;
     createdAt: Date;
-    actor: { id: string; displayName: string; avatarSeed: string; isActive: boolean } | null;
+    actor: {
+      id: string;
+      displayName: string;
+      hasAvatar: boolean;
+      isActive: boolean;
+    } | null;
   }) {
     let entityLabel: string | null = null;
 
@@ -172,7 +177,7 @@ export class ReportsService {
       include: subtaskInclude,
     });
 
-    const totalEstimateMinutes = this.sumEstimateMinutes(completedSubtasks);
+    const totalEstimateHours = this.sumEstimateHours(completedSubtasks);
     const totalEstimatePoints = this.sumEstimatePoints(completedSubtasks);
 
     return {
@@ -187,7 +192,7 @@ export class ReportsService {
       totals: {
         completedCount: completedSubtasks.length,
         incompleteCount: incompleteSubtasks.length,
-        estimateMinutes: totalEstimateMinutes,
+        estimateHours: totalEstimateHours,
         estimatePoints: totalEstimatePoints,
       },
     };
@@ -235,10 +240,15 @@ export class ReportsService {
     const memberMap = new Map<
       string,
       {
-        user: { id: string; displayName: string; avatarSeed: string; isActive: boolean };
+        user: {
+          id: string;
+          displayName: string;
+          hasAvatar: boolean;
+          isActive: boolean;
+        };
         completedSubtasks: number;
         incompleteSubtasks: number;
-        estimateMinutes: number;
+        estimateHours: number;
         estimatePoints: number;
         subtasks: SerializedSubtask[];
       }
@@ -252,7 +262,12 @@ export class ReportsService {
         estimateValue: number | null;
         estimateUnit: string | null;
         assigneeId: string | null;
-        assignee: { id: string; displayName: string; avatarSeed: string; isActive: boolean } | null;
+        assignee: {
+          id: string;
+          displayName: string;
+          hasAvatar: boolean;
+          isActive: boolean;
+        } | null;
         column: { id: string; name: string; isDone: boolean };
         taskId: string;
       },
@@ -265,7 +280,7 @@ export class ReportsService {
           user: subtask.assignee,
           completedSubtasks: 0,
           incompleteSubtasks: 0,
-          estimateMinutes: 0,
+          estimateHours: 0,
           estimatePoints: 0,
           subtasks: [],
         });
@@ -274,8 +289,8 @@ export class ReportsService {
       entry.subtasks.push({ ...this.serializeSubtask({ ...subtask, task: parentTask, sprint: null }), parentTask });
       if (subtask.isCompleted) {
         entry.completedSubtasks++;
-        if (subtask.estimateUnit === 'MINUTES' && subtask.estimateValue)
-          entry.estimateMinutes += subtask.estimateValue;
+        if (subtask.estimateUnit === 'HOURS' && subtask.estimateValue)
+          entry.estimateHours += subtask.estimateValue;
         if (subtask.estimateUnit === 'POINTS' && subtask.estimateValue)
           entry.estimatePoints += subtask.estimateValue;
       } else {
@@ -379,11 +394,11 @@ export class ReportsService {
     };
   }
 
-  private sumEstimateMinutes(
+  private sumEstimateHours(
     subtasks: Array<{ estimateValue: number | null; estimateUnit: string | null }>,
   ) {
     return subtasks
-      .filter((s) => s.estimateUnit === 'MINUTES' && s.estimateValue)
+      .filter((s) => s.estimateUnit === 'HOURS' && s.estimateValue)
       .reduce((acc, s) => acc + (s.estimateValue ?? 0), 0);
   }
 

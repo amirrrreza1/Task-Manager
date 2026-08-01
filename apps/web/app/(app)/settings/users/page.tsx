@@ -1,6 +1,9 @@
 'use client';
 
+import { Button, Input, Modal } from '../../../../components/design-system';
+
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { AuthGate } from '../../../../components/auth-gate';
 import { Avatar } from '../../../../components/avatar';
 import { useAuth } from '../../../../components/auth-provider';
@@ -84,20 +87,6 @@ function UsersAdmin() {
     }
   }
 
-  async function regenerateAvatar(user: ManagedUser) {
-    setError('');
-    setBusyId(user.id);
-    try {
-      replaceUser(
-        await request<ManagedUser>(`/users/${user.id}/avatar/regenerate`, { method: 'POST' }),
-      );
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not regenerate the avatar.');
-    } finally {
-      setBusyId(null);
-    }
-  }
-
   async function submitReset(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!resetUser) return;
@@ -131,15 +120,15 @@ function UsersAdmin() {
             Create accounts, rotate credentials, and control workspace access.
           </p>
         </div>
-        <button className="button primary" onClick={() => setCreateOpen(true)} type="button">
+        <Button variant="primary" onClick={() => setCreateOpen(true)} type="button">
           Add member
-        </button>
+        </Button>
       </header>
 
       <section className="people-toolbar" aria-label="User filters">
         <label className="search-field">
           <span className="visually-hidden">Search members</span>
-          <input
+          <Input
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Search by name or username"
             type="search"
@@ -169,9 +158,17 @@ function UsersAdmin() {
         {visibleUsers.map((user) => (
           <article className="people-row" key={user.id}>
             <div className="person-cell">
-              <Avatar name={user.displayName} seed={user.avatarSeed} />
+              <Avatar
+                hasAvatar={user.hasAvatar}
+                name={user.displayName}
+                userId={user.id}
+              />
               <span>
-                <strong>{user.displayName}</strong>
+                <strong>
+                  <Link className="report-link" href={`/profile/${user.id}`}>
+                    {user.displayName}
+                  </Link>
+                </strong>
                 <small>@{user.username}</small>
               </span>
             </div>
@@ -180,32 +177,25 @@ function UsersAdmin() {
               {user.isActive ? 'Active' : 'Inactive'}
             </span>
             <div className="row-actions">
-              <button
-                className="button ghost compact"
-                disabled={busyId === user.id}
-                onClick={() => void regenerateAvatar(user)}
-                type="button"
-              >
-                New avatar
-              </button>
               {!user.isBootstrapAdmin ? (
                 <>
-                  <button
-                    className="button ghost compact"
+                  <Button
+                    variant="ghost" size="sm"
                     disabled={busyId === user.id}
                     onClick={() => setResetUser(user)}
                     type="button"
                   >
                     Reset password
-                  </button>
-                  <button
-                    className={`button compact ${user.isActive ? 'danger-ghost' : 'secondary'}`}
+                  </Button>
+                  <Button
+                    variant={user.isActive ? 'destructive' : 'outline'}
+                    size="sm"
                     disabled={busyId === user.id}
                     onClick={() => void toggleActive(user)}
                     type="button"
                   >
                     {user.isActive ? 'Deactivate' : 'Reactivate'}
-                  </button>
+                  </Button>
                 </>
               ) : (
                 <span className="env-note">Protected by environment</span>
@@ -217,13 +207,13 @@ function UsersAdmin() {
       </section>
 
       {createOpen ? (
-        <div className="modal-backdrop" role="presentation">
-          <section
-            className="modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="create-user-title"
-          >
+        <Modal
+          className="modal"
+          labelledBy="create-user-title"
+          onOpenChange={(open) => {
+            if (!open) setCreateOpen(false);
+          }}
+        >
             <header>
               <div>
                 <p className="section-label">New account</p>
@@ -233,7 +223,7 @@ function UsersAdmin() {
             <form onSubmit={createUser}>
               <label>
                 Display name
-                <input
+                <Input
                   required
                   maxLength={100}
                   value={createForm.displayName}
@@ -244,7 +234,7 @@ function UsersAdmin() {
               </label>
               <label>
                 Username
-                <input
+                <Input
                   required
                   minLength={3}
                   maxLength={64}
@@ -257,7 +247,7 @@ function UsersAdmin() {
               </label>
               <label>
                 Temporary password
-                <input
+                <Input
                   required
                   minLength={12}
                   maxLength={200}
@@ -271,21 +261,25 @@ function UsersAdmin() {
                 <small>At least 12 characters. Share it securely.</small>
               </label>
               <footer>
-                <button className="button ghost" onClick={() => setCreateOpen(false)} type="button">
+                <Button variant="ghost" onClick={() => setCreateOpen(false)} type="button">
                   Cancel
-                </button>
-                <button className="button primary" disabled={busyId === 'create'} type="submit">
+                </Button>
+                <Button variant="primary" disabled={busyId === 'create'} type="submit">
                   {busyId === 'create' ? 'Creating…' : 'Create member'}
-                </button>
+                </Button>
               </footer>
             </form>
-          </section>
-        </div>
+        </Modal>
       ) : null}
 
       {resetUser ? (
-        <div className="modal-backdrop" role="presentation">
-          <section className="modal" role="dialog" aria-modal="true" aria-labelledby="reset-title">
+        <Modal
+          className="modal"
+          labelledBy="reset-title"
+          onOpenChange={(open) => {
+            if (!open) setResetUser(null);
+          }}
+        >
             <header>
               <div>
                 <p className="section-label">Credentials</p>
@@ -296,7 +290,7 @@ function UsersAdmin() {
               <p className="muted">This immediately signs the member out of every device.</p>
               <label>
                 New password
-                <input
+                <Input
                   autoFocus
                   required
                   minLength={12}
@@ -308,16 +302,15 @@ function UsersAdmin() {
                 />
               </label>
               <footer>
-                <button className="button ghost" onClick={() => setResetUser(null)} type="button">
+                <Button variant="ghost" onClick={() => setResetUser(null)} type="button">
                   Cancel
-                </button>
-                <button className="button primary" disabled={busyId === resetUser.id} type="submit">
+                </Button>
+                <Button variant="primary" disabled={busyId === resetUser.id} type="submit">
                   Reset password
-                </button>
+                </Button>
               </footer>
             </form>
-          </section>
-        </div>
+        </Modal>
       ) : null}
     </div>
   );

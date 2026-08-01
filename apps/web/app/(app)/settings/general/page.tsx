@@ -1,5 +1,7 @@
 'use client';
 
+import { Button, Input, Radio } from '../../../../components/design-system';
+
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { AuthGate } from '../../../../components/auth-gate';
 import { useAuth } from '../../../../components/auth-provider';
@@ -71,17 +73,17 @@ function GeneralSettings() {
           </div>
           <div className="segmented-control" role="radiogroup" aria-label="Estimate mode">
             <label className={estimateMode === 'TIME' ? 'selected' : undefined}>
-              <input
+              <Radio
                 checked={estimateMode === 'TIME'}
                 name="estimateMode"
                 onChange={() => setEstimateMode('TIME')}
                 type="radio"
               />
               <strong>Time</strong>
-              <span>Minutes and hours</span>
+              <span>Hours</span>
             </label>
             <label className={estimateMode === 'POINTS' ? 'selected' : undefined}>
-              <input
+              <Radio
                 checked={estimateMode === 'POINTS'}
                 name="estimateMode"
                 onChange={() => setEstimateMode('POINTS')}
@@ -98,7 +100,7 @@ function GeneralSettings() {
             <p>Used to propose an end date when an administrator starts a sprint.</p>
           </div>
           <label className="number-field">
-            <input
+            <Input
               max={90}
               min={1}
               onChange={(event) => setDuration(Number(event.target.value))}
@@ -120,9 +122,9 @@ function GeneralSettings() {
         ) : null}
         <footer className="settings-footer">
           <span>{settings ? `Revision ${settings.revision}` : 'Loading settings…'}</span>
-          <button className="button primary" disabled={!settings || saving} type="submit">
+          <Button variant="primary" disabled={!settings || saving} type="submit">
             {saving ? 'Saving…' : 'Save changes'}
-          </button>
+          </Button>
         </footer>
       </form>
     </div>

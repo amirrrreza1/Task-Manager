@@ -16,7 +16,9 @@ const taskCardInclude = {
   assignees: {
     orderBy: { assignedAt: 'asc' },
     include: {
-      user: { select: { id: true, displayName: true, avatarSeed: true, isActive: true } },
+      user: {
+        select: { id: true, displayName: true, hasAvatar: true, isActive: true },
+      },
     },
   },
   subtasks: {
@@ -34,7 +36,9 @@ const taskCardInclude = {
       assigneeId: true,
       createdAt: true,
       updatedAt: true,
-      assignee: { select: { id: true, displayName: true, avatarSeed: true, isActive: true } },
+      assignee: {
+        select: { id: true, displayName: true, hasAvatar: true, isActive: true },
+      },
       _count: { select: { attachments: true } },
     },
   },
@@ -111,7 +115,14 @@ export class BoardService {
           assigneeId: true,
           createdAt: true,
           updatedAt: true,
-          assignee: { select: { id: true, displayName: true, avatarSeed: true, isActive: true } },
+          assignee: {
+            select: {
+              id: true,
+              displayName: true,
+              hasAvatar: true,
+              isActive: true,
+            },
+          },
           _count: { select: { attachments: true } },
           task: { select: { id: true, title: true, columnId: true } },
         },
@@ -146,49 +157,42 @@ export class BoardService {
     const name = input.name.trim();
     if (!name) throw new BadRequestException('Column name cannot be empty.');
     return this.prisma.$transaction(async (transaction) => {
-      const last = await transaction.boardColumn.aggregate({ _max: { position: true } });
-      if (input.isDone) {
-        await transaction.boardColumn.updateMany({
-          where: { isDone: true },
-          data: { isDone: false },
-        });
-      }
+      const columns = await transaction.boardColumn.findMany({ orderBy: { position: 'asc' } });
+      const doneColumn = columns.find((column) => column.isDone);
+      if (!doneColumn) throw new BadRequestException('The Done column is not configured.');
       const column = await transaction.boardColumn.create({
         data: {
           name,
           color: input.color.toUpperCase(),
-          position: (last._max.position ?? -1) + 1,
-          isDone: input.isDone ?? false,
+          position: (columns.at(-1)?.position ?? -1) + 1,
         },
       });
+      const columnIds = [
+        ...columns.filter((item) => item.id !== doneColumn.id).map((item) => item.id),
+        column.id,
+        doneColumn.id,
+      ];
+      await this.setColumnOrder(transaction, columnIds);
       await this.event(transaction, 'board_column.created', column.id, actor.id, { name });
-      return column;
+      return transaction.boardColumn.findUniqueOrThrow({ where: { id: column.id } });
     });
   }
 
   async update(id: string, input: UpdateColumnDto, actor: AuthenticatedUser) {
     const existing = await this.prisma.boardColumn.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Board column not found.');
+    if (existing.isTodo || existing.isDone) {
+      throw new BadRequestException('The To Do and Done columns are fixed and cannot be edited.');
+    }
+    if (existing.isBacklog) throw new BadRequestException('The backlog column is managed automatically.');
     if (input.name !== undefined && !input.name.trim())
       throw new BadRequestException('Column name cannot be empty.');
-    if (existing.isDone && input.isDone === false) {
-      throw new BadRequestException(
-        'Choose another done column instead of removing the only done designation.',
-      );
-    }
     return this.prisma.$transaction(async (transaction) => {
-      if (input.isDone === true) {
-        await transaction.boardColumn.updateMany({
-          where: { isDone: true, id: { not: id } },
-          data: { isDone: false },
-        });
-      }
       const column = await transaction.boardColumn.update({
         where: { id },
         data: {
           ...(input.name !== undefined ? { name: input.name.trim() } : {}),
           ...(input.color !== undefined ? { color: input.color.toUpperCase() } : {}),
-          ...(input.isDone !== undefined ? { isDone: input.isDone } : {}),
         },
       });
       await this.event(transaction, 'board_column.updated', id, actor.id, {
@@ -202,17 +206,33 @@ export class BoardService {
     if (new Set(input.columnIds).size !== input.columnIds.length)
       throw new BadRequestException('Column IDs must be unique.');
     return this.prisma.$transaction(async (transaction) => {
-      const columns = await transaction.boardColumn.findMany({ select: { id: true } });
+      const columns = await transaction.boardColumn.findMany({
+        orderBy: { position: 'asc' },
+        select: { id: true, isBacklog: true, isTodo: true, isDone: true },
+      });
       if (
         columns.length !== input.columnIds.length ||
         columns.some((column) => !input.columnIds.includes(column.id))
       ) {
         throw new BadRequestException('The order must contain every board column exactly once.');
       }
-      await transaction.boardColumn.updateMany({ data: { position: { increment: 10_000 } } });
-      for (const [position, id] of input.columnIds.entries()) {
-        await transaction.boardColumn.update({ where: { id }, data: { position } });
+      const backlogIds = columns.filter((column) => column.isBacklog).map((column) => column.id);
+      const workflowIds = input.columnIds.filter((id) => !backlogIds.includes(id));
+      const todoColumn = columns.find((column) => column.isTodo);
+      const doneColumn = columns.find((column) => column.isDone);
+      const requestedBacklogIds = input.columnIds.slice(0, backlogIds.length);
+      if (
+        !todoColumn ||
+        !doneColumn ||
+        requestedBacklogIds.some((id, index) => id !== backlogIds[index]) ||
+        workflowIds[0] !== todoColumn.id ||
+        workflowIds.at(-1) !== doneColumn.id
+      ) {
+        throw new BadRequestException(
+          'To Do must remain first and Done must remain last in the workflow.',
+        );
       }
+      await this.setColumnOrder(transaction, input.columnIds);
       await this.event(transaction, 'board_column.reordered', input.columnIds[0], actor.id, {
         columnIds: input.columnIds,
       });
@@ -225,46 +245,59 @@ export class BoardService {
       const columns = await transaction.boardColumn.findMany({ orderBy: { position: 'asc' } });
       const column = columns.find((candidate) => candidate.id === id);
       if (!column) throw new NotFoundException('Board column not found.');
-      if (columns.length <= 2)
-        throw new BadRequestException('At least two board columns must remain.');
-      if (column.isDone)
-        throw new BadRequestException('Designate another done column before deleting this one.');
+      if (column.isTodo || column.isDone)
+        throw new BadRequestException('The To Do and Done columns cannot be deleted.');
       if (column.isBacklog)
         throw new BadRequestException('The backlog column cannot be deleted.');
       const taskCount = await transaction.task.count({ where: { columnId: id } });
-      if (taskCount > 0) {
+      const subtaskCount = await transaction.subtask.count({ where: { columnId: id } });
+      if (taskCount > 0 || subtaskCount > 0) {
         if (!moveTasksTo || moveTasksTo === id)
           throw new ConflictException('Choose a destination for tasks in this column.');
         const destination = columns.find((candidate) => candidate.id === moveTasksTo);
         if (!destination) throw new BadRequestException('Destination column not found.');
-        const maximum = await transaction.task.aggregate({
-          where: { columnId: moveTasksTo },
-          _max: { position: true },
-        });
-        const moving = await transaction.task.findMany({
-          where: { columnId: id },
-          orderBy: { position: 'asc' },
-          select: { id: true },
-        });
-        let position = Number(maximum._max.position ?? 0);
-        for (const task of moving) {
-          position += 1024;
-          await transaction.task.update({
-            where: { id: task.id },
-            data: { columnId: moveTasksTo, position },
+        if (taskCount > 0) {
+          const maximum = await transaction.task.aggregate({
+            where: { columnId: moveTasksTo },
+            _max: { position: true },
           });
+          const moving = await transaction.task.findMany({
+            where: { columnId: id },
+            orderBy: { position: 'asc' },
+            select: { id: true },
+          });
+          let position = Number(maximum._max.position ?? 0);
+          for (const task of moving) {
+            position += 1024;
+            await transaction.task.update({
+              where: { id: task.id },
+              data: { columnId: moveTasksTo, position },
+            });
+          }
         }
+        await transaction.subtask.updateMany({
+          where: { columnId: id },
+          data: { columnId: moveTasksTo },
+        });
       }
       await transaction.boardColumn.delete({ where: { id } });
       const remaining = columns.filter((candidate) => candidate.id !== id);
-      await transaction.boardColumn.updateMany({ data: { position: { increment: 10_000 } } });
-      for (const [position, item] of remaining.entries())
-        await transaction.boardColumn.update({ where: { id: item.id }, data: { position } });
+      await this.setColumnOrder(
+        transaction,
+        remaining.map((item) => item.id),
+      );
       await this.event(transaction, 'board_column.deleted', id, actor.id, {
         movedTaskCount: taskCount,
         destinationColumnId: moveTasksTo ?? null,
       });
     });
+  }
+
+  private async setColumnOrder(transaction: Prisma.TransactionClient, columnIds: string[]) {
+    await transaction.boardColumn.updateMany({ data: { position: { increment: 10_000 } } });
+    for (const [position, id] of columnIds.entries()) {
+      await transaction.boardColumn.update({ where: { id }, data: { position } });
+    }
   }
 
   private event(

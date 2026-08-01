@@ -67,7 +67,7 @@ For local processes outside Docker, change the database host in `DATABASE_URL` f
 
 - Environment-backed bootstrap administrator
 - Argon2id password hashing and rotating refresh sessions
-- Member creation, activation/deactivation, password reset, and avatar regeneration
+- Member creation, activation/deactivation, password reset, and profile photo upload
 - Time/point estimate mode and default sprint-duration settings
 - Configurable, ordered board columns with one completed-work designation
 - Task creation, editing, deletion, ordering, filtering, multi-assignee support, and estimates

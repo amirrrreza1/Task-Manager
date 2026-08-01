@@ -1,6 +1,8 @@
 'use client';
 
 import {
+  ArrowBarLeft,
+  ArrowBarRight,
   CalendarTime,
   ChartBar,
   Checklist,
@@ -11,7 +13,6 @@ import {
   User,
   Users,
 } from '@appica/icons-react';
-import { Avatar, AvatarFallback } from '@appica/ui-react/avatar';
 import { Badge } from '@appica/ui-react/badge';
 import { Button } from '@appica/ui-react/button';
 import {
@@ -22,7 +23,8 @@ import {
 } from '@appica/ui-react/navigation';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import type { ComponentType, ReactNode } from 'react';
+import { useState, type ComponentType, type ReactNode } from 'react';
+import { Avatar } from './avatar';
 import { useAuth } from './auth-provider';
 import { ThemeToggle } from './theme-toggle';
 
@@ -57,12 +59,15 @@ function NavigationGroup({ items, pathname }: { items: NavItem[]; pathname: stri
         return (
           <NavigationItem key={item.href}>
             <NavigationLink
+              aria-label={item.label}
               active={active}
+              data-tooltip={item.label}
               render={<Link href={item.href} />}
+              title={item.label}
               value={item.href}
             >
               <Icon aria-hidden="true" className="shell-nav-icon" />
-              <span>{item.label}</span>
+              <span className="shell-nav-label">{item.label}</span>
             </NavigationLink>
           </NavigationItem>
         );
@@ -71,35 +76,44 @@ function NavigationGroup({ items, pathname }: { items: NavItem[]; pathname: stri
   );
 }
 
-function initials(name: string) {
-  return name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join('')
-    .toUpperCase();
-}
-
 export function AppShell({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
   const pathname = usePathname();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   if (!user) return null;
 
   const currentSection =
     sectionNames.find((item) => pathname.startsWith(item.href))?.label ?? 'Workspace';
 
   return (
-    <div className="app-frame">
+    <div className="app-frame" data-sidebar-collapsed={sidebarCollapsed || undefined}>
       <aside className="app-sidebar">
-        <Link className="brand" href="/board" aria-label="Task Manager board">
-          <span className="brand-mark" aria-hidden="true">
-            <LayoutKanban />
-          </span>
-          <span className="brand-copy">
-            <strong>Task Manager</strong>
-            <small>Team workspace</small>
-          </span>
-        </Link>
+        <div className="sidebar-brand-row">
+          <Link className="brand" href="/board" aria-label="Task Manager board">
+            <span className="brand-mark" aria-hidden="true">
+              <LayoutKanban />
+            </span>
+            <span className="brand-copy">
+              <strong>Task Manager</strong>
+              <small>Team workspace</small>
+            </span>
+          </Link>
+          <Button
+            aria-expanded={!sidebarCollapsed}
+            aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            className="sidebar-toggle"
+            size="icon-sm"
+            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            variant="ghost"
+            onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+          >
+            {sidebarCollapsed ? (
+              <ArrowBarRight aria-hidden="true" />
+            ) : (
+              <ArrowBarLeft aria-hidden="true" />
+            )}
+          </Button>
+        </div>
 
         <Navigation
           aria-label="Workspace navigation"
@@ -120,9 +134,12 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         <div className="sidebar-account">
           <div className="account-identity">
-            <Avatar size="sm">
-              <AvatarFallback>{initials(user.displayName)}</AvatarFallback>
-            </Avatar>
+            <Avatar
+              hasAvatar={user.hasAvatar}
+              name={user.displayName}
+              size={32}
+              userId={user.id}
+            />
             <span className="account-copy">
               <strong>{user.displayName}</strong>
               <small>{user.role === 'ADMIN' ? 'Administrator' : 'Member'}</small>
@@ -133,6 +150,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Button
               aria-label="Sign out"
               size="icon-sm"
+              title="Sign out"
               variant="ghost"
               onClick={() => void logout()}
             >

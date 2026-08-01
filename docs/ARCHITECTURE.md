@@ -97,7 +97,7 @@ Database-level migrations should add constraints Prisma cannot express directly:
 ## Module boundaries
 
 - **Auth:** login, token rotation, logout, bootstrap admin, password hashing/session revocation.
-- **Users:** member lifecycle, profiles, avatar seeds.
+- **Users:** member lifecycle and profiles with optional uploaded photos.
 - **Settings:** estimate mode, sprint duration, optimistic revision control.
 - **Board:** column lifecycle/order and board read model.
 - **Tasks:** task CRUD, ordering, assignments, estimates.

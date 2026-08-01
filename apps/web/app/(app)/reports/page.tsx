@@ -80,7 +80,12 @@ export default function ReportsIndexPage() {
           <div className="report-card-grid">
             {members.map((member) => (
               <Link key={member.id} className="report-card" href={`/reports/member/${member.id}`}>
-                <Avatar name={member.displayName} seed={member.avatarSeed} size={36} />
+                <Avatar
+                  hasAvatar={member.hasAvatar}
+                  name={member.displayName}
+                  size={36}
+                  userId={member.id}
+                />
                 <div>
                   <strong>{member.displayName}</strong>
                   <p className="muted">Subtask completion and estimate totals</p>

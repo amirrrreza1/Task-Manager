@@ -12,7 +12,7 @@ const publicUserSelect = {
   username: true,
   displayName: true,
   role: true,
-  avatarSeed: true,
+  hasAvatar: true,
   isBootstrapAdmin: true,
 } satisfies Prisma.UserSelect;
 
@@ -177,7 +177,7 @@ export class AuthService {
       username: user.username,
       displayName: user.displayName,
       role: user.role,
-      avatarSeed: user.avatarSeed,
+      hasAvatar: user.hasAvatar,
       isBootstrapAdmin: user.isBootstrapAdmin,
     };
   }

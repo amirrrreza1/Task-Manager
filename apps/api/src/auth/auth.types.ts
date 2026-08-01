@@ -5,7 +5,7 @@ export interface AuthenticatedUser {
   username: string;
   displayName: string;
   role: UserRole;
-  avatarSeed: string;
+  hasAvatar: boolean;
   isBootstrapAdmin: boolean;
 }
 

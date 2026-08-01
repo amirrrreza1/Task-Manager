@@ -1,4 +1,5 @@
-import { IsBoolean, IsHexColor, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsHexColor, IsIn, IsString, MaxLength, MinLength } from 'class-validator';
+import { BOARD_COLUMN_COLORS } from '../column-colors';
 
 export class CreateColumnDto {
   @IsString()
@@ -7,9 +8,6 @@ export class CreateColumnDto {
   name!: string;
 
   @IsHexColor()
+  @IsIn(BOARD_COLUMN_COLORS)
   color!: string;
-
-  @IsOptional()
-  @IsBoolean()
-  isDone?: boolean;
 }
