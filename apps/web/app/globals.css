@@ -3001,6 +3001,7 @@ label:not([data-slot='field-label']) {
   position: relative;
   display: grid;
   min-height: 100vh;
+  grid-template-columns: 1fr;
   overflow: hidden;
   background: var(--background-inverse);
 }
