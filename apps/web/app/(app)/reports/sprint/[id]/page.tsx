@@ -13,6 +13,7 @@ import {
 import Link from 'next/link';
 import { use, useEffect, useState } from 'react';
 import { useAuth } from '../../../../../components/auth-provider';
+import { formatDate } from '../../../../../lib/app-config';
 import { Avatar } from '../../../../../components/avatar';
 import type { MemberContribution, SprintReport, SprintReportTask } from '../../../../../lib/types';
 
@@ -228,13 +229,13 @@ export default function SprintReportPage({ params }: { params: Promise<{ id: str
             </div>
             {report.sprint.startsAt && (
               <div className="report-stat">
-                <strong>{new Date(report.sprint.startsAt).toLocaleDateString()}</strong>
+                <strong>{formatDate(report.sprint.startsAt)}</strong>
                 <span>Started</span>
               </div>
             )}
             {report.sprint.endsAt && (
               <div className="report-stat">
-                <strong>{new Date(report.sprint.endsAt).toLocaleDateString()}</strong>
+                <strong>{formatDate(report.sprint.endsAt)}</strong>
                 <span>Ended</span>
               </div>
             )}

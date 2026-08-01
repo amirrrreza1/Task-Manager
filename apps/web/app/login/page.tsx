@@ -13,6 +13,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { FormEvent, Suspense, useEffect, useState } from 'react';
 import { useAuth } from '../../components/auth-provider';
 import { ThemeToggle } from '../../components/theme-toggle';
+import { companyIcon, companyName } from '../../lib/app-config';
 
 function LoginForm() {
   const { login, user, loading } = useAuth();
@@ -58,10 +59,12 @@ function LoginForm() {
         <div className="login-topline">
           <Link className="brand login-brand" href="/">
             <span className="brand-mark" aria-hidden="true">
-              <LayoutKanban />
+              {/* The administrator controls this URL through .env, so it cannot use Next's fixed image allowlist. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img alt="" src={companyIcon} />
             </span>
             <span className="brand-copy">
-              <strong>Task Manager</strong>
+              <strong>{companyName}</strong>
               <small>Team workspace</small>
             </span>
           </Link>

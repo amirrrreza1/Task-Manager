@@ -5,13 +5,10 @@ import { Button, Input, Textarea } from '../../../components/design-system';
 import Link from 'next/link';
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../../../components/auth-provider';
+import { formatDate } from '../../../lib/app-config';
 import type { Paginated, SprintSummary } from '../../../lib/types';
 
 const labels = { PLANNED: 'Planned', ACTIVE: 'Active', COMPLETED: 'Completed' };
-
-function formatDate(value: string | null) {
-  return value ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(value)) : 'Not scheduled';
-}
 
 export default function SprintsPage() {
   const { request } = useAuth();
@@ -51,7 +48,7 @@ export default function SprintsPage() {
   return (
     <div className="page-stack">
       <header className="page-header">
-        <div><p className="eyebrow">Delivery cadence</p><h1>Sprints</h1><p className="muted">Plan work, run one focused sprint at a time, and keep the outcome visible after it closes.</p></div>
+        <div><h1>Sprints</h1></div>
         <div className="header-actions"><Button variant="primary" onClick={() => setShowForm((value) => !value)} type="button">{showForm ? 'Close' : 'Plan sprint'}</Button></div>
       </header>
       {showForm ? <form className="sprint-form" onSubmit={create}>

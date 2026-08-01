@@ -12,6 +12,7 @@ import {
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../../../components/auth-provider';
+import { formatDateTime } from '../../../../lib/app-config';
 import { Avatar } from '../../../../components/avatar';
 import type { ActivityEventItem, ManagedUser } from '../../../../lib/types';
 
@@ -214,7 +215,7 @@ export default function ActivityLogPage() {
                 {items.map((ev) => (
                   <TableRow key={ev.id}>
                     <TableCell className="report-cell-mono">
-                      {new Date(ev.createdAt).toLocaleString()}
+                      {formatDateTime(ev.createdAt)}
                     </TableCell>
                     <TableCell>
                       {ev.actor ? (

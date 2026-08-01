@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../../components/auth-provider';
+import { formatDate } from '../../../lib/app-config';
 import { Avatar } from '../../../components/avatar';
 import type { ManagedUser, SprintSummary } from '../../../lib/types';
 
@@ -39,9 +40,7 @@ export default function ReportsIndexPage() {
     <div className="page-stack">
       <header className="page-header compact-header">
         <div>
-          <p className="eyebrow">Admin</p>
           <h1>Reports</h1>
-          <p className="muted">Activity logs, member subtask reports, and sprint breakdowns.</p>
         </div>
       </header>
 
@@ -88,7 +87,6 @@ export default function ReportsIndexPage() {
                 />
                 <div>
                   <strong>{member.displayName}</strong>
-                  <p className="muted">Subtask completion and estimate totals</p>
                 </div>
               </Link>
             ))}
@@ -118,7 +116,7 @@ export default function ReportsIndexPage() {
                   <strong>{sprint.name}</strong>
                   <p className="muted">
                     {sprint.status === 'COMPLETED'
-                      ? `Completed ${sprint.completedAt ? new Date(sprint.completedAt).toLocaleDateString() : ''}`
+                      ? `Completed ${sprint.completedAt ? formatDate(sprint.completedAt) : ''}`
                       : sprint.status === 'ACTIVE'
                         ? 'Currently active'
                         : 'Planned'}

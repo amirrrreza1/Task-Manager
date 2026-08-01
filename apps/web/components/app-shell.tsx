@@ -27,6 +27,7 @@ import { useState, type ComponentType, type ReactNode } from 'react';
 import { Avatar } from './avatar';
 import { useAuth } from './auth-provider';
 import { ThemeToggle } from './theme-toggle';
+import { companyIcon, companyName } from '../lib/app-config';
 
 type NavItem = {
   href: string;
@@ -89,12 +90,14 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="app-frame" data-sidebar-collapsed={sidebarCollapsed || undefined}>
       <aside className="app-sidebar">
         <div className="sidebar-brand-row">
-          <Link className="brand" href="/board" aria-label="Task Manager board">
+          <Link className="brand" href="/board" aria-label={`${companyName} board`}>
             <span className="brand-mark" aria-hidden="true">
-              <LayoutKanban />
+              {/* The administrator controls this URL through .env, so it cannot use Next's fixed image allowlist. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img alt="" src={companyIcon} />
             </span>
             <span className="brand-copy">
-              <strong>Task Manager</strong>
+              <strong>{companyName}</strong>
               <small>Team workspace</small>
             </span>
           </Link>
