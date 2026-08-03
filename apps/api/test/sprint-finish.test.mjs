@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { SprintsService } from '../dist/sprints/sprints.service.js';
 
-describe('SprintsService.finish', () => {
+describe('SprintsService sprint resolution', () => {
   it('returns unfinished work to the backlog without moving completed subtasks', async () => {
     const taskSnapshots = [];
     const subtaskSnapshots = [];
@@ -177,5 +177,47 @@ describe('SprintsService.finish', () => {
       totalSubtasks: 5,
       completedSubtasks: 2,
     });
+  });
+
+  it('keeps completed child work out of the backlog when resolving an unfinished task', async () => {
+    const subtaskUpdates = [];
+    const taskUpdates = [];
+    const transaction = {
+      sprint: { findUnique: async () => ({ status: 'COMPLETED' }) },
+      sprintTaskSnapshot: { findMany: async () => [{ taskId: 'task-1' }] },
+      sprintSubtaskSnapshot: { findMany: async () => [] },
+      task: {
+        findMany: async () => [{ id: 'task-1', columnId: 'in-progress' }],
+        aggregate: async () => ({ _max: { position: 0 } }),
+        update: async ({ where, data }) => {
+          taskUpdates.push({ where, data });
+          return data;
+        },
+      },
+      subtask: {
+        findMany: async () => [],
+        updateMany: async ({ where, data }) => subtaskUpdates.push({ where, data }),
+      },
+      boardColumn: {
+        findMany: async () => [{ id: 'backlog', isBacklog: true, position: 1 }],
+      },
+      activityEvent: { create: async () => undefined },
+    };
+    const service = new SprintsService({ $transaction: async (callback) => callback(transaction) });
+
+    await service.moveToBacklog('sprint-1', { taskIds: ['task-1'] }, 'admin-1');
+
+    assert.deepEqual(subtaskUpdates, [
+      {
+        where: { taskId: 'task-1', columnId: 'in-progress', isCompleted: false },
+        data: { columnId: 'backlog' },
+      },
+    ]);
+    assert.deepEqual(taskUpdates, [
+      {
+        where: { id: 'task-1' },
+        data: { sprintId: null, columnId: 'backlog', position: 1024 },
+      },
+    ]);
   });
 });

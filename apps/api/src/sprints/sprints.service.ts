@@ -610,7 +610,9 @@ export class SprintsService {
       for (const task of tasks) {
         position += 1024;
         await transaction.subtask.updateMany({
-          where: { taskId: task.id, columnId: task.columnId },
+          // Keep completed child work in the completed sprint's history. Only
+          // unfinished work belongs back in the backlog with its parent task.
+          where: { taskId: task.id, columnId: task.columnId, isCompleted: false },
           data: { columnId: backlogColumnId },
         });
         await transaction.task.update({
