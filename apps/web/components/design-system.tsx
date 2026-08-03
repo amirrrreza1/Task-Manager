@@ -167,7 +167,7 @@ function Select({
   );
 }
 
-type ModalProps = Omit<ComponentProps<typeof DialogContent>, 'children' | 'className'> & {
+type ModalProps = Omit<ComponentProps<typeof DialogContent>, 'children' | 'className' | 'closeButton' | 'closeLabel'> & {
   children: ReactNode;
   className?: string;
   labelledBy?: string;
@@ -187,7 +187,8 @@ function Modal({ children, className, labelledBy, onOpenChange, ...props }: Moda
         {...props}
         aria-labelledby={labelledBy}
         className={className}
-        closeButton={false}
+        closeButton
+        closeLabel="Close modal"
       >
         {children}
       </DialogContent>

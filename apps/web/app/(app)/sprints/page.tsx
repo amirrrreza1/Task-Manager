@@ -1,6 +1,6 @@
 'use client';
 
-import { Button, Input, Textarea } from '../../../components/design-system';
+import { Button, Input, Modal, Textarea } from '../../../components/design-system';
 
 import Link from 'next/link';
 import { FormEvent, useCallback, useEffect, useState } from 'react';
@@ -49,14 +49,28 @@ export default function SprintsPage() {
     <div className="page-stack">
       <header className="page-header">
         <div><h1>Sprints</h1></div>
-        <div className="header-actions"><Button variant="primary" onClick={() => setShowForm((value) => !value)} type="button">{showForm ? 'Close' : 'Plan sprint'}</Button></div>
+        <div className="header-actions"><Button variant="primary" onClick={() => setShowForm(true)} type="button">Plan sprint</Button></div>
       </header>
-      {showForm ? <form className="sprint-form" onSubmit={create}>
-        <label>Sprint name<Input autoFocus maxLength={120} onChange={(event) => setName(event.target.value)} required value={name} /></label>
-        <label>Goal <small>Optional</small><Textarea maxLength={10000} onChange={(event) => setGoal(event.target.value)} rows={2} value={goal} /></label>
+      {showForm ? <Modal
+        className="modal"
+        labelledBy="create-sprint-title"
+        onOpenChange={(open) => { if (!open) setShowForm(false); }}
+      >
+        <header>
+          <p className="section-label">Sprint planning</p>
+          <h2 id="create-sprint-title">Plan a sprint</h2>
+        </header>
+        <form onSubmit={create}>
+          <label>Sprint name<Input autoFocus maxLength={120} onChange={(event) => setName(event.target.value)} required value={name} /></label>
+          <label>Goal <small>Optional</small><Textarea maxLength={10000} onChange={(event) => setGoal(event.target.value)} rows={2} value={goal} /></label>
+          {error ? <p className="form-error" role="alert">{error}</p> : null}
+          <footer>
+            <Button variant="ghost" onClick={() => setShowForm(false)} type="button">Cancel</Button>
         <Button variant="primary" disabled={creating} type="submit">{creating ? 'Creating…' : 'Create planned sprint'}</Button>
-      </form> : null}
-      {error ? <p className="form-error" role="alert">{error}</p> : null}
+          </footer>
+        </form>
+      </Modal> : null}
+      {error && !showForm ? <p className="form-error" role="alert">{error}</p> : null}
       <section className="sprint-list" aria-label="Sprint history">
         {sprints.map((sprint) => <Link className="sprint-row" href={`/sprints/${sprint.id}`} key={sprint.id}>
           <div><span className={`sprint-status ${sprint.status.toLowerCase()}`}>{labels[sprint.status]}</span><h2>{sprint.name}</h2><p>{sprint.goal || 'No goal set.'}</p></div>

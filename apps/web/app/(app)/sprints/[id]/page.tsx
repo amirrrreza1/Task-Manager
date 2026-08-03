@@ -1,10 +1,11 @@
 'use client';
 
 import { Button, Checkbox, Input, Modal, Select, Textarea } from '../../../../components/design-system';
+import { CalendarDateInput } from '../../../../components/calendar-date-input';
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { CSSProperties, FormEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Avatar } from '../../../../components/avatar';
 import { useAuth } from '../../../../components/auth-provider';
 import { formatDate, formatDateTime } from '../../../../lib/app-config';
@@ -16,10 +17,11 @@ import type {
   SprintSummary,
 } from '../../../../lib/types';
 import { isSprintWorkSelectionLocked } from '../../../../lib/sprint-work';
+import { needsSprintFinishConfirmation } from '../../../../lib/sprint-finish';
 
 const statusLabel = { PLANNED: 'Planned', ACTIVE: 'Active', COMPLETED: 'Completed' };
 const date = (value: string | null, withTime = false) => withTime ? formatDateTime(value) : formatDate(value);
-const localInput = (value: string | null) => value ? new Date(value).toISOString().slice(0, 16) : '';
+const localInput = (value: string | null) => value ? new Date(value).toISOString().slice(0, 10) : '';
 
 export default function SprintDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -36,12 +38,16 @@ export default function SprintDetailPage() {
   const [newSprintName, setNewSprintName] = useState('');
   const [creatingCarryTarget, setCreatingCarryTarget] = useState(false);
   const [plannerOpen, setPlannerOpen] = useState(false);
+  const [finishConfirmationOpen, setFinishConfirmationOpen] = useState(false);
   const [availableTasks, setAvailableTasks] = useState<AvailableSprintTask[]>([]);
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
   const [selectedSubtaskIds, setSelectedSubtaskIds] = useState<string[]>([]);
   const [loadingTasks, setLoadingTasks] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const sprintContentRef = useRef<HTMLElement>(null);
+  const capturedSprintIdRef = useRef<string | null>(null);
+  const [initialPanel, setInitialPanel] = useState<{ sprintId: string; height: number } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -57,6 +63,20 @@ export default function SprintDetailPage() {
     } catch (caught) { setError(caught instanceof Error ? caught.message : 'Could not load the sprint.'); }
   }, [id, request]);
   useEffect(() => { void load(); }, [load]);
+
+  // Align the work and notes cards only when this sprint first loads. New
+  // comments can then grow the notes card without stretching sprint work.
+  useLayoutEffect(() => {
+    if (!sprint || capturedSprintIdRef.current === sprint.id) return;
+
+    const panels = sprintContentRef.current?.querySelectorAll<HTMLElement>(':scope > .sprint-panel');
+    const heights = panels ? Array.from(panels, (panel) => panel.getBoundingClientRect().height) : [];
+    const height = heights.length ? Math.max(...heights) : 0;
+    if (!height) return;
+
+    capturedSprintIdRef.current = sprint.id;
+    setInitialPanel({ sprintId: sprint.id, height: Math.ceil(height) });
+  }, [sprint]);
 
   const unfinished = useMemo(
     () => (sprint?.taskSnapshots ?? []).filter((item) => item.canCarryOver && item.taskId),
@@ -98,6 +118,17 @@ export default function SprintDetailPage() {
   function start(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     void mutation(`/sprints/${id}/start`, 'POST', { ...(startAt ? { startsAt: new Date(startAt).toISOString() } : {}), ...(endAt ? { endsAt: new Date(endAt).toISOString() } : {}) });
+  }
+  function finishSprint() {
+    if (needsSprintFinishConfirmation(sprint?.endsAt ?? null, new Date(), formatDate)) {
+      setFinishConfirmationOpen(true);
+      return;
+    }
+    void mutation(`/sprints/${id}/finish`);
+  }
+  function confirmFinishSprint() {
+    setFinishConfirmationOpen(false);
+    void mutation(`/sprints/${id}/finish`);
   }
   function saveComment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -182,7 +213,7 @@ export default function SprintDetailPage() {
   return <div className="page-stack sprint-detail">
     <header className="page-header compact-header">
       <div><Link className="back-link" href="/sprints">← All sprints</Link><p className="eyebrow">{statusLabel[sprint.status]} sprint</p><h1>{sprint.name}</h1><p className="muted">{sprint.goal || 'No goal set for this sprint.'}</p></div>
-      <div className="header-actions">{sprint.status !== 'COMPLETED' ? <Button variant="outline" onClick={() => void openPlanner()} type="button">Add tasks</Button> : null}{admin && sprint.status === 'ACTIVE' ? <Button variant="primary" disabled={busy} onClick={() => void mutation(`/sprints/${id}/finish`)} type="button">Finish sprint</Button> : null}</div>
+      <div className="header-actions">{sprint.status !== 'COMPLETED' ? <Button variant="outline" onClick={() => void openPlanner()} type="button">Add tasks</Button> : null}{admin && sprint.status === 'ACTIVE' ? <Button variant="primary" disabled={busy} onClick={finishSprint} type="button">Finish sprint</Button> : null}</div>
     </header>
     {error ? <p className="form-error" role="alert">{error}</p> : null}
     <section className="sprint-overview">
@@ -192,12 +223,12 @@ export default function SprintDetailPage() {
       <div><span>Estimates</span><strong>{Object.entries(sprint.outcomes.estimates).map(([unit, value]) => `${value} ${unit === 'HOURS' ? 'h' : 'pts'}`).join(' · ') || 'None'}</strong></div>
     </section>
     {admin && sprint.status === 'PLANNED' ? <form className="sprint-form sprint-start" onSubmit={start}>
-      <div><h2>Start this sprint</h2><p className="muted">The workspace duration proposes the end date. Change it here if this sprint needs a different cadence.</p></div>
-      <label>Start date<Input onChange={(event) => setStartAt(event.target.value)} type="datetime-local" value={startAt} /></label>
-      <label>Target end date<Input onChange={(event) => setEndAt(event.target.value)} type="datetime-local" value={endAt} /></label>
+      <div><h2>Start this sprint</h2></div>
+      <label>Start date<CalendarDateInput aria-label="Sprint start date" hidePastYears onChange={(event) => setStartAt(event.target.value)} value={startAt} /></label>
+      <label>Target end date<CalendarDateInput aria-label="Sprint target end date" hidePastYears onChange={(event) => setEndAt(event.target.value)} value={endAt} /></label>
       <Button variant="primary" disabled={busy} type="submit">Start sprint</Button>
     </form> : null}
-    <section className="sprint-content">
+    <section className="sprint-content" ref={sprintContentRef} style={initialPanel?.sprintId === sprint.id ? { '--sprint-panel-initial-height': `${initialPanel.height}px` } as CSSProperties : undefined}>
       <div className="sprint-panel"><h2>{sprint.status === 'COMPLETED' ? 'Final outcome' : 'Sprint work'}</h2>
         {(sprint.status === 'COMPLETED' ? sprint.taskSnapshots : sprint.tasks).map((task) => {
           const completed = 'wasDone' in task ? task.wasDone : task.column.isDone;
@@ -227,6 +258,7 @@ export default function SprintDetailPage() {
       {unfinishedSubtasks.length ? <div className="carry-work-group"><h3>Subtasks</h3><div className="carry-items">{unfinishedSubtasks.map((subtask) => <label key={subtask.id}><Checkbox checked={carrySubtaskIds.includes(subtask.subtaskId!)} disabled={subtask.taskId ? carryIds.includes(subtask.taskId) : false} onChange={(event) => setCarrySubtaskIds((current) => event.target.checked ? [...current, subtask.subtaskId!] : current.filter((value) => value !== subtask.subtaskId))} /><span>{subtask.title}<small>From {subtask.taskTitle}</small></span></label>)}</div></div> : null}
       <div><Button variant="outline" disabled={busy || !targetSprintId || (!carryIds.length && !carrySubtaskIds.length) || !planned.length} type="submit">Carry over selected work</Button><Button variant="ghost" disabled={busy || (!carryIds.length && !carrySubtaskIds.length)} onClick={moveToBacklog} type="button">Move selected work to backlog</Button></div>
     </form> : null}
+    {finishConfirmationOpen ? <Modal className="modal" labelledBy="finish-sprint-title" onOpenChange={(open) => { if (!open) setFinishConfirmationOpen(false); }}><header><p className="section-label">Finish sprint</p><h2 id="finish-sprint-title">Finish this sprint?</h2></header><p>This sprint is scheduled to end on {date(sprint.endsAt)}. Are you sure you want to finish it now?</p><footer><Button variant="ghost" disabled={busy} onClick={() => setFinishConfirmationOpen(false)} type="button">Cancel</Button><Button variant="primary" disabled={busy} onClick={confirmFinishSprint} type="button">Finish sprint</Button></footer></Modal> : null}
     {plannerOpen ? <Modal className="modal sprint-planner" labelledBy="sprint-planner-title" onOpenChange={(open) => { if (!open) setPlannerOpen(false); }}><header><p className="section-label">Sprint planning</p><h2 id="sprint-planner-title">Add work to {sprint.name}</h2><p className="muted">Choose a parent task, or select only the subtasks you want to plan beneath it.</p></header><form onSubmit={assignTasks}><div className="planner-task-list">{loadingTasks ? <p className="muted">Loading work…</p> : <>{availablePlannerTasks.map((task) => { const parentSelected = selectedTaskIds.includes(task.id); return <div className="planner-task" key={task.id}>{task.parentLocked ? <div className="planner-task-main"><div><strong>{task.title}</strong><small>{task.column.name} · Choose eligible subtasks below</small></div></div> : <label className="planner-task-main"><Checkbox checked={parentSelected} onChange={(event) => { setSelectedTaskIds((current) => event.target.checked ? [...current, task.id] : current.filter((item) => item !== task.id)); if (event.target.checked) setSelectedSubtaskIds((current) => current.filter((item) => !task.subtasks.some((subtask) => subtask.id === item))); }} /><div><strong>{task.title}</strong><small>{task.column.name}{task.sprint ? ` · Currently in ${task.sprint.name}` : ' · No sprint'}</small></div></label>}{task.subtasks.length ? <div className="planner-subtasks">{task.subtasks.map((subtask) => <label key={subtask.id}><Checkbox checked={selectedSubtaskIds.includes(subtask.id)} disabled={parentSelected} onChange={(event) => setSelectedSubtaskIds((current) => event.target.checked ? [...current, subtask.id] : current.filter((item) => item !== subtask.id))} /><i className={subtask.isCompleted ? 'done-marker' : 'open-marker'} /><span>{subtask.title}</span><small>{subtask.sprint ? `In ${subtask.sprint.name}` : 'No sprint'}</small></label>)}</div> : !task.parentLocked ? <p className="empty-copy">No subtasks</p> : null}</div>; })}{!availablePlannerTasks.length ? <p className="empty-copy">Every task and subtask is already in this sprint or locked to an active/completed sprint.</p> : null}</>}</div><footer><Button variant="ghost" onClick={() => setPlannerOpen(false)} type="button">Cancel</Button><Button variant="primary" disabled={busy || (!selectedTaskIds.length && !selectedSubtaskIds.length)} type="submit">Add selected work</Button></footer></form></Modal> : null}
   </div>;
 }

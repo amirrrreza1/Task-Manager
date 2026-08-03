@@ -665,7 +665,7 @@ export default function BoardPage() {
             <option value="false">No estimate</option>
           </Select>
         </label>
-        <div className="board-filter-toggles">
+        <div className="board-filter-toggles" role="group" aria-label="Quick filters">
           <label className="check-field">
             <Checkbox
               checked={filters.mine}
@@ -696,7 +696,9 @@ export default function BoardPage() {
           </label>
         </div>
         <Button
-          variant="ghost" size="sm"
+          className="board-filter-clear"
+          variant="ghost"
+          size="sm"
           type="button"
           onClick={() => setFilters(emptyFilters)}
         >

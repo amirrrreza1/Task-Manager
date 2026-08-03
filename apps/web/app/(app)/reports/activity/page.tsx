@@ -1,6 +1,7 @@
 'use client';
 
-import { Button, Input, Select } from '../../../../components/design-system';
+import { Button, Select } from '../../../../components/design-system';
+import { CalendarDateInput } from '../../../../components/calendar-date-input';
 import {
   Table,
   TableBody,
@@ -172,11 +173,11 @@ export default function ActivityLogPage() {
         </label>
         <label>
           <span>From</span>
-          <Input type="date" value={filters.from} onChange={(e) => setFilters({ ...filters, from: e.target.value })} />
+          <CalendarDateInput aria-label="From date" value={filters.from} onChange={(e) => setFilters({ ...filters, from: e.target.value })} />
         </label>
         <label>
           <span>To</span>
-          <Input type="date" value={filters.to} onChange={(e) => setFilters({ ...filters, to: e.target.value })} />
+          <CalendarDateInput aria-label="To date" value={filters.to} onChange={(e) => setFilters({ ...filters, to: e.target.value })} />
         </label>
         <Button variant="primary" size="sm" type="button" onClick={applyFilters}>
           Apply

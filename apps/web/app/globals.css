@@ -596,11 +596,12 @@ label:not([data-slot='field-label']) small {
 .sprint-overview > div + div { border-left: 1px solid var(--border); }
 .sprint-overview span, .sprint-task small, .sprint-comment small { color: var(--faint); font-size: 0.76rem; }
 .sprint-overview strong { font-size: 1rem; }
-.sprint-start { grid-template-columns: 1.3fr 1fr 1fr auto; }
+.sprint-start { align-items: center; grid-template-columns: 1.3fr 1fr 1fr auto; }
 .sprint-start h2 { margin-bottom: 5px; }
 .sprint-start p { margin: 0; }
 
 .sprint-content { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(340px, 1.1fr); gap: 20px; align-items: start; }
+.sprint-content > .sprint-panel { min-height: var(--sprint-panel-initial-height, 0); }
 .sprint-panel h2 { margin-bottom: 18px; }
 .sprint-task { display: grid; align-items: center; grid-template-columns: auto 1fr auto; gap: 12px; padding: 13px 0; border-top: 1px solid var(--border); }
 .sprint-task > div { display: grid; gap: 3px; }
@@ -1096,7 +1097,7 @@ label:not([data-slot='field-label']) small {
   box-shadow: var(--shadow);
 }
 
-.modal > header {
+.modal > [data-slot='dialog-content'] > header {
   padding: 24px 26px 18px;
 }
 
@@ -1147,7 +1148,12 @@ label:not([data-slot='field-label']) small {
   padding: 16px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  grid-template-columns: minmax(260px, 1.4fr) minmax(170px, 0.7fr) minmax(150px, 0.55fr) auto auto;
+  grid-template-columns:
+    minmax(260px, 1.4fr)
+    minmax(170px, 0.7fr)
+    minmax(150px, 0.55fr)
+    minmax(156px, max-content)
+    42px;
   gap: 12px;
   background: var(--surface);
 }
@@ -1158,6 +1164,16 @@ label:not([data-slot='field-label']) small {
   justify-content: center;
   gap: 4px;
   min-height: 44px;
+}
+
+.board-filter-clear {
+  align-self: stretch;
+  height: 100%;
+  justify-content: center;
+  min-width: 42px;
+  padding: 8px 6px;
+  transform: rotate(180deg);
+  writing-mode: vertical-rl;
 }
 
 label.check-field {
@@ -2315,6 +2331,13 @@ label.check-field {
   .board-search {
     grid-column: auto;
   }
+  .board-filter-clear {
+    height: auto;
+    min-height: 2.5rem;
+    padding: 0.5rem 0.75rem;
+    transform: none;
+    writing-mode: horizontal-tb;
+  }
   .task-board {
     grid-auto-columns: minmax(270px, 88vw);
   }
@@ -3381,4 +3404,114 @@ label:not([data-slot='field-label']) {
 [data-slot='input-clear'] {
   margin-inline-start: 0.4rem;
   margin-inline-end: 0.2rem;
+}
+
+/* Date fields display one readable value, then reveal their calendar controls
+   on demand. This keeps dense forms calm without hiding editability. */
+.calendar-date-input {
+  position: relative;
+  width: 100%;
+}
+
+.calendar-date-input__trigger {
+  align-items: center;
+  background: var(--input, var(--surface));
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  gap: 0.75rem;
+  justify-content: space-between;
+  min-height: 2.5rem;
+  padding: 0.5rem 0.7rem 0.5rem 0.85rem;
+  text-align: start;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+  width: 100%;
+}
+
+.calendar-date-input__trigger:hover:not(:disabled) {
+  background: var(--surface-2);
+  border-color: var(--accent);
+}
+
+.calendar-date-input__trigger:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+  outline: none;
+}
+
+.calendar-date-input__trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.calendar-date-input__icon {
+  color: var(--accent);
+  flex: 0 0 auto;
+  height: 1.1rem;
+  width: 1.1rem;
+}
+
+.calendar-date-input__menu {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  box-shadow: 0 12px 28px rgb(0 0 0 / 0.14);
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: minmax(8rem, 1.5fr) minmax(5.5rem, 0.8fr) minmax(5.5rem, 0.8fr);
+  left: 0;
+  margin-top: 0.35rem;
+  padding: 0.55rem;
+  position: absolute;
+  top: 100%;
+  width: max-content;
+  z-index: 20;
+}
+
+.calendar-date-input__menu [data-slot='select-trigger'] {
+  width: 100%;
+}
+
+@media (max-width: 620px) {
+  .calendar-date-input__menu {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+}
+
+/* On a phone, dialogs become focused, full-screen pages. This keeps long
+   forms usable without fighting a cramped card or the browser viewport. */
+@media (max-width: 600px) {
+  [data-slot='dialog-viewport']:has(.modal) {
+    align-items: stretch;
+    padding: 0;
+  }
+
+  .modal,
+  .task-modal,
+  .sprint-planner {
+    width: 100%;
+    max-width: none;
+    height: 100dvh;
+    max-height: none;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .modal > [data-slot='dialog-content'] {
+    height: 100%;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .modal > [data-slot='dialog-content'] > header {
+    padding-right: 4.75rem;
+  }
+
+  .modal [data-slot='dialog-close-button'] {
+    top: max(0.75rem, env(safe-area-inset-top));
+    right: max(0.75rem, env(safe-area-inset-right));
+  }
 }

@@ -28,7 +28,6 @@ import { formatDateTime } from '../../../../lib/app-config';
 import type {
   AppSettings,
   Attachment,
-  BoardColumn,
   EstimateUnit,
   ManagedUser,
   Paginated,
@@ -51,7 +50,6 @@ export default function TaskPage() {
   const { request, requestBlob } = useAuth();
   const [task, setTask] = useState<TaskDetail | null>(null);
   const [users, setUsers] = useState<ManagedUser[]>([]);
-  const [columns, setColumns] = useState<BoardColumn[]>([]);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [plannedSprints, setPlannedSprints] = useState<SprintSummary[]>([]);
   const [sprintId, setSprintId] = useState('');
@@ -72,17 +70,15 @@ export default function TaskPage() {
 
   const load = useCallback(async () => {
     try {
-      const [nextTask, nextUsers, nextColumns, nextSettings, planned, active] = await Promise.all([
+      const [nextTask, nextUsers, nextSettings, planned, active] = await Promise.all([
         request<TaskDetail>(`/tasks/${id}`),
         request<ManagedUser[]>('/users'),
-        request<BoardColumn[]>('/board-columns'),
         request<AppSettings>('/settings'),
         request<Paginated<SprintSummary>>('/sprints?status=PLANNED'),
         request<Paginated<SprintSummary>>('/sprints?status=ACTIVE'),
       ]);
       setTask(nextTask);
       setUsers(nextUsers.filter((user) => user.isActive));
-      setColumns(nextColumns);
       setSettings(nextSettings);
       setPlannedSprints([...active.items, ...planned.items]);
       setSprintId(nextTask.sprintId ?? '');
@@ -118,23 +114,6 @@ export default function TaskPage() {
       await load();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Could not save the task.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function moveToColumn(columnId: string) {
-    if (!task || columnId === task.columnId) return;
-    setBusy(true);
-    setError('');
-    try {
-      await request(`/tasks/${id}/move`, {
-        method: 'POST',
-        body: JSON.stringify({ columnId, expectedUpdatedAt: task.updatedAt }),
-      });
-      await load();
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not move the task.');
     } finally {
       setBusy(false);
     }
@@ -555,17 +534,10 @@ export default function TaskPage() {
         <aside className="task-sidebar">
           <section>
             <h2>Status</h2>
-            <Select
-              value={task.columnId}
-              disabled={busy}
-              onChange={(event) => void moveToColumn(event.target.value)}
-            >
-              {columns.map((column) => (
-                <option value={column.id} key={column.id}>
-                  {column.name}
-                </option>
-              ))}
-            </Select>
+            <p className="column-chip">
+              <span style={{ background: task.column.color }} aria-hidden="true" />
+              {task.column.name}
+            </p>
           </section>
           <section>
             <h2>Estimate</h2>
