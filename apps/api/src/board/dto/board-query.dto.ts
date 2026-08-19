@@ -1,7 +1,15 @@
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { IsBoolean, IsOptional, IsString, MaxLength, ValidateIf } from 'class-validator';
+import { IsUuidLike } from '../../common/validators/is-uuid-like';
 
 const toBoolean = ({ value }: { value: unknown }) => value === 'true' || value === true;
+const toOptionalString = ({ value }: { value: unknown }) =>
+  typeof value === 'string' &&
+  value.trim().length > 0 &&
+  value !== 'undefined' &&
+  value !== 'null'
+    ? value.trim()
+    : undefined;
 
 export class BoardQueryDto {
   @IsOptional()
@@ -10,11 +18,15 @@ export class BoardQueryDto {
   search?: string;
 
   @IsOptional()
-  @IsUUID()
+  @Transform(toOptionalString)
+  @ValidateIf((o) => typeof o.assigneeId === 'string' && o.assigneeId.length > 0)
+  @IsUuidLike()
   assigneeId?: string;
 
   @IsOptional()
-  @IsUUID()
+  @Transform(toOptionalString)
+  @ValidateIf((o) => typeof o.sprintId === 'string' && o.sprintId.length > 0)
+  @IsUuidLike()
   sprintId?: string;
 
   @IsOptional()
@@ -26,6 +38,18 @@ export class BoardQueryDto {
   @Transform(toBoolean)
   @IsBoolean()
   hasEstimate?: boolean;
+
+  @IsOptional()
+  @Transform(toOptionalString)
+  @ValidateIf((o) => typeof o.workspaceId === 'string' && o.workspaceId.length > 0)
+  @IsUuidLike()
+  workspaceId?: string;
+
+  @IsOptional()
+  @Transform(toOptionalString)
+  @ValidateIf((o) => typeof o.projectId === 'string' && o.projectId.length > 0)
+  @IsUuidLike()
+  projectId?: string;
 
   @IsOptional()
   @Transform(toBoolean)

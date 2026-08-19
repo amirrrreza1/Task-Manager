@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { ThemeProvider } from '@appica/ui-react/providers/theme-provider';
 import type { ReactNode } from 'react';
 import { AuthProvider } from '../components/auth-provider';
+import { ToastProvider } from '../components/toast-provider';
 import { companyIcon, companyName } from '../lib/app-config';
 import './globals.css';
 
@@ -18,7 +19,9 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
     <html lang="en" suppressHydrationWarning>
       <body>
         <ThemeProvider defaultTheme="system" disableTransitionOnChange>
-          <AuthProvider>{children}</AuthProvider>
+          <ToastProvider>
+            <AuthProvider>{children}</AuthProvider>
+          </ToastProvider>
         </ThemeProvider>
       </body>
     </html>

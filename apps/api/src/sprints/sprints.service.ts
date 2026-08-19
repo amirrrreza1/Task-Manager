@@ -25,6 +25,8 @@ import {
 } from './sprint-work';
 import { pickBacklogColumnId, pickTodoColumnId } from '../tasks/task-work';
 
+import { NotificationsService } from '../notifications/notifications.service';
+
 const authorSelect = {
   id: true,
   displayName: true,
@@ -50,11 +52,37 @@ const taskInclude = {
 
 @Injectable()
 export class SprintsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
+
+  private async resolveWorkspaceId(workspaceId?: string): Promise<string> {
+    if (workspaceId) {
+      const exists = await this.prisma.workspace.findUnique({ where: { id: workspaceId } });
+      if (exists) return exists.id;
+    }
+    const first = await this.prisma.workspace.findFirst({ orderBy: { createdAt: 'asc' } });
+    if (first) return first.id;
+    const defaultWs = await this.prisma.workspace.upsert({
+      where: { id: '00000000-0000-0000-0000-000000000001' },
+      update: {},
+      create: {
+        id: '00000000-0000-0000-0000-000000000001',
+        name: 'Main Workspace',
+        description: 'Default team workspace',
+      },
+    });
+    return defaultWs.id;
+  }
 
   async list(query: SprintQueryDto) {
+    const where: Prisma.SprintWhereInput = {
+      ...(query.workspaceId ? { workspaceId: query.workspaceId } : {}),
+      ...(query.status ? { status: query.status } : {}),
+    };
     const records = await this.prisma.sprint.findMany({
-      where: query.status ? { status: query.status } : undefined,
+      where,
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: query.limit + 1,
       ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
@@ -119,11 +147,15 @@ export class SprintsService {
   }
 
   async availableTasks(id: string) {
-    const sprint = await this.prisma.sprint.findUnique({ where: { id }, select: { status: true } });
+    const sprint = await this.prisma.sprint.findUnique({
+      where: { id },
+      select: { status: true, workspaceId: true },
+    });
     if (!sprint) throw new NotFoundException('Sprint not found.');
     this.assertSprintAcceptsWork(sprint.status);
     return this.prisma.task.findMany({
       where: {
+        workspaceId: sprint.workspaceId,
         OR: [
           { sprintId: null },
           { sprintId: { not: id }, sprint: { is: { status: SprintStatus.PLANNED } } },
@@ -146,11 +178,15 @@ export class SprintsService {
   }
 
   async availableSubtasks(id: string) {
-    const sprint = await this.prisma.sprint.findUnique({ where: { id }, select: { status: true } });
+    const sprint = await this.prisma.sprint.findUnique({
+      where: { id },
+      select: { status: true, workspaceId: true },
+    });
     if (!sprint) throw new NotFoundException('Sprint not found.');
     this.assertSprintAcceptsWork(sprint.status);
     return this.prisma.subtask.findMany({
       where: {
+        task: { workspaceId: sprint.workspaceId },
         OR: [
           { sprintId: null },
           { sprintId: { not: id }, sprint: { is: { status: SprintStatus.PLANNED } } },
@@ -260,12 +296,13 @@ export class SprintsService {
   async create(input: CreateSprintDto, actorId: string) {
     const name = input.name.trim();
     if (!name) throw new BadRequestException('Sprint name cannot be empty.');
+    const workspaceId = await this.resolveWorkspaceId(input.workspaceId);
     return this.prisma.$transaction(async (transaction) => {
       const sprint = await transaction.sprint.create({
-        data: { name, goal: input.goal?.trim() || null },
+        data: { workspaceId, name, goal: input.goal?.trim() || null },
         include: { _count: { select: { tasks: true, taskSnapshots: true, comments: true } } },
       });
-      await this.event(transaction, 'sprint.created', sprint.id, actorId, { name });
+      await this.event(transaction, 'sprint.created', sprint.id, actorId, { name, workspaceId });
       return sprint;
     });
   }
@@ -292,35 +329,70 @@ export class SprintsService {
 
   async start(id: string, input: StartSprintDto, actorId: string) {
     const startsAt = input.startsAt ? this.date(input.startsAt, 'start date') : new Date();
-    return this.prisma.$transaction(async (transaction) => {
+    const result = await this.prisma.$transaction(async (transaction) => {
       const sprint = await transaction.sprint.findUnique({ where: { id } });
       if (!sprint) throw new NotFoundException('Sprint not found.');
       if (sprint.status !== SprintStatus.PLANNED)
         throw new ConflictException('Only planned sprints can be started.');
-      const settings = await transaction.appSettings.findUniqueOrThrow({
-        where: { id: 'default' },
+      const workspace = await transaction.workspace.findUnique({
+        where: { id: sprint.workspaceId },
       });
+      const durationDays = workspace?.sprintDurationDays ?? 14;
       const endsAt = input.endsAt
         ? this.date(input.endsAt, 'end date')
-        : new Date(startsAt.getTime() + settings.sprintDurationDays * 86_400_000);
+        : new Date(startsAt.getTime() + durationDays * 86_400_000);
       if (endsAt <= startsAt)
         throw new BadRequestException('The sprint end date must be after start.');
       const active = await transaction.sprint.findFirst({
-        where: { status: SprintStatus.ACTIVE },
+        where: { workspaceId: sprint.workspaceId, status: SprintStatus.ACTIVE },
         select: { id: true },
       });
-      if (active) throw new ConflictException('Finish the active sprint before starting another.');
+      if (active)
+        throw new ConflictException(
+          'Finish the active sprint in this workspace before starting another.',
+        );
       const updated = await transaction.sprint.update({
         where: { id },
         data: { status: SprintStatus.ACTIVE, startsAt, endsAt },
       });
-      await this.event(transaction, 'sprint.started', id, actorId, { startsAt, endsAt });
-      return updated;
+      await this.event(transaction, 'sprint.started', id, actorId, {
+        startsAt,
+        endsAt,
+        workspaceId: sprint.workspaceId,
+      });
+      return { updated, sprintName: sprint.name, goal: sprint.goal, startsAt, endsAt };
     });
+
+    void (async () => {
+      try {
+        const activeUsers = await this.prisma.user.findMany({
+          where: { isActive: true },
+          select: { id: true },
+        });
+        await this.notifications.dispatch({
+          recipientUserIds: activeUsers.map((u) => u.id),
+          actorId,
+          type: 'sprint.started',
+          title: `🚀 Sprint Started: ${result.sprintName}`,
+          message: `Sprint "${result.sprintName}" has started.`,
+          lines: [
+            `Sprint "${result.sprintName}" has started.`,
+            result.goal ? `Goal: ${result.goal}` : '',
+            `Timeline: ${result.startsAt.toISOString().slice(0, 10)} to ${result.endsAt.toISOString().slice(0, 10)}`,
+          ].filter(Boolean),
+          link: `/sprints/${id}`,
+          actionLabel: 'View Sprint',
+        });
+      } catch {
+        // Ignore background error
+      }
+    })();
+
+    return result.updated;
   }
 
   async finish(id: string, actorId: string) {
-    return this.prisma.$transaction(async (transaction) => {
+    const result = await this.prisma.$transaction(async (transaction) => {
       const sprint = await transaction.sprint.findUnique({
         where: { id },
         include: {
@@ -399,6 +471,7 @@ export class SprintsService {
 
       if (unfinishedTaskIds.length || standaloneSubtaskIds.length) {
         const columns = await transaction.boardColumn.findMany({
+          where: { workspaceId: sprint.workspaceId },
           select: { id: true, isBacklog: true, position: true },
           orderBy: { position: 'asc' },
         });
@@ -437,15 +510,50 @@ export class SprintsService {
         where: { id },
         data: { status: SprintStatus.COMPLETED, completedAt },
       });
+      const completedTasksCount = sprint.tasks.filter((task) => task.column.isDone).length;
       await this.event(transaction, 'sprint.finished', id, actorId, {
         completedAt,
         totalTasks: sprint.tasks.length,
-        completedTasks: sprint.tasks.filter((task) => task.column.isDone).length,
+        completedTasks: completedTasksCount,
         totalSubtasks: subtasks.size,
         completedSubtasks: subtasks.size - unfinishedSubtaskIds.length,
+        ...(sprint.workspaceId ? { workspaceId: sprint.workspaceId } : {}),
       });
-      return updated;
+      return {
+        updated,
+        sprintName: sprint.name,
+        totalTasks: sprint.tasks.length,
+        completedTasks: completedTasksCount,
+        remainingTasks: sprint.tasks.length - completedTasksCount,
+      };
     });
+
+    void (async () => {
+      try {
+        const activeUsers = await this.prisma.user.findMany({
+          where: { isActive: true },
+          select: { id: true },
+        });
+        await this.notifications.dispatch({
+          recipientUserIds: activeUsers.map((u) => u.id),
+          actorId,
+          type: 'sprint.finished',
+          title: `🏁 Sprint Completed: ${result.sprintName}`,
+          message: `Sprint "${result.sprintName}" was completed. ${result.completedTasks} task(s) done, ${result.remainingTasks} incomplete.`,
+          lines: [
+            `Sprint "${result.sprintName}" has been completed.`,
+            `Completed tasks: ${result.completedTasks}`,
+            `Incomplete tasks: ${result.remainingTasks}`,
+          ],
+          link: `/sprints/${id}`,
+          actionLabel: 'View Sprint Retro',
+        });
+      } catch {
+        // Ignore background error
+      }
+    })();
+
+    return result.updated;
   }
 
   async carryOver(id: string, input: CarryOverDto, actorId: string) {
@@ -456,10 +564,13 @@ export class SprintsService {
       throw new BadRequestException('Choose a different planned sprint for carry-over.');
     return this.prisma.$transaction(async (transaction) => {
       const [source, target] = await Promise.all([
-        transaction.sprint.findUnique({ where: { id }, select: { status: true } }),
+        transaction.sprint.findUnique({
+          where: { id },
+          select: { status: true, workspaceId: true },
+        }),
         transaction.sprint.findUnique({
           where: { id: input.targetSprintId },
-          select: { status: true },
+          select: { status: true, workspaceId: true },
         }),
       ]);
       if (!source) throw new NotFoundException('Source sprint not found.');
@@ -503,6 +614,7 @@ export class SprintsService {
         .filter((subtask) => !selectedTaskIds.has(subtask.taskId))
         .map((subtask) => subtask.id);
       const columns = await transaction.boardColumn.findMany({
+        where: { workspaceId: target.workspaceId },
         select: { id: true, isBacklog: true, isTodo: true, isDone: true, position: true },
         orderBy: { position: 'asc' },
       });
@@ -521,7 +633,12 @@ export class SprintsService {
         });
         await transaction.task.update({
           where: { id: task.id },
-          data: { sprintId: input.targetSprintId, columnId: todoColumnId, position },
+          data: {
+            sprintId: input.targetSprintId,
+            columnId: todoColumnId,
+            position,
+            workspaceId: target.workspaceId,
+          },
         });
       }
       if (standaloneSubtaskIds.length) {
@@ -551,7 +668,7 @@ export class SprintsService {
     return this.prisma.$transaction(async (transaction) => {
       const source = await transaction.sprint.findUnique({
         where: { id },
-        select: { status: true },
+        select: { status: true, workspaceId: true },
       });
       if (!source) throw new NotFoundException('Source sprint not found.');
       if (source.status !== SprintStatus.COMPLETED)
@@ -596,6 +713,7 @@ export class SprintsService {
         .filter((subtask) => !selectedTaskIds.has(subtask.taskId))
         .map((subtask) => subtask.id);
       const columns = await transaction.boardColumn.findMany({
+        where: { workspaceId: source.workspaceId },
         select: { id: true, isBacklog: true, position: true },
         orderBy: { position: 'asc' },
       });
@@ -663,16 +781,52 @@ export class SprintsService {
     const body = input.body.trim();
     if (!body) throw new BadRequestException('Comment cannot be empty.');
     await this.ensureSprint(id);
-    return this.prisma.$transaction(async (transaction) => {
-      const comment = await transaction.sprintComment.create({
+    const comment = await this.prisma.$transaction(async (transaction) => {
+      const created = await transaction.sprintComment.create({
         data: { sprintId: id, authorId: actorId, body },
         include: { author: { select: authorSelect } },
       });
       await this.event(transaction, 'sprint.comment_created', id, actorId, {
-        commentId: comment.id,
+        commentId: created.id,
       });
-      return comment;
+      return created;
     });
+
+    void (async () => {
+      try {
+        const [sprintRecord, otherCommenters] = await Promise.all([
+          this.prisma.sprint.findUnique({
+            where: { id },
+            include: { tasks: { include: { assignees: { select: { userId: true } } } } },
+          }),
+          this.prisma.sprintComment.findMany({
+            where: { sprintId: id },
+            select: { authorId: true },
+          }),
+        ]);
+        if (sprintRecord) {
+          const taskAssigneeIds = sprintRecord.tasks.flatMap((t) =>
+            t.assignees.map((a) => a.userId),
+          );
+          const previousCommenterIds = otherCommenters.map((c) => c.authorId);
+          const recipientIds = Array.from(new Set([...taskAssigneeIds, ...previousCommenterIds]));
+          await this.notifications.dispatch({
+            recipientUserIds: recipientIds,
+            actorId,
+            type: 'sprint.comment',
+            title: `💬 New Discussion on Sprint "${sprintRecord.name}"`,
+            message: `A new comment was posted on sprint "${sprintRecord.name}": "${body.slice(0, 100)}${body.length > 100 ? '…' : ''}"`,
+            lines: [`"${body}"`],
+            link: `/sprints/${id}`,
+            actionLabel: 'View Discussion',
+          });
+        }
+      } catch {
+        // Ignore background error
+      }
+    })();
+
+    return comment;
   }
 
   async updateComment(id: string, commentId: string, input: CommentDto, actor: AuthenticatedUser) {

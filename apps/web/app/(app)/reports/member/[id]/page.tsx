@@ -13,6 +13,7 @@ import {
 import Link from 'next/link';
 import { use, useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../../../../../components/auth-provider';
+import { useToast } from '../../../../../components/toast-provider';
 import { Avatar } from '../../../../../components/avatar';
 import type { MemberReport, ReportSubtask, SprintSummary } from '../../../../../lib/types';
 
@@ -41,7 +42,11 @@ function SubtaskRow({ subtask }: { subtask: ReportSubtask }) {
       <TableCell>
         <span className="tag">{subtask.column.name}</span>
       </TableCell>
-      <TableCell>{formatEstimate(subtask.estimateValue, subtask.estimateUnit) ?? <span className="muted">—</span>}</TableCell>
+      <TableCell>
+        {formatEstimate(subtask.estimateValue, subtask.estimateUnit) ?? (
+          <span className="muted">—</span>
+        )}
+      </TableCell>
       <TableCell>
         {subtask.isCompleted ? (
           <span className="report-badge done">Done</span>
@@ -56,11 +61,11 @@ function SubtaskRow({ subtask }: { subtask: ReportSubtask }) {
 export default function MemberReportPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { request, user } = useAuth();
+  const toast = useToast();
   const [report, setReport] = useState<MemberReport | null>(null);
   const [sprints, setSprints] = useState<SprintSummary[]>([]);
   const [sprintFilter, setSprintFilter] = useState('');
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
 
   useEffect(() => {
     void request<{ items: SprintSummary[] }>('/sprints?limit=200')
@@ -70,18 +75,17 @@ export default function MemberReportPage({ params }: { params: Promise<{ id: str
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError('');
     try {
       const params = new URLSearchParams();
       if (sprintFilter) params.set('sprintId', sprintFilter);
       const data = await request<MemberReport>(`/reports/members/${id}?${params}`);
       setReport(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not load report.');
+      toast.fromError(err, 'Could not load report.');
     } finally {
       setLoading(false);
     }
-  }, [request, id, sprintFilter]);
+  }, [request, id, sprintFilter, toast]);
 
   useEffect(() => {
     void load();
@@ -90,7 +94,7 @@ export default function MemberReportPage({ params }: { params: Promise<{ id: str
   if (user?.role !== 'ADMIN') {
     return (
       <div className="page-stack">
-        <p className="form-error inline-alert">This page is restricted to administrators.</p>
+        <p className="muted">This page is restricted to administrators.</p>
       </div>
     );
   }
@@ -100,7 +104,10 @@ export default function MemberReportPage({ params }: { params: Promise<{ id: str
       <header className="page-header compact-header">
         <div>
           <p className="eyebrow">
-            <Link href="/reports" className="report-link">Reports</Link> › Member
+            <Link href="/reports" className="report-link">
+              Reports
+            </Link>{' '}
+            › Member
           </p>
           {report ? (
             <>
@@ -133,12 +140,6 @@ export default function MemberReportPage({ params }: { params: Promise<{ id: str
           </Select>
         </label>
       </section>
-
-      {error && (
-        <p className="form-error inline-alert" role="alert">
-          {error}
-        </p>
-      )}
 
       {loading ? (
         <div className="board-loading">
@@ -173,7 +174,11 @@ export default function MemberReportPage({ params }: { params: Promise<{ id: str
           {/* Completed subtasks */}
           {report.completedSubtasks.length > 0 && (
             <section aria-labelledby="completed-heading">
-              <h2 id="completed-heading" className="section-label" style={{ marginBottom: '0.75rem' }}>
+              <h2
+                id="completed-heading"
+                className="section-label"
+                style={{ marginBottom: '0.75rem' }}
+              >
                 Completed subtasks ({report.completedSubtasks.length})
               </h2>
               <div className="report-table-wrap">
@@ -201,7 +206,11 @@ export default function MemberReportPage({ params }: { params: Promise<{ id: str
           {/* Incomplete subtasks */}
           {report.incompleteSubtasks.length > 0 && (
             <section aria-labelledby="incomplete-heading">
-              <h2 id="incomplete-heading" className="section-label" style={{ marginBottom: '0.75rem' }}>
+              <h2
+                id="incomplete-heading"
+                className="section-label"
+                style={{ marginBottom: '0.75rem' }}
+              >
                 In-progress subtasks ({report.incompleteSubtasks.length})
               </h2>
               <div className="report-table-wrap">
@@ -227,7 +236,9 @@ export default function MemberReportPage({ params }: { params: Promise<{ id: str
           )}
 
           {report.completedSubtasks.length === 0 && report.incompleteSubtasks.length === 0 && (
-            <p className="muted" style={{ padding: '2rem 0' }}>No subtasks assigned to this member{sprintFilter ? ' in this sprint' : ''}.</p>
+            <p className="muted" style={{ padding: '2rem 0' }}>
+              No subtasks assigned to this member{sprintFilter ? ' in this sprint' : ''}.
+            </p>
           )}
         </>
       ) : null}

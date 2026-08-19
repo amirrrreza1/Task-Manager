@@ -10,6 +10,7 @@ import { rm } from 'node:fs/promises';
 import { basename } from 'node:path';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import { LocalFileStorage } from '../infrastructure/storage/local-file-storage.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 interface UploadedFile {
   path: string;
@@ -31,6 +32,7 @@ export class AttachmentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: LocalFileStorage,
+    private readonly notifications: NotificationsService,
     config: ConfigService,
   ) {
     this.maximumBytes = config.get<number>('MAX_UPLOAD_SIZE_MB', 25) * 1024 * 1024;
@@ -151,6 +153,58 @@ export class AttachmentsService {
           });
           return created;
         });
+
+        // Dispatch notification
+        void (async () => {
+          try {
+            if (ownerType === AttachmentOwnerType.TASK) {
+              const task = await this.prisma.task.findUnique({
+                where: { id: ownerId },
+                include: { assignees: { select: { userId: true } } },
+              });
+              if (task) {
+                const recipients = [...task.assignees.map((a) => a.userId), task.createdById];
+                await this.notifications.dispatch({
+                  recipientUserIds: recipients,
+                  actorId,
+                  type: 'attachment.added',
+                  title: `📎 New Attachment on "${task.title}"`,
+                  message: `A new file "${originalName}" was attached to "${task.title}".`,
+                  lines: [`New attachment "${originalName}" uploaded to task "${task.title}".`],
+                  link: `/tasks/${task.id}`,
+                  actionLabel: 'View Task',
+                });
+              }
+            } else {
+              const subtask = await this.prisma.subtask.findUnique({
+                where: { id: ownerId },
+                include: { task: { include: { assignees: { select: { userId: true } } } } },
+              });
+              if (subtask) {
+                const recipients = [
+                  ...(subtask.assigneeId ? [subtask.assigneeId] : []),
+                  ...subtask.task.assignees.map((a) => a.userId),
+                  subtask.task.createdById,
+                ];
+                await this.notifications.dispatch({
+                  recipientUserIds: recipients,
+                  actorId,
+                  type: 'attachment.added',
+                  title: `📎 New Attachment on "${subtask.title}"`,
+                  message: `A new file "${originalName}" was attached to subtask "${subtask.title}".`,
+                  lines: [
+                    `New attachment "${originalName}" uploaded to subtask "${subtask.title}" on task "${subtask.task.title}".`,
+                  ],
+                  link: `/tasks/${subtask.taskId}`,
+                  actionLabel: 'View Task',
+                });
+              }
+            }
+          } catch {
+            // Ignore background notification error
+          }
+        })();
+
         return this.serialize(attachment);
       } catch (error) {
         await this.storage.delete(stored.storageKey);

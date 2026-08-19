@@ -30,10 +30,7 @@ describe('taskDropIndex', () => {
   });
 
   it('uses the end of the column when hovering empty column space', () => {
-    assert.equal(
-      taskDropIndex({ taskIds: ['one', 'two'], activeTaskId: 'dragged' }),
-      2,
-    );
+    assert.equal(taskDropIndex({ taskIds: ['one', 'two'], activeTaskId: 'dragged' }), 2);
   });
 
   it('uses the pointer position across every visible task instead of defaulting to the bottom', () => {

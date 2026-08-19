@@ -26,9 +26,7 @@ export function taskDropIndex({
 
   if (pointerY !== undefined && taskRects) {
     const candidateRects = taskRects.filter((rect) => rect.taskId !== activeTaskId);
-    const nextTaskIndex = candidateRects.findIndex(
-      (rect) => pointerY < rect.top + rect.height / 2,
-    );
+    const nextTaskIndex = candidateRects.findIndex((rect) => pointerY < rect.top + rect.height / 2);
     return nextTaskIndex < 0 ? candidateRects.length : nextTaskIndex;
   }
 
@@ -38,9 +36,7 @@ export function taskDropIndex({
   if (overIndex < 0) return candidates.length;
 
   const isBelowOverTask =
-    activeCenterY !== undefined &&
-    overCenterY !== undefined &&
-    activeCenterY > overCenterY;
+    activeCenterY !== undefined && overCenterY !== undefined && activeCenterY > overCenterY;
 
   return overIndex + (isBelowOverTask ? 1 : 0);
 }

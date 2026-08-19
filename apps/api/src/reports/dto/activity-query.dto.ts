@@ -1,6 +1,7 @@
-import { IsIn, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsIn, IsInt, IsOptional, IsString, Max, Min, ValidateIf } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { IsUuidLike } from '../../common/validators/is-uuid-like';
 
 const ENTITY_TYPES = [
   'task',
@@ -10,12 +11,18 @@ const ENTITY_TYPES = [
   'user',
   'settings',
   'attachment',
+  'workspace',
+  'project',
 ] as const;
 
 export class ActivityQueryDto {
   @ApiPropertyOptional()
   @IsOptional()
-  @IsUUID()
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined,
+  )
+  @ValidateIf((o) => typeof o.actorId === 'string' && o.actorId.length > 0)
+  @IsUuidLike()
   actorId?: string;
 
   @ApiPropertyOptional()
@@ -39,16 +46,20 @@ export class ActivityQueryDto {
   @IsString()
   to?: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  cursor?: string;
-
-  @ApiPropertyOptional({ minimum: 1, maximum: 200, default: 50 })
+  @ApiPropertyOptional({ default: 50, maximum: 100, minimum: 1 })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(200)
+  @Max(100)
   limit: number = 50;
+
+  @ApiPropertyOptional({ description: 'Activity event ID cursor for pagination' })
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined,
+  )
+  @ValidateIf((o) => typeof o.cursor === 'string' && o.cursor.length > 0)
+  @IsUuidLike()
+  cursor?: string;
 }

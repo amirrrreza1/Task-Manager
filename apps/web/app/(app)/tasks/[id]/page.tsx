@@ -1,6 +1,13 @@
 'use client';
 
-import { Button, Checkbox, Input, Modal, Select, Textarea } from '../../../../components/design-system';
+import {
+  Button,
+  Checkbox,
+  Input,
+  Modal,
+  Select,
+  Textarea,
+} from '../../../../components/design-system';
 
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
@@ -24,6 +31,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { Avatar } from '../../../../components/avatar';
 import { useAuth } from '../../../../components/auth-provider';
+import { useToast } from '../../../../components/toast-provider';
 import { formatDateTime } from '../../../../lib/app-config';
 import type {
   AppSettings,
@@ -31,6 +39,7 @@ import type {
   EstimateUnit,
   ManagedUser,
   Paginated,
+  Project,
   SprintSummary,
   Subtask,
   TaskDetail,
@@ -48,18 +57,21 @@ export default function TaskPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { request, requestBlob } = useAuth();
+  const toast = useToast();
   const [task, setTask] = useState<TaskDetail | null>(null);
   const [users, setUsers] = useState<ManagedUser[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [plannedSprints, setPlannedSprints] = useState<SprintSummary[]>([]);
   const [sprintId, setSprintId] = useState('');
+  const [projectId, setProjectId] = useState('');
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [estimate, setEstimate] = useState('');
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [subtaskForm, setSubtaskForm] = useState<SubtaskForm | null>(null);
-  const [error, setError] = useState('');
+  const [loadFailed, setLoadFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const workspaceEstimateUnit: EstimateUnit =
     settings?.estimateMode === 'POINTS' ? 'POINTS' : 'HOURS';
@@ -69,6 +81,7 @@ export default function TaskPage() {
   );
 
   const load = useCallback(async () => {
+    setLoadFailed(false);
     try {
       const [nextTask, nextUsers, nextSettings, planned, active] = await Promise.all([
         request<TaskDetail>(`/tasks/${id}`),
@@ -82,23 +95,29 @@ export default function TaskPage() {
       setSettings(nextSettings);
       setPlannedSprints([...active.items, ...planned.items]);
       setSprintId(nextTask.sprintId ?? '');
+      setProjectId(nextTask.projectId ?? nextTask.project?.id ?? '');
       setTitle(nextTask.title);
       setDescription(nextTask.description ?? '');
       setEstimate(nextTask.estimateValue?.toString() ?? '');
       setAssigneeIds(nextTask.assignees.map((item) => item.user.id));
-      setError('');
+
+      const wsParam = nextTask.workspaceId ? `?workspaceId=${nextTask.workspaceId}` : '';
+      const nextProjects = await request<Project[]>(`/projects${wsParam}`);
+      setProjects(nextProjects);
+      setLoadFailed(false);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not load the task.');
+      setLoadFailed(true);
+      toast.fromError(caught, 'Could not load the task.');
     }
-  }, [id, request]);
+  }, [id, request, toast]);
   useEffect(() => {
     void load();
   }, [load]);
 
   async function saveTask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!task) return;
     setBusy(true);
-    setError('');
     try {
       await request(`/tasks/${id}`, {
         method: 'PATCH',
@@ -107,13 +126,15 @@ export default function TaskPage() {
           description: description || null,
           assigneeIds,
           sprintId: sprintId || null,
+          projectId: projectId || null,
           estimate: estimate ? { value: Number(estimate), unit: workspaceEstimateUnit } : null,
         }),
       });
       setEditing(false);
+      toast.success('Task saved.');
       await load();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not save the task.');
+      toast.fromError(caught, 'Could not save the task.');
     } finally {
       setBusy(false);
     }
@@ -125,9 +146,10 @@ export default function TaskPage() {
     setBusy(true);
     try {
       await request<void>(`/tasks/${id}`, { method: 'DELETE' });
+      toast.success('Task deleted.');
       router.push('/board');
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not delete the task.');
+      toast.fromError(caught, 'Could not delete the task.');
       setBusy(false);
     }
   }
@@ -136,7 +158,6 @@ export default function TaskPage() {
     event.preventDefault();
     if (!subtaskForm) return;
     setBusy(true);
-    setError('');
     try {
       await request(
         subtaskForm.id ? `/tasks/${id}/subtasks/${subtaskForm.id}` : `/tasks/${id}/subtasks`,
@@ -153,9 +174,10 @@ export default function TaskPage() {
         },
       );
       setSubtaskForm(null);
+      toast.success(subtaskForm.id ? 'Subtask updated.' : 'Subtask created.');
       await load();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not save the subtask.');
+      toast.fromError(caught, 'Could not save the subtask.');
     } finally {
       setBusy(false);
     }
@@ -163,7 +185,6 @@ export default function TaskPage() {
 
   async function patchSubtask(subtask: Subtask, changes: object) {
     setBusy(true);
-    setError('');
     try {
       await request(`/tasks/${id}/subtasks/${subtask.id}`, {
         method: 'PATCH',
@@ -171,7 +192,7 @@ export default function TaskPage() {
       });
       await load();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not update the subtask.');
+      toast.fromError(caught, 'Could not update the subtask.');
     } finally {
       setBusy(false);
     }
@@ -182,9 +203,10 @@ export default function TaskPage() {
     setBusy(true);
     try {
       await request<void>(`/tasks/${id}/subtasks/${subtask.id}`, { method: 'DELETE' });
+      toast.success('Subtask deleted.');
       await load();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not delete the subtask.');
+      toast.fromError(caught, 'Could not delete the subtask.');
     } finally {
       setBusy(false);
     }
@@ -212,7 +234,6 @@ export default function TaskPage() {
     const previousTask = task;
     setTask({ ...task, subtasks: reordered });
     setBusy(true);
-    setError('');
     try {
       await request(`/tasks/${id}/subtasks/reorder`, {
         method: 'POST',
@@ -221,7 +242,7 @@ export default function TaskPage() {
       await load();
     } catch (caught) {
       setTask(previousTask);
-      setError(caught instanceof Error ? caught.message : 'Could not reorder subtasks.');
+      toast.fromError(caught, 'Could not reorder subtasks.');
     } finally {
       setBusy(false);
     }
@@ -232,15 +253,15 @@ export default function TaskPage() {
     const form = new FormData();
     form.append('file', file);
     setBusy(true);
-    setError('');
     try {
       await request(
         owner === 'task' ? `/tasks/${ownerId}/attachments` : `/subtasks/${ownerId}/attachments`,
         { method: 'POST', body: form },
       );
+      toast.success('File uploaded.');
       await load();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not upload the file.');
+      toast.fromError(caught, 'Could not upload the file.');
     } finally {
       setBusy(false);
     }
@@ -256,7 +277,7 @@ export default function TaskPage() {
       link.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not download the file.');
+      toast.fromError(caught, 'Could not download the file.');
     }
   }
 
@@ -265,9 +286,10 @@ export default function TaskPage() {
     setBusy(true);
     try {
       await request<void>(`/attachments/${file.id}`, { method: 'DELETE' });
+      toast.success('File deleted.');
       await load();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not delete the file.');
+      toast.fromError(caught, 'Could not delete the file.');
     } finally {
       setBusy(false);
     }
@@ -276,15 +298,15 @@ export default function TaskPage() {
   if (!task)
     return (
       <div className="task-detail-loading">
-        {error ? (
-          <p className="form-error">{error}</p>
+        {loadFailed ? (
+          <p className="muted">This task could not be loaded.</p>
         ) : (
           <>
             <span className="spinner" /> Loading task…
           </>
         )}
       </div>
-  );
+    );
   const completed = task.subtasks.filter((item) => item.isCompleted).length;
 
   return (
@@ -296,14 +318,35 @@ export default function TaskPage() {
       </nav>
       <header className="task-detail-header">
         <div>
-          <span className="column-chip">
-            <span style={{ background: task.column.color }} />
-            {task.column.name}
-          </span>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              marginBottom: '0.35rem',
+            }}
+          >
+            <span className="column-chip">
+              <span style={{ background: task.column.color }} />
+              {task.column.name}
+            </span>
+            {task.project && (
+              <span
+                className="task-project-pill"
+                style={{
+                  backgroundColor: `${task.project.color || '#2563EB'}20`,
+                  color: task.project.color || '#2563EB',
+                  borderColor: `${task.project.color || '#2563EB'}40`,
+                }}
+              >
+                {task.project.key ? `[${task.project.key}] ` : ''}
+                {task.project.name}
+              </span>
+            )}
+          </div>
           <h1>{task.title}</h1>
           <p className="muted">
-            Created by {task.createdBy.displayName} · Updated{' '}
-            {formatDateTime(task.updatedAt)}
+            Created by {task.createdBy.displayName} · Updated {formatDateTime(task.updatedAt)}
           </p>
         </div>
         <div className="header-actions">
@@ -320,11 +363,6 @@ export default function TaskPage() {
           </Button>
         </div>
       </header>
-      {error ? (
-        <p className="form-error inline-alert" role="alert">
-          {error}
-        </p>
-      ) : null}
 
       <div className="task-detail-grid">
         <main className="task-main-column">
@@ -347,7 +385,8 @@ export default function TaskPage() {
                 </p>
               </div>
               <Button
-                variant="outline" size="sm"
+                variant="outline"
+                size="sm"
                 onClick={() =>
                   setSubtaskForm({
                     title: '',
@@ -540,6 +579,25 @@ export default function TaskPage() {
             </p>
           </section>
           <section>
+            <h2>Project</h2>
+            {task.project ? (
+              <p
+                className="task-project-pill"
+                style={{
+                  display: 'inline-flex',
+                  backgroundColor: `${task.project.color || '#2563EB'}20`,
+                  color: task.project.color || '#2563EB',
+                  borderColor: `${task.project.color || '#2563EB'}40`,
+                }}
+              >
+                {task.project.key ? `[${task.project.key}] ` : ''}
+                {task.project.name}
+              </p>
+            ) : (
+              <p className="muted">No project</p>
+            )}
+          </section>
+          <section>
             <h2>Estimate</h2>
             <p>
               {task.estimateValue
@@ -578,90 +636,102 @@ export default function TaskPage() {
             if (!open) setEditing(false);
           }}
         >
-            <header>
-              <p className="section-label">Task details</p>
-              <h2 id="edit-task-title">Edit task</h2>
-            </header>
-            <form onSubmit={saveTask}>
-              <label>
-                Title
-                <Input
-                  required
-                  maxLength={240}
-                  value={title}
-                  onChange={(event) => setTitle(event.target.value)}
-                />
-              </label>
-              <label>
-                Description
-                <Textarea
-                  rows={5}
-                  maxLength={50000}
-                  value={description}
-                  onChange={(event) => setDescription(event.target.value)}
-                />
-              </label>
-              <label>
-                Estimate ({workspaceEstimateUnit === 'HOURS' ? 'hours' : 'points'})
-                <Input
-                  type="number"
-                  min={1}
-                  max={workspaceEstimateUnit === 'HOURS' ? 8760 : 10000}
-                  value={estimate}
-                  onChange={(event) => setEstimate(event.target.value)}
-                  placeholder="Optional"
-                />
-              </label>
-              <label>
-                Sprint
-                <Select value={sprintId} onChange={(event) => setSprintId(event.target.value)}>
-                  <option value="">No sprint</option>
-                  {task.sprint && !plannedSprints.some((sprint) => sprint.id === task.sprint?.id) ? (
-                    <option value={task.sprint.id}>
-                      {task.sprint.name} ({task.sprint.status.toLowerCase()})
-                    </option>
-                  ) : null}
-                  {plannedSprints.map((sprint) => (
-                    <option key={sprint.id} value={sprint.id}>
-                      {sprint.name}
-                      {sprint.status === 'ACTIVE' ? ' (active)' : ''}
-                    </option>
-                  ))}
-                </Select>
-              </label>
-              <fieldset className="assignee-picker">
-                <legend>Assignees</legend>
-                {users.map((member) => (
-                  <label key={member.id}>
-                    <Checkbox
-                      checked={assigneeIds.includes(member.id)}
-                      onChange={(event) =>
-                        setAssigneeIds(
-                          event.target.checked
-                            ? [...assigneeIds, member.id]
-                            : assigneeIds.filter((userId) => userId !== member.id),
-                        )
-                      }
-                    />
-                    <Avatar
-                      hasAvatar={member.hasAvatar}
-                      name={member.displayName}
-                      size={26}
-                      userId={member.id}
-                    />
-                    <span>{member.displayName}</span>
-                  </label>
+          <header>
+            <p className="section-label">Task details</p>
+            <h2 id="edit-task-title">Edit task</h2>
+          </header>
+          <form onSubmit={saveTask}>
+            <label>
+              Title
+              <Input
+                required
+                maxLength={240}
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+              />
+            </label>
+            <label>
+              Project <small>Optional</small>
+              <Select value={projectId} onChange={(event) => setProjectId(event.target.value)}>
+                <option value="">No project</option>
+                {projects.map((proj) => (
+                  <option key={proj.id} value={proj.id}>
+                    {proj.key ? `[${proj.key}] ` : ''}
+                    {proj.name}
+                  </option>
                 ))}
-              </fieldset>
-              <footer>
-                <Button variant="ghost" type="button" onClick={() => setEditing(false)}>
-                  Cancel
-                </Button>
-                <Button variant="primary" disabled={busy} type="submit">
-                  Save task
-                </Button>
-              </footer>
-            </form>
+              </Select>
+            </label>
+            <label>
+              Description
+              <Textarea
+                rows={5}
+                maxLength={50000}
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+              />
+            </label>
+            <label>
+              Estimate ({workspaceEstimateUnit === 'HOURS' ? 'hours' : 'points'})
+              <Input
+                type="number"
+                min={1}
+                max={workspaceEstimateUnit === 'HOURS' ? 8760 : 10000}
+                value={estimate}
+                onChange={(event) => setEstimate(event.target.value)}
+                placeholder="Optional"
+              />
+            </label>
+            <label>
+              Sprint
+              <Select value={sprintId} onChange={(event) => setSprintId(event.target.value)}>
+                <option value="">No sprint</option>
+                {task.sprint && !plannedSprints.some((sprint) => sprint.id === task.sprint?.id) ? (
+                  <option value={task.sprint.id}>
+                    {task.sprint.name} ({task.sprint.status.toLowerCase()})
+                  </option>
+                ) : null}
+                {plannedSprints.map((sprint) => (
+                  <option key={sprint.id} value={sprint.id}>
+                    {sprint.name}
+                    {sprint.status === 'ACTIVE' ? ' (active)' : ''}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            <fieldset className="assignee-picker">
+              <legend>Assignees</legend>
+              {users.map((member) => (
+                <label key={member.id}>
+                  <Checkbox
+                    checked={assigneeIds.includes(member.id)}
+                    onChange={(event) =>
+                      setAssigneeIds(
+                        event.target.checked
+                          ? [...assigneeIds, member.id]
+                          : assigneeIds.filter((userId) => userId !== member.id),
+                      )
+                    }
+                  />
+                  <Avatar
+                    hasAvatar={member.hasAvatar}
+                    name={member.displayName}
+                    size={26}
+                    userId={member.id}
+                  />
+                  <span>{member.displayName}</span>
+                </label>
+              ))}
+            </fieldset>
+            <footer>
+              <Button variant="ghost" type="button" onClick={() => setEditing(false)}>
+                Cancel
+              </Button>
+              <Button variant="primary" disabled={busy} type="submit">
+                Save task
+              </Button>
+            </footer>
+          </form>
         </Modal>
       ) : null}
 
@@ -673,72 +743,70 @@ export default function TaskPage() {
             if (!open) setSubtaskForm(null);
           }}
         >
-            <header>
-              <p className="section-label">Checklist</p>
-              <h2 id="subtask-title">{subtaskForm.id ? 'Edit subtask' : 'Add subtask'}</h2>
-            </header>
-            <form onSubmit={saveSubtask}>
-              <label>
-                Title
-                <Input
-                  autoFocus
-                  required
-                  maxLength={240}
-                  value={subtaskForm.title}
-                  onChange={(event) =>
-                    setSubtaskForm({ ...subtaskForm, title: event.target.value })
-                  }
-                />
-              </label>
-              <label>
-                Description
-                <Textarea
-                  rows={3}
-                  maxLength={50000}
-                  value={subtaskForm.description}
-                  onChange={(event) =>
-                    setSubtaskForm({ ...subtaskForm, description: event.target.value })
-                  }
-                />
-              </label>
-              <label>
-                Assignee
-                <Select
-                  value={subtaskForm.assigneeId}
-                  onChange={(event) =>
-                    setSubtaskForm({ ...subtaskForm, assigneeId: event.target.value })
-                  }
-                >
-                  <option value="">Unassigned</option>
-                  {users.map((member) => (
-                    <option value={member.id} key={member.id}>
-                      {member.displayName}
-                    </option>
-                  ))}
-                </Select>
-              </label>
-              <label>
-                Estimate ({workspaceEstimateUnit === 'HOURS' ? 'hours' : 'points'})
-                <Input
-                  type="number"
-                  min={1}
-                  max={workspaceEstimateUnit === 'HOURS' ? 8760 : 10000}
-                  value={subtaskForm.estimate}
-                  onChange={(event) =>
-                    setSubtaskForm({ ...subtaskForm, estimate: event.target.value })
-                  }
-                  placeholder="Optional"
-                />
-              </label>
-              <footer>
-                <Button variant="ghost" type="button" onClick={() => setSubtaskForm(null)}>
-                  Cancel
-                </Button>
-                <Button variant="primary" disabled={busy} type="submit">
-                  Save subtask
-                </Button>
-              </footer>
-            </form>
+          <header>
+            <p className="section-label">Checklist</p>
+            <h2 id="subtask-title">{subtaskForm.id ? 'Edit subtask' : 'Add subtask'}</h2>
+          </header>
+          <form onSubmit={saveSubtask}>
+            <label>
+              Title
+              <Input
+                autoFocus
+                required
+                maxLength={240}
+                value={subtaskForm.title}
+                onChange={(event) => setSubtaskForm({ ...subtaskForm, title: event.target.value })}
+              />
+            </label>
+            <label>
+              Description
+              <Textarea
+                rows={3}
+                maxLength={50000}
+                value={subtaskForm.description}
+                onChange={(event) =>
+                  setSubtaskForm({ ...subtaskForm, description: event.target.value })
+                }
+              />
+            </label>
+            <label>
+              Assignee
+              <Select
+                value={subtaskForm.assigneeId}
+                onChange={(event) =>
+                  setSubtaskForm({ ...subtaskForm, assigneeId: event.target.value })
+                }
+              >
+                <option value="">Unassigned</option>
+                {users.map((member) => (
+                  <option value={member.id} key={member.id}>
+                    {member.displayName}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            <label>
+              Estimate ({workspaceEstimateUnit === 'HOURS' ? 'hours' : 'points'})
+              <Input
+                type="number"
+                min={1}
+                max={workspaceEstimateUnit === 'HOURS' ? 8760 : 10000}
+                value={subtaskForm.estimate}
+                onChange={(event) =>
+                  setSubtaskForm({ ...subtaskForm, estimate: event.target.value })
+                }
+                placeholder="Optional"
+              />
+            </label>
+            <footer>
+              <Button variant="ghost" type="button" onClick={() => setSubtaskForm(null)}>
+                Cancel
+              </Button>
+              <Button variant="primary" disabled={busy} type="submit">
+                Save subtask
+              </Button>
+            </footer>
+          </form>
         </Modal>
       ) : null}
     </div>

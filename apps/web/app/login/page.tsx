@@ -1,7 +1,6 @@
 'use client';
 
-import { AlertCircle, ArrowRight, LayoutKanban, Lock, User } from '@appica/icons-react';
-import { Alert, AlertDescription, AlertIcon } from '@appica/ui-react/alert';
+import { ArrowRight, LayoutKanban, Lock, User } from '@appica/icons-react';
 import { BackgroundPattern } from '@appica/ui-react/background-pattern';
 import { Button } from '@appica/ui-react/button';
 import { Field, FieldLabel } from '@appica/ui-react/field';
@@ -10,14 +9,15 @@ import { Spinner } from '@appica/ui-react/spinner';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { FormEvent, Suspense, useEffect, useState } from 'react';
 import { useAuth } from '../../components/auth-provider';
+import { useToast } from '../../components/toast-provider';
 
 function LoginForm() {
   const { login, user, loading } = useAuth();
+  const toast = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const returnTo = searchParams.get('returnTo');
   const safeReturnTo =
@@ -29,13 +29,12 @@ function LoginForm() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError('');
     setSubmitting(true);
     try {
       await login(username, password);
       router.replace(safeReturnTo);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Sign in failed.');
+      toast.fromError(caught, 'Sign in failed.');
     } finally {
       setSubmitting(false);
     }
@@ -90,15 +89,6 @@ function LoginForm() {
               onChange={(event) => setPassword(event.target.value)}
             />
           </Field>
-
-          {error ? (
-            <Alert layout="inline" role="alert" variant="error">
-              <AlertIcon>
-                <AlertCircle aria-hidden="true" />
-              </AlertIcon>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          ) : null}
 
           <Button className="login-submit" disabled={submitting || loading} size="lg" type="submit">
             {submitting ? (

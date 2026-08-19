@@ -33,7 +33,9 @@ export class SprintsController {
   constructor(private readonly sprints: SprintsService) {}
 
   @Get()
-  list(@Query() query: SprintQueryDto) { return this.sprints.list(query); }
+  list(@Query() query: SprintQueryDto) {
+    return this.sprints.list(query);
+  }
 
   @Post()
   create(@Body() input: CreateSprintDto, @CurrentUser() actor: AuthenticatedUser) {
@@ -41,7 +43,9 @@ export class SprintsController {
   }
 
   @Get(':id')
-  get(@Param('id', ParseUUIDPipe) id: string) { return this.sprints.get(id); }
+  get(@Param('id', ParseUUIDPipe) id: string) {
+    return this.sprints.get(id);
+  }
 
   @Get(':id/available-tasks')
   availableTasks(@Param('id', ParseUUIDPipe) id: string) {
@@ -58,21 +62,27 @@ export class SprintsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() input: AssignSprintTasksDto,
     @CurrentUser() actor: AuthenticatedUser,
-  ) { return this.sprints.assignTasks(id, input, actor.id); }
+  ) {
+    return this.sprints.assignTasks(id, input, actor.id);
+  }
 
   @Post(':id/subtasks')
   assignSubtasks(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() input: AssignSprintSubtasksDto,
     @CurrentUser() actor: AuthenticatedUser,
-  ) { return this.sprints.assignSubtasks(id, input, actor.id); }
+  ) {
+    return this.sprints.assignSubtasks(id, input, actor.id);
+  }
 
   @Patch(':id')
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() input: UpdateSprintDto,
     @CurrentUser() actor: AuthenticatedUser,
-  ) { return this.sprints.update(id, input, actor); }
+  ) {
+    return this.sprints.update(id, input, actor);
+  }
 
   @Post(':id/start')
   @Roles(UserRole.ADMIN)
@@ -80,7 +90,9 @@ export class SprintsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() input: StartSprintDto,
     @CurrentUser() actor: AuthenticatedUser,
-  ) { return this.sprints.start(id, input, actor.id); }
+  ) {
+    return this.sprints.start(id, input, actor.id);
+  }
 
   @Post(':id/finish')
   @Roles(UserRole.ADMIN)
@@ -104,7 +116,9 @@ export class SprintsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() input: CarryOverDto,
     @CurrentUser() actor: AuthenticatedUser,
-  ) { return this.sprints.carryOver(id, input, actor.id); }
+  ) {
+    return this.sprints.carryOver(id, input, actor.id);
+  }
 
   @Get(':id/comments')
   comments(@Param('id', ParseUUIDPipe) id: string, @Query() query: SprintQueryDto) {
@@ -116,7 +130,9 @@ export class SprintsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() input: CommentDto,
     @CurrentUser() actor: AuthenticatedUser,
-  ) { return this.sprints.comment(id, input, actor.id); }
+  ) {
+    return this.sprints.comment(id, input, actor.id);
+  }
 
   @Patch(':id/comments/:commentId')
   updateComment(
@@ -124,7 +140,9 @@ export class SprintsController {
     @Param('commentId', ParseUUIDPipe) commentId: string,
     @Body() input: CommentDto,
     @CurrentUser() actor: AuthenticatedUser,
-  ) { return this.sprints.updateComment(id, commentId, input, actor); }
+  ) {
+    return this.sprints.updateComment(id, commentId, input, actor);
+  }
 
   @Delete(':id/comments/:commentId')
   @HttpCode(204)
@@ -132,5 +150,7 @@ export class SprintsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Param('commentId', ParseUUIDPipe) commentId: string,
     @CurrentUser() actor: AuthenticatedUser,
-  ) { return this.sprints.removeComment(id, commentId, actor); }
+  ) {
+    return this.sprints.removeComment(id, commentId, actor);
+  }
 }

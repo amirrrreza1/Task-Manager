@@ -3,9 +3,12 @@
 import {
   ArrowBarLeft,
   ArrowBarRight,
+  Bell,
+  BuildingCommunity,
   CalendarTime,
   ChartBar,
   Checklist,
+  Folder,
   LayoutKanban,
   Logout,
   ReportAnalytics,
@@ -26,7 +29,10 @@ import { usePathname } from 'next/navigation';
 import { useState, type ComponentType, type ReactNode } from 'react';
 import { Avatar } from './avatar';
 import { useAuth } from './auth-provider';
+import { useWorkspace } from './workspace-provider';
+import { WorkspaceSwitcher } from './workspace-switcher';
 import { ThemeToggle } from './theme-toggle';
+import { NotificationBell } from './notification-bell';
 import { companyIcon, companyName } from '../lib/app-config';
 
 type NavItem = {
@@ -38,12 +44,15 @@ type NavItem = {
 const memberNavigation: NavItem[] = [
   { href: '/board', label: 'Board', icon: LayoutKanban },
   { href: '/backlog', label: 'Backlog', icon: Checklist },
+  { href: '/projects', label: 'Projects', icon: Folder },
   { href: '/sprints', label: 'Sprints', icon: CalendarTime },
   { href: '/profile', label: 'Profile', icon: User },
 ];
 
 const adminNavigation: NavItem[] = [
+  { href: '/settings/workspaces', label: 'Workspaces', icon: BuildingCommunity },
   { href: '/settings/users', label: 'People', icon: Users },
+  { href: '/settings/notifications', label: 'Notifications', icon: Bell },
   { href: '/settings/general', label: 'Settings', icon: Settings },
   { href: '/settings/board', label: 'Workflow', icon: ChartBar },
   { href: '/reports', label: 'Reports', icon: ReportAnalytics },
@@ -79,6 +88,7 @@ function NavigationGroup({ items, pathname }: { items: NavItem[]; pathname: stri
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
+  const { currentWorkspace } = useWorkspace();
   const pathname = usePathname();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   if (!user) return null;
@@ -118,6 +128,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Button>
         </div>
 
+        <WorkspaceSwitcher />
+
         <Navigation
           aria-label="Workspace navigation"
           className="shell-navigation"
@@ -137,12 +149,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         <div className="sidebar-account">
           <div className="account-identity">
-            <Avatar
-              hasAvatar={user.hasAvatar}
-              name={user.displayName}
-              size={32}
-              userId={user.id}
-            />
+            <Avatar hasAvatar={user.hasAvatar} name={user.displayName} size={32} userId={user.id} />
             <span className="account-copy">
               <strong>{user.displayName}</strong>
               <small>{user.role === 'ADMIN' ? 'Administrator' : 'Member'}</small>
@@ -166,12 +173,15 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="app-main">
         <header className="app-toolbar">
           <div>
-            <span className="toolbar-kicker">Workspace</span>
+            <span className="toolbar-kicker">{currentWorkspace?.name ?? 'Workspace'}</span>
             <strong>{currentSection}</strong>
           </div>
-          <Badge size="sm" variant="soft">
-            {user.role === 'ADMIN' ? 'Admin access' : 'Member access'}
-          </Badge>
+          <div className="toolbar-actions flex items-center gap-3">
+            <NotificationBell />
+            <Badge size="sm" variant="soft">
+              {user.role === 'ADMIN' ? 'Admin access' : 'Member access'}
+            </Badge>
+          </div>
         </header>
         <main className="app-content">{children}</main>
       </div>

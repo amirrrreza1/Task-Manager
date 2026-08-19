@@ -126,6 +126,30 @@ export class ReportsService {
           entityLabel = u?.displayName ?? null;
           break;
         }
+        case 'workspace': {
+          const w = await this.prisma.workspace.findUnique({
+            where: { id: ev.entityId },
+            select: { name: true },
+          });
+          const payloadObj =
+            ev.payload && typeof ev.payload === 'object'
+              ? (ev.payload as Record<string, unknown>)
+              : null;
+          entityLabel = w?.name ?? (typeof payloadObj?.name === 'string' ? payloadObj.name : null);
+          break;
+        }
+        case 'project': {
+          const p = await this.prisma.project.findUnique({
+            where: { id: ev.entityId },
+            select: { name: true },
+          });
+          const payloadObj =
+            ev.payload && typeof ev.payload === 'object'
+              ? (ev.payload as Record<string, unknown>)
+              : null;
+          entityLabel = p?.name ?? (typeof payloadObj?.name === 'string' ? payloadObj.name : null);
+          break;
+        }
         default:
           break;
       }
@@ -286,7 +310,10 @@ export class ReportsService {
         });
       }
       const entry = memberMap.get(uid)!;
-      entry.subtasks.push({ ...this.serializeSubtask({ ...subtask, task: parentTask, sprint: null }), parentTask });
+      entry.subtasks.push({
+        ...this.serializeSubtask({ ...subtask, task: parentTask, sprint: null }),
+        parentTask,
+      });
       if (subtask.isCompleted) {
         entry.completedSubtasks++;
         if (subtask.estimateUnit === 'HOURS' && subtask.estimateValue)
@@ -299,40 +326,33 @@ export class ReportsService {
     };
 
     // Tasks in sprint
-    const tasks = sprint.tasks.map(
-      (task: (typeof sprint.tasks)[number]) => {
-        const isDone = task.column.isDone;
-        for (const sub of task.subtasks) {
-          trackSubtask(sub, { id: task.id, title: task.title });
-        }
-        return {
-          id: task.id,
-          title: task.title,
-          estimateValue: task.estimateValue,
-          estimateUnit: task.estimateUnit,
-          isDone,
-          column: task.column,
-          assignees: task.assignees.map((a: (typeof task.assignees)[number]) => a.user),
-          subtasks: task.subtasks.map((s: (typeof task.subtasks)[number]) =>
-            this.serializeSubtask({ ...s, task: { id: task.id, title: task.title }, sprint: null }),
-          ),
-        };
-      },
-    );
+    const tasks = sprint.tasks.map((task: (typeof sprint.tasks)[number]) => {
+      const isDone = task.column.isDone;
+      for (const sub of task.subtasks) {
+        trackSubtask(sub, { id: task.id, title: task.title });
+      }
+      return {
+        id: task.id,
+        title: task.title,
+        estimateValue: task.estimateValue,
+        estimateUnit: task.estimateUnit,
+        isDone,
+        column: task.column,
+        assignees: task.assignees.map((a: (typeof task.assignees)[number]) => a.user),
+        subtasks: task.subtasks.map((s: (typeof task.subtasks)[number]) =>
+          this.serializeSubtask({ ...s, task: { id: task.id, title: task.title }, sprint: null }),
+        ),
+      };
+    });
 
     // Standalone subtasks
-    const standaloneSubtasks = sprint.subtasks.map(
-      (s: (typeof sprint.subtasks)[number]) => {
-        trackSubtask(
-          { ...s, taskId: s.task.id },
-          { id: s.task.id, title: s.task.title },
-        );
-        return {
-          ...this.serializeSubtask({ ...s, task: s.task, sprint: null }),
-          parentTask: { id: s.task.id, title: s.task.title },
-        };
-      },
-    );
+    const standaloneSubtasks = sprint.subtasks.map((s: (typeof sprint.subtasks)[number]) => {
+      trackSubtask({ ...s, taskId: s.task.id }, { id: s.task.id, title: s.task.title });
+      return {
+        ...this.serializeSubtask({ ...s, task: s.task, sprint: null }),
+        parentTask: { id: s.task.id, title: s.task.title },
+      };
+    });
 
     // Aggregate totals
     const allTasksDone = sprint.tasks.filter(

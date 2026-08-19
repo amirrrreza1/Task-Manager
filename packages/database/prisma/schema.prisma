@@ -39,6 +39,8 @@ model User {
   displayName       String              @db.VarChar(100)
   passwordHash      String
   role              UserRole            @default(MEMBER)
+  email             String?             @unique @db.VarChar(255)
+  telegramUsername  String?             @db.VarChar(64)
   avatarStorageKey  String?             @db.VarChar(64)
   avatarMimeType    String?             @db.VarChar(127)
   hasAvatar         Boolean             @default(false)
@@ -54,8 +56,40 @@ model User {
   createdSubtasks   Subtask[]            @relation("SubtaskCreator")
   uploadedFiles     Attachment[]         @relation("AttachmentUploader")
   refreshSessions   RefreshSession[]
+  notifications     Notification[]       @relation("NotificationRecipient")
+  triggeredNotifications Notification[]  @relation("NotificationActor")
 
   @@index([isActive])
+}
+
+model Workspace {
+  id                    String        @id @default(uuid()) @db.Uuid
+  name                  String        @db.VarChar(120)
+  description           String?       @db.Text
+  estimateMode          EstimateMode  @default(TIME)
+  sprintDurationDays    Int           @default(14)
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  columns               BoardColumn[]
+  sprints               Sprint[]
+  tasks                 Task[]
+  projects              Project[]
+}
+
+model Project {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @default("00000000-0000-0000-0000-000000000001") @db.Uuid
+  name        String    @db.VarChar(120)
+  key         String?   @db.VarChar(16)
+  description String?   @db.Text
+  color       String?   @db.VarChar(9)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  tasks       Task[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId])
 }
 
 model AppSettings {
@@ -68,38 +102,42 @@ model AppSettings {
 }
 
 model BoardColumn {
-  id          String   @id @default(uuid()) @db.Uuid
-  name        String   @db.VarChar(80)
-  color       String   @db.VarChar(9)
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @default("00000000-0000-0000-0000-000000000001") @db.Uuid
+  name        String    @db.VarChar(80)
+  color       String    @db.VarChar(9)
   position    Int
-  isBacklog   Boolean  @default(false)
-  isTodo      Boolean  @default(false)
-  isDone      Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isBacklog   Boolean   @default(false)
+  isTodo      Boolean   @default(false)
+  isDone      Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   tasks       Task[]
   subtasks    Subtask[]
 
-  @@unique([position])
+  @@unique([workspaceId, position])
 }
 
 model Sprint {
-  id          String          @id @default(uuid()) @db.Uuid
-  name        String          @db.VarChar(120)
-  goal        String?         @db.Text
-  status      SprintStatus    @default(PLANNED)
-  startsAt    DateTime?
-  endsAt      DateTime?
-  completedAt DateTime?
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
-  tasks       Task[]
-  subtasks    Subtask[]
-  comments    SprintComment[]
-  taskSnapshots SprintTaskSnapshot[]
+  id               String                   @id @default(uuid()) @db.Uuid
+  workspaceId      String                   @default("00000000-0000-0000-0000-000000000001") @db.Uuid
+  name             String                   @db.VarChar(120)
+  goal             String?                  @db.Text
+  status           SprintStatus             @default(PLANNED)
+  startsAt         DateTime?
+  endsAt           DateTime?
+  completedAt      DateTime?
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+  workspace        Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  tasks            Task[]
+  subtasks         Subtask[]
+  comments         SprintComment[]
+  taskSnapshots    SprintTaskSnapshot[]
   subtaskSnapshots SprintSubtaskSnapshot[]
 
-  @@index([status])
+  @@index([workspaceId, status])
   @@index([startsAt, endsAt])
 }
 
@@ -152,25 +190,31 @@ model SprintComment {
 }
 
 model Task {
-  id             String           @id @default(uuid()) @db.Uuid
-  title          String           @db.VarChar(240)
-  description    String?          @db.Text
-  estimateValue  Int?
-  estimateUnit   EstimateUnit?
-  position       Decimal          @default(0) @db.Decimal(20, 10)
-  columnId       String           @db.Uuid
-  sprintId       String?          @db.Uuid
-  createdById    String           @db.Uuid
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
-  column         BoardColumn      @relation(fields: [columnId], references: [id], onDelete: Restrict)
-  sprint         Sprint?          @relation(fields: [sprintId], references: [id], onDelete: SetNull)
-  createdBy      User             @relation("TaskCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  assignees      TaskAssignment[]
-  subtasks       Subtask[]
-  attachments    Attachment[]
+  id              String               @id @default(uuid()) @db.Uuid
+  workspaceId     String               @default("00000000-0000-0000-0000-000000000001") @db.Uuid
+  projectId       String?              @db.Uuid
+  title           String               @db.VarChar(240)
+  description     String?              @db.Text
+  estimateValue   Int?
+  estimateUnit    EstimateUnit?
+  position        Decimal              @default(0) @db.Decimal(20, 10)
+  columnId        String               @db.Uuid
+  sprintId        String?              @db.Uuid
+  createdById     String               @db.Uuid
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  workspace       Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project         Project?             @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  column          BoardColumn          @relation(fields: [columnId], references: [id], onDelete: Restrict)
+  sprint          Sprint?              @relation(fields: [sprintId], references: [id], onDelete: SetNull)
+  createdBy       User                 @relation("TaskCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  assignees       TaskAssignment[]
+  subtasks        Subtask[]
+  attachments     Attachment[]
   sprintSnapshots SprintTaskSnapshot[]
 
+  @@index([workspaceId, columnId, position])
+  @@index([workspaceId, projectId])
   @@index([columnId, position])
   @@index([sprintId])
   @@index([updatedAt])
@@ -281,4 +325,41 @@ model OutboxMessage {
   createdAt   DateTime @default(now())
 
   @@index([processedAt, availableAt])
+}
+
+model NotificationConfig {
+  id               String   @id @default("default") @db.VarChar(32)
+  smtpHost         String?  @db.VarChar(255)
+  smtpPort         Int      @default(587)
+  smtpSecure       Boolean  @default(false)
+  smtpUser         String?  @db.VarChar(255)
+  smtpPassword     String?  @db.Text
+  smtpFromEmail    String?  @db.VarChar(255)
+  smtpFromName     String?  @db.VarChar(255)
+  smtpEnabled      Boolean  @default(false)
+  telegramBotToken String?  @db.VarChar(255)
+  telegramChatId   String?  @db.VarChar(100)
+  telegramEnabled  Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model Notification {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @db.Uuid
+  actorId      String?  @db.Uuid
+  type         String   @db.VarChar(64)
+  title        String   @db.VarChar(255)
+  message      String   @db.Text
+  link         String?  @db.VarChar(255)
+  isRead       Boolean  @default(false)
+  emailSent    Boolean  @default(false)
+  telegramSent Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  user  User  @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  actor User? @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([userId, isRead, createdAt])
+  @@index([userId, createdAt])
 }

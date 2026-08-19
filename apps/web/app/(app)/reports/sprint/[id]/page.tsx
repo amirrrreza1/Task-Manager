@@ -13,6 +13,7 @@ import {
 import Link from 'next/link';
 import { use, useEffect, useState } from 'react';
 import { useAuth } from '../../../../../components/auth-provider';
+import { useToast } from '../../../../../components/toast-provider';
 import { formatDate } from '../../../../../lib/app-config';
 import { Avatar } from '../../../../../components/avatar';
 import type { MemberContribution, SprintReport, SprintReportTask } from '../../../../../lib/types';
@@ -33,30 +34,34 @@ function TaskRow({ task }: { task: SprintReportTask }) {
         style={{ cursor: task.subtasks.length > 0 ? 'pointer' : undefined }}
       >
         <TableCell>
-          <Link href={`/tasks/${task.id}`} className="report-link" onClick={(e) => e.stopPropagation()}>
+          <Link
+            href={`/tasks/${task.id}`}
+            className="report-link"
+            onClick={(e) => e.stopPropagation()}
+          >
             {task.title}
           </Link>
           {task.subtasks.length > 0 && (
             <span className="muted" style={{ marginLeft: '0.5rem', fontSize: '0.8em' }}>
-              {open ? '▲' : '▼'} {task.subtasks.length} subtask{task.subtasks.length !== 1 ? 's' : ''}
+              {open ? '▲' : '▼'} {task.subtasks.length} subtask
+              {task.subtasks.length !== 1 ? 's' : ''}
             </span>
           )}
         </TableCell>
         <TableCell>
           <span className="tag">{task.column.name}</span>
-          {task.isDone && <span className="report-badge done" style={{ marginLeft: '0.35rem' }}>Done</span>}
+          {task.isDone && (
+            <span className="report-badge done" style={{ marginLeft: '0.35rem' }}>
+              Done
+            </span>
+          )}
         </TableCell>
         <TableCell>
           {task.assignees.length > 0 ? (
             <span className="report-assignees">
               {task.assignees.map((u) => (
                 <span key={u.id} title={u.displayName}>
-                  <Avatar
-                    hasAvatar={u.hasAvatar}
-                    name={u.displayName}
-                    size={20}
-                    userId={u.id}
-                  />
+                  <Avatar hasAvatar={u.hasAvatar} name={u.displayName} size={20} userId={u.id} />
                 </span>
               ))}
             </span>
@@ -64,7 +69,11 @@ function TaskRow({ task }: { task: SprintReportTask }) {
             <span className="muted">Unassigned</span>
           )}
         </TableCell>
-        <TableCell>{formatEstimate(task.estimateValue, task.estimateUnit) ?? <span className="muted">—</span>}</TableCell>
+        <TableCell>
+          {formatEstimate(task.estimateValue, task.estimateUnit) ?? (
+            <span className="muted">—</span>
+          )}
+        </TableCell>
       </TableRow>
       {open &&
         task.subtasks.map((s) => (
@@ -72,13 +81,19 @@ function TaskRow({ task }: { task: SprintReportTask }) {
             <TableCell style={{ paddingLeft: '2rem' }}>↳ {s.title}</TableCell>
             <TableCell>
               <span className="tag">{s.column.name}</span>
-              {s.isCompleted && <span className="report-badge done" style={{ marginLeft: '0.35rem' }}>Done</span>}
+              {s.isCompleted && (
+                <span className="report-badge done" style={{ marginLeft: '0.35rem' }}>
+                  Done
+                </span>
+              )}
             </TableCell>
             <TableCell>
               {/* subtask has single assignee resolved at parent level */}
               <span className="muted">Subtask</span>
             </TableCell>
-            <TableCell>{formatEstimate(s.estimateValue, s.estimateUnit) ?? <span className="muted">—</span>}</TableCell>
+            <TableCell>
+              {formatEstimate(s.estimateValue, s.estimateUnit) ?? <span className="muted">—</span>}
+            </TableCell>
           </TableRow>
         ))}
     </>
@@ -104,7 +119,9 @@ function MemberCard({ contribution }: { contribution: MemberContribution }) {
         <strong>{contribution.user.displayName}</strong>
         <span className="report-badge done">{contribution.completedSubtasks} done</span>
         {contribution.incompleteSubtasks > 0 && (
-          <span className="report-badge pending">{contribution.incompleteSubtasks} in progress</span>
+          <span className="report-badge pending">
+            {contribution.incompleteSubtasks} in progress
+          </span>
         )}
         {contribution.estimateHours > 0 && (
           <span className="muted">{formatEstimate(contribution.estimateHours, 'HOURS')}</span>
@@ -140,8 +157,14 @@ function MemberCard({ contribution }: { contribution: MemberContribution }) {
                         {s.parentTask.title}
                       </Link>
                     </TableCell>
-                    <TableCell><span className="tag">{s.column.name}</span></TableCell>
-                    <TableCell>{formatEstimate(s.estimateValue, s.estimateUnit) ?? <span className="muted">—</span>}</TableCell>
+                    <TableCell>
+                      <span className="tag">{s.column.name}</span>
+                    </TableCell>
+                    <TableCell>
+                      {formatEstimate(s.estimateValue, s.estimateUnit) ?? (
+                        <span className="muted">—</span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       {s.isCompleted ? (
                         <span className="report-badge done">Done</span>
@@ -163,23 +186,22 @@ function MemberCard({ contribution }: { contribution: MemberContribution }) {
 export default function SprintReportPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { request, user } = useAuth();
+  const toast = useToast();
   const [report, setReport] = useState<SprintReport | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
 
   useEffect(() => {
     setLoading(true);
-    setError('');
     request<SprintReport>(`/reports/sprints/${id}`)
       .then(setReport)
-      .catch((err) => setError(err instanceof Error ? err.message : 'Could not load report.'))
+      .catch((err) => toast.fromError(err, 'Could not load report.'))
       .finally(() => setLoading(false));
-  }, [request, id]);
+  }, [request, id, toast]);
 
   if (user?.role !== 'ADMIN') {
     return (
       <div className="page-stack">
-        <p className="form-error inline-alert">This page is restricted to administrators.</p>
+        <p className="muted">This page is restricted to administrators.</p>
       </div>
     );
   }
@@ -189,7 +211,10 @@ export default function SprintReportPage({ params }: { params: Promise<{ id: str
       <header className="page-header compact-header">
         <div>
           <p className="eyebrow">
-            <Link href="/reports" className="report-link">Reports</Link> › Sprint
+            <Link href="/reports" className="report-link">
+              Reports
+            </Link>{' '}
+            › Sprint
           </p>
           <h1>{report ? report.sprint.name : 'Sprint report'}</h1>
           {report?.sprint.goal && <p className="muted">{report.sprint.goal}</p>}
@@ -200,12 +225,6 @@ export default function SprintReportPage({ params }: { params: Promise<{ id: str
           </Button>
         )}
       </header>
-
-      {error && (
-        <p className="form-error inline-alert" role="alert">
-          {error}
-        </p>
-      )}
 
       {loading ? (
         <div className="board-loading">
@@ -244,7 +263,11 @@ export default function SprintReportPage({ params }: { params: Promise<{ id: str
           {/* Per-member contributions */}
           {report.memberContributions.length > 0 && (
             <section aria-labelledby="contributions-heading">
-              <h2 id="contributions-heading" className="section-label" style={{ marginBottom: '0.75rem' }}>
+              <h2
+                id="contributions-heading"
+                className="section-label"
+                style={{ marginBottom: '0.75rem' }}
+              >
                 Member contributions
               </h2>
               <div className="report-member-list">
@@ -284,7 +307,11 @@ export default function SprintReportPage({ params }: { params: Promise<{ id: str
           {/* Standalone subtasks */}
           {report.standaloneSubtasks.length > 0 && (
             <section aria-labelledby="standalone-heading">
-              <h2 id="standalone-heading" className="section-label" style={{ marginBottom: '0.75rem' }}>
+              <h2
+                id="standalone-heading"
+                className="section-label"
+                style={{ marginBottom: '0.75rem' }}
+              >
                 Standalone subtasks ({report.standaloneSubtasks.length})
               </h2>
               <div className="report-table-wrap">
@@ -307,8 +334,14 @@ export default function SprintReportPage({ params }: { params: Promise<{ id: str
                             {s.parentTask.title}
                           </Link>
                         </TableCell>
-                        <TableCell><span className="tag">{s.column.name}</span></TableCell>
-                        <TableCell>{formatEstimate(s.estimateValue, s.estimateUnit) ?? <span className="muted">—</span>}</TableCell>
+                        <TableCell>
+                          <span className="tag">{s.column.name}</span>
+                        </TableCell>
+                        <TableCell>
+                          {formatEstimate(s.estimateValue, s.estimateUnit) ?? (
+                            <span className="muted">—</span>
+                          )}
+                        </TableCell>
                         <TableCell>
                           {s.isCompleted ? (
                             <span className="report-badge done">Done</span>

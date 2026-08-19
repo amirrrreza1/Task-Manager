@@ -3,16 +3,17 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../../components/auth-provider';
+import { useToast } from '../../../components/toast-provider';
 import { formatDate } from '../../../lib/app-config';
 import { Avatar } from '../../../components/avatar';
 import type { ManagedUser, SprintSummary } from '../../../lib/types';
 
 export default function ReportsIndexPage() {
   const { request, user } = useAuth();
+  const toast = useToast();
   const [members, setMembers] = useState<ManagedUser[]>([]);
   const [sprints, setSprints] = useState<SprintSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
 
   useEffect(() => {
     setLoading(true);
@@ -24,14 +25,14 @@ export default function ReportsIndexPage() {
         setMembers(users.filter((u) => u.isActive));
         setSprints(sprintData.items);
       })
-      .catch((err) => setError(err instanceof Error ? err.message : 'Could not load data.'))
+      .catch((err) => toast.fromError(err, 'Could not load data.'))
       .finally(() => setLoading(false));
-  }, [request]);
+  }, [request, toast]);
 
   if (user?.role !== 'ADMIN') {
     return (
       <div className="page-stack">
-        <p className="form-error inline-alert">This page is restricted to administrators.</p>
+        <p className="muted">This page is restricted to administrators.</p>
       </div>
     );
   }
@@ -44,22 +45,21 @@ export default function ReportsIndexPage() {
         </div>
       </header>
 
-      {error && (
-        <p className="form-error inline-alert" role="alert">
-          {error}
-        </p>
-      )}
-
       {/* Activity log */}
       <section aria-labelledby="log-heading">
         <h2 id="log-heading" className="section-label" style={{ marginBottom: '0.75rem' }}>
           Activity log
         </h2>
         <Link className="report-card" href="/reports/activity">
-          <div className="report-card-icon" aria-hidden="true">📋</div>
+          <div className="report-card-icon" aria-hidden="true">
+            📋
+          </div>
           <div>
             <strong>Full activity log</strong>
-            <p className="muted">Every state change across tasks, sprints, board, users, and settings. Filter by actor, entity type, and date range.</p>
+            <p className="muted">
+              Every state change across tasks, sprints, board, users, and settings. Filter by actor,
+              entity type, and date range.
+            </p>
           </div>
         </Link>
       </section>

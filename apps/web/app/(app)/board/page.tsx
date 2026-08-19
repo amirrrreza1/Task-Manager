@@ -3,14 +3,7 @@
 import { Button, Checkbox, Input, Select } from '../../../components/design-system';
 
 import Link from 'next/link';
-import {
-  Fragment,
-  type PropsWithChildren,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from 'react';
+import { Fragment, type PropsWithChildren, useCallback, useEffect, useRef, useState } from 'react';
 import {
   closestCorners,
   type CollisionDetection,
@@ -40,7 +33,15 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { Avatar } from '../../../components/avatar';
 import { useAuth } from '../../../components/auth-provider';
-import type { BoardResponse, BoardSubtask, ManagedUser, TaskCard } from '../../../lib/types';
+import { useToast } from '../../../components/toast-provider';
+import { useWorkspace } from '../../../components/workspace-provider';
+import type {
+  BoardResponse,
+  BoardSubtask,
+  ManagedUser,
+  Project,
+  TaskCard,
+} from '../../../lib/types';
 import { workflowBoard } from '../../../lib/board-columns';
 import { taskDropIndex } from '../../../lib/board-dnd';
 
@@ -77,12 +78,9 @@ const boardCollisionDetection: CollisionDetection = (arguments_) => {
             collision.id !== arguments_.active.id && String(collision.id).startsWith('task:'),
         )
       : activeType === 'subtask'
-        ? (pointerCollisions.find((collision) =>
-            String(collision.id).startsWith('subtask:'),
-          ) ?? pointerCollisions.find((collision) => String(collision.id).startsWith('task:')))
-        : pointerCollisions.find(
-            (collision) => !String(collision.id).startsWith('column:'),
-          );
+        ? (pointerCollisions.find((collision) => String(collision.id).startsWith('subtask:')) ??
+          pointerCollisions.find((collision) => String(collision.id).startsWith('task:')))
+        : pointerCollisions.find((collision) => !String(collision.id).startsWith('column:'));
   if (directWorkItem) return [directWorkItem];
 
   const columnCollision = pointerCollisions.find((collision) =>
@@ -121,6 +119,7 @@ const boardCollisionDetection: CollisionDetection = (arguments_) => {
 interface Filters {
   search: string;
   assigneeId: string;
+  projectId: string;
   unassigned: boolean;
   mine: boolean;
   estimate: '' | 'true' | 'false';
@@ -129,6 +128,7 @@ interface Filters {
 const emptyFilters: Filters = {
   search: '',
   assigneeId: '',
+  projectId: '',
   unassigned: false,
   mine: false,
   estimate: '',
@@ -136,10 +136,13 @@ const emptyFilters: Filters = {
 
 export default function BoardPage() {
   const { user, request } = useAuth();
+  const toast = useToast();
+  const { currentWorkspace } = useWorkspace();
   const [board, setBoard] = useState<BoardResponse | null>(null);
   const [users, setUsers] = useState<ManagedUser[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [filters, setFilters] = useState<Filters>(emptyFilters);
-  const [error, setError] = useState('');
+  const [loadFailed, setLoadFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [activeDrag, setActiveDrag] = useState<ActiveDrag | null>(null);
   const [taskDropPreview, setTaskDropPreview] = useState<TaskDropPreview | null>(null);
@@ -177,6 +180,7 @@ export default function BoardPage() {
     setFilters({
       search: params.get('search') ?? '',
       assigneeId: mine ? '' : (params.get('assigneeId') ?? ''),
+      projectId: params.get('projectId') ?? '',
       unassigned: !mine && params.get('unassigned') === 'true',
       mine,
       estimate:
@@ -193,9 +197,16 @@ export default function BoardPage() {
 
     const browserParams = new URLSearchParams();
     const apiParams = new URLSearchParams();
+    if (currentWorkspace?.id) {
+      apiParams.set('workspaceId', currentWorkspace.id);
+    }
     if (filters.search.trim()) {
       browserParams.set('search', filters.search.trim());
       apiParams.set('search', filters.search.trim());
+    }
+    if (filters.projectId) {
+      browserParams.set('projectId', filters.projectId);
+      apiParams.set('projectId', filters.projectId);
     }
     if (filters.mine && user?.id) {
       browserParams.set('mine', 'true');
@@ -215,18 +226,23 @@ export default function BoardPage() {
     const browserQuery = browserParams.toString();
     const apiQuery = apiParams.toString();
     window.history.replaceState(null, '', browserQuery ? `/board?${browserQuery}` : '/board');
+    setLoadFailed(false);
     try {
-      const [nextBoard, nextUsers] = await Promise.all([
+      const wsParam = currentWorkspace?.id ? `?workspaceId=${currentWorkspace.id}` : '';
+      const [nextBoard, nextUsers, nextProjects] = await Promise.all([
         request<BoardResponse>(`/board${apiQuery ? `?${apiQuery}` : ''}`),
         request<ManagedUser[]>('/users'),
+        request<Project[]>(`/projects${wsParam}`),
       ]);
       setBoard(workflowBoard(nextBoard));
       setUsers(nextUsers.filter((member) => member.isActive));
-      setError('');
+      setProjects(nextProjects);
+      setLoadFailed(false);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not load the board.');
+      setLoadFailed(true);
+      toast.fromError(caught, 'Could not load the board.');
     }
-  }, [filters, request, user?.id]);
+  }, [filters, request, user?.id, currentWorkspace?.id, toast]);
 
   useEffect(() => {
     void load();
@@ -260,7 +276,6 @@ export default function BoardPage() {
       }),
     });
     setBusy(true);
-    setError('');
     try {
       await request(`/tasks/${task.id}/move`, {
         method: 'POST',
@@ -274,7 +289,7 @@ export default function BoardPage() {
       await load();
     } catch (caught) {
       setBoard(previousBoard);
-      setError(caught instanceof Error ? caught.message : 'Could not move the task.');
+      toast.fromError(caught, 'Could not move the task.');
     } finally {
       setBusy(false);
       dragOriginBoard.current = null;
@@ -286,7 +301,6 @@ export default function BoardPage() {
     const previousBoard = dragOriginBoard.current ?? board;
     setBoard(placeSubtaskOnColumn(board, subtask.id, targetColumnId));
     setBusy(true);
-    setError('');
     try {
       await request(`/tasks/${taskId}/subtasks/${subtask.id}/move`, {
         method: 'POST',
@@ -298,7 +312,7 @@ export default function BoardPage() {
       await load();
     } catch (caught) {
       setBoard(previousBoard);
-      setError(caught instanceof Error ? caught.message : 'Could not move the subtask.');
+      toast.fromError(caught, 'Could not move the subtask.');
     } finally {
       setBusy(false);
       dragOriginBoard.current = null;
@@ -499,10 +513,7 @@ export default function BoardPage() {
         const parentTask = board.columns
           .flatMap((column) => column.tasks)
           .find((task) => task.subtasks.some((subtask) => subtask.id === activeId));
-        if (
-          parentTask &&
-          parentTask.subtasks.some((subtask) => subtask.id === overSubtaskId)
-        ) {
+        if (parentTask && parentTask.subtasks.some((subtask) => subtask.id === overSubtaskId)) {
           const oldIndex = parentTask.subtasks.findIndex((subtask) => subtask.id === activeId);
           const newIndex = parentTask.subtasks.findIndex((subtask) => subtask.id === overSubtaskId);
           if (oldIndex >= 0 && newIndex >= 0 && oldIndex !== newIndex) {
@@ -531,11 +542,7 @@ export default function BoardPage() {
           }
           return null;
         })();
-      if (
-        current &&
-        originSubtask &&
-        current.subtask.columnId !== originSubtask.columnId
-      ) {
+      if (current && originSubtask && current.subtask.columnId !== originSubtask.columnId) {
         void moveSubtask(active.taskId, originSubtask, current.subtask.columnId);
         return;
       }
@@ -563,10 +570,7 @@ export default function BoardPage() {
       return;
     }
 
-    if (
-      targetColumnIndex === previous.columnIndex &&
-      taskPreview?.index === previous.taskIndex
-    ) {
+    if (targetColumnIndex === previous.columnIndex && taskPreview?.index === previous.taskIndex) {
       setBoard(origin);
       dragOriginBoard.current = null;
       return;
@@ -587,7 +591,6 @@ export default function BoardPage() {
       })),
     });
     setBusy(true);
-    setError('');
     try {
       await request(`/tasks/${task.id}/subtasks/reorder`, {
         method: 'POST',
@@ -596,7 +599,7 @@ export default function BoardPage() {
       await load();
     } catch (caught) {
       setBoard(previousBoard);
-      setError(caught instanceof Error ? caught.message : 'Could not reorder subtasks.');
+      toast.fromError(caught, 'Could not reorder subtasks.');
     } finally {
       setBusy(false);
     }
@@ -629,6 +632,21 @@ export default function BoardPage() {
             onChange={(event) => setFilters({ ...filters, search: event.target.value })}
             placeholder="Title or description"
           />
+        </label>
+        <label>
+          <span>Project</span>
+          <Select
+            value={filters.projectId}
+            onChange={(event) => setFilters({ ...filters, projectId: event.target.value })}
+          >
+            <option value="">All projects</option>
+            {projects.map((proj) => (
+              <option value={proj.id} key={proj.id}>
+                {proj.key ? `[${proj.key}] ` : ''}
+                {proj.name}
+              </option>
+            ))}
+          </Select>
         </label>
         <label>
           <span>Assignee</span>
@@ -706,14 +724,15 @@ export default function BoardPage() {
         </Button>
       </section>
 
-      {error ? (
-        <p className="form-error inline-alert" role="alert">
-          {error}
-        </p>
-      ) : null}
       {!board ? (
         <div className="board-loading">
-          <span className="spinner" /> Loading board…
+          {loadFailed ? (
+            <p className="empty-copy">The board could not be loaded.</p>
+          ) : (
+            <>
+              <span className="spinner" /> Loading board…
+            </>
+          )}
         </div>
       ) : (
         <DndContext
@@ -801,9 +820,7 @@ export default function BoardPage() {
                         ))}
                       </SortableContext>
                     ) : null}
-                    {!column.tasks.length &&
-                    !column.subtasks.length &&
-                    !showsTaskPlaceholder ? (
+                    {!column.tasks.length && !column.subtasks.length && !showsTaskPlaceholder ? (
                       <div className="empty-column">Drop a task here</div>
                     ) : null}
                   </TaskColumnBody>
@@ -885,7 +902,21 @@ function TaskCardContent({
         }}
       >
         <div className="task-card-header">
-          <h2>{task.title}</h2>
+          <div className="task-title-group">
+            {task.project && (
+              <span
+                className="task-project-pill"
+                style={{
+                  backgroundColor: `${task.project.color || '#2563EB'}20`,
+                  color: task.project.color || '#2563EB',
+                  borderColor: `${task.project.color || '#2563EB'}40`,
+                }}
+              >
+                {task.project.key ? task.project.key : task.project.name}
+              </span>
+            )}
+            <h2>{task.title}</h2>
+          </div>
           <div
             className="card-assignees"
             aria-label={
@@ -909,7 +940,10 @@ function TaskCardContent({
                   ))}
                   {task.assignees.length > 3 ? <span>+{task.assignees.length - 3}</span> : null}
                 </div>
-                <span className="card-assignee-name" title={task.assignees.map((item) => item.user.displayName).join(', ')}>
+                <span
+                  className="card-assignee-name"
+                  title={task.assignees.map((item) => item.user.displayName).join(', ')}
+                >
                   {task.assignees.length === 1
                     ? task.assignees[0].user.displayName
                     : `${task.assignees[0].user.displayName} +${task.assignees.length - 1}`}
@@ -922,9 +956,7 @@ function TaskCardContent({
             )}
           </div>
         </div>
-        <p className={task.description ? undefined : 'is-empty'}>
-          {task.description || '\u00A0'}
-        </p>
+        <p className={task.description ? undefined : 'is-empty'}>{task.description || '\u00A0'}</p>
         <div className="task-card-facts">
           {task.estimateValue ? (
             <span>
@@ -1128,7 +1160,11 @@ function BoardSubtaskCard({
   );
 }
 
-function placeSubtaskOnColumn(board: BoardResponse, subtaskId: string, targetColumnId: string): BoardResponse {
+function placeSubtaskOnColumn(
+  board: BoardResponse,
+  subtaskId: string,
+  targetColumnId: string,
+): BoardResponse {
   let moving: BoardSubtask | null = null;
   let parentTask: { id: string; title: string } | null = null;
 
@@ -1166,9 +1202,7 @@ function placeSubtaskOnColumn(board: BoardResponse, subtaskId: string, targetCol
         return {
           ...column,
           tasks: column.tasks.map((task) =>
-            task.id === moving!.taskId
-              ? { ...task, subtasks: [...task.subtasks, moving!] }
-              : task,
+            task.id === moving!.taskId ? { ...task, subtasks: [...task.subtasks, moving!] } : task,
           ),
         };
       }

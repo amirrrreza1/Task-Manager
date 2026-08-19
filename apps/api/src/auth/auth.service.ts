@@ -11,6 +11,8 @@ const publicUserSelect = {
   id: true,
   username: true,
   displayName: true,
+  email: true,
+  telegramUsername: true,
   role: true,
   hasAvatar: true,
   isBootstrapAdmin: true,

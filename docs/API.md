@@ -32,16 +32,16 @@ types.
 
 ## Users (administrator unless noted)
 
-| Method | Path                           | Purpose                                                            |
-| ------ | ------------------------------ | ------------------------------------------------------------------ |
-| GET    | `/users`                       | List users; active members are readable by all authenticated users |
-| POST   | `/users`                       | Create user                                                        |
-| GET    | `/users/:id`                   | Read user profile                                                  |
-| PATCH  | `/users/:id`                   | Edit username/display name/active status                           |
-| PUT    | `/users/:id/password`          | Reset password and revoke sessions                                 |
-| GET    | `/users/:id/avatar`            | Retrieve a user's profile photo                                    |
-| POST   | `/users/:id/avatar`            | Upload the current user's profile photo                            |
-| DELETE | `/users/:id/avatar`            | Remove the current user's profile photo                            |
+| Method | Path                  | Purpose                                                            |
+| ------ | --------------------- | ------------------------------------------------------------------ |
+| GET    | `/users`              | List users; active members are readable by all authenticated users |
+| POST   | `/users`              | Create user                                                        |
+| GET    | `/users/:id`          | Read user profile                                                  |
+| PATCH  | `/users/:id`          | Edit username/display name/active status                           |
+| PUT    | `/users/:id/password` | Reset password and revoke sessions                                 |
+| GET    | `/users/:id/avatar`   | Retrieve a user's profile photo                                    |
+| POST   | `/users/:id/avatar`   | Upload the current user's profile photo                            |
+| DELETE | `/users/:id/avatar`   | Remove the current user's profile photo                            |
 
 ## Board and settings
 
@@ -95,24 +95,24 @@ Uploads stream to storage and calculate SHA-256; they are not buffered fully in 
 
 ## Sprints
 
-| Method | Path                               | Purpose                                            |
-| ------ | ---------------------------------- | -------------------------------------------------- |
-| GET    | `/sprints`                         | Filterable sprint history                          |
-| POST   | `/sprints`                         | Create planned sprint                              |
-| GET    | `/sprints/:id`                     | Sprint detail/results/comments                     |
-| PATCH  | `/sprints/:id`                     | Edit allowed sprint metadata                       |
-| POST   | `/sprints/:id/start`               | Admin transition planned → active                  |
-| POST   | `/sprints/:id/finish`              | Admin transition active → completed                |
+| Method | Path                               | Purpose                                                        |
+| ------ | ---------------------------------- | -------------------------------------------------------------- |
+| GET    | `/sprints`                         | Filterable sprint history                                      |
+| POST   | `/sprints`                         | Create planned sprint                                          |
+| GET    | `/sprints/:id`                     | Sprint detail/results/comments                                 |
+| PATCH  | `/sprints/:id`                     | Edit allowed sprint metadata                                   |
+| POST   | `/sprints/:id/start`               | Admin transition planned → active                              |
+| POST   | `/sprints/:id/finish`              | Admin transition active → completed                            |
 | POST   | `/sprints/:id/carry-over`          | Move selected unfinished tasks or subtasks to a planned sprint |
 | POST   | `/sprints/:id/move-to-backlog`     | Move selected unfinished tasks or subtasks to the backlog      |
-| GET    | `/sprints/:id/available-tasks`     | Tasks/subtasks eligible to join this sprint        |
-| GET    | `/sprints/:id/available-subtasks`  | Subtasks eligible to join this sprint              |
-| POST   | `/sprints/:id/tasks`               | Assign tasks to a planned or active sprint         |
-| POST   | `/sprints/:id/subtasks`            | Assign subtasks to a planned or active sprint      |
-| GET    | `/sprints/:id/comments`            | Paginated comments                                 |
-| POST   | `/sprints/:id/comments`            | Add comment                                        |
-| PATCH  | `/sprints/:id/comments/:commentId` | Edit own comment/admin correction                  |
-| DELETE | `/sprints/:id/comments/:commentId` | Delete with authorization                          |
+| GET    | `/sprints/:id/available-tasks`     | Tasks/subtasks eligible to join this sprint                    |
+| GET    | `/sprints/:id/available-subtasks`  | Subtasks eligible to join this sprint                          |
+| POST   | `/sprints/:id/tasks`               | Assign tasks to a planned or active sprint                     |
+| POST   | `/sprints/:id/subtasks`            | Assign subtasks to a planned or active sprint                  |
+| GET    | `/sprints/:id/comments`            | Paginated comments                                             |
+| POST   | `/sprints/:id/comments`            | Add comment                                                    |
+| PATCH  | `/sprints/:id/comments/:commentId` | Edit own comment/admin correction                              |
+| DELETE | `/sprints/:id/comments/:commentId` | Delete with authorization                                      |
 
 The implementation must generate this contract from controller annotations and run an API
 compatibility check in CI once endpoints begin shipping.

@@ -5,27 +5,30 @@ import { Button, Input, Radio } from '../../../../components/design-system';
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { AuthGate } from '../../../../components/auth-gate';
 import { useAuth } from '../../../../components/auth-provider';
+import { useToast } from '../../../../components/toast-provider';
+import { useWorkspace } from '../../../../components/workspace-provider';
 import type { AppSettings } from '../../../../lib/types';
 
 function GeneralSettings() {
   const { request } = useAuth();
+  const toast = useToast();
+  const { currentWorkspace, refreshWorkspaces } = useWorkspace();
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [estimateMode, setEstimateMode] = useState<'TIME' | 'POINTS'>('TIME');
   const [duration, setDuration] = useState(14);
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const value = await request<AppSettings>('/settings');
+      const wsParam = currentWorkspace?.id ? `?workspaceId=${currentWorkspace.id}` : '';
+      const value = await request<AppSettings>(`/settings${wsParam}`);
       setSettings(value);
       setEstimateMode(value.estimateMode);
       setDuration(value.sprintDurationDays);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not load settings.');
+      toast.fromError(caught, 'Could not load settings.');
     }
-  }, [request]);
+  }, [request, currentWorkspace?.id, toast]);
 
   useEffect(() => {
     void load();
@@ -35,8 +38,6 @@ function GeneralSettings() {
     event.preventDefault();
     if (!settings) return;
     setSaving(true);
-    setError('');
-    setMessage('');
     try {
       const value = await request<AppSettings>('/settings', {
         method: 'PATCH',
@@ -44,12 +45,14 @@ function GeneralSettings() {
           estimateMode,
           sprintDurationDays: duration,
           revision: settings.revision,
+          ...(currentWorkspace?.id ? { workspaceId: currentWorkspace.id } : {}),
         }),
       });
       setSettings(value);
-      setMessage('Workspace settings saved.');
+      await refreshWorkspaces();
+      toast.success('Workspace settings saved.');
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not save settings.');
+      toast.fromError(caught, 'Could not save settings.');
     } finally {
       setSaving(false);
     }
@@ -108,16 +111,6 @@ function GeneralSettings() {
             <span>days</span>
           </label>
         </section>
-        {error ? (
-          <p className="form-error" role="alert">
-            {error}
-          </p>
-        ) : null}
-        {message ? (
-          <p className="form-success" role="status">
-            {message}
-          </p>
-        ) : null}
         <footer className="settings-footer">
           <Button variant="primary" disabled={!settings || saving} type="submit">
             {saving ? 'Saving…' : 'Save changes'}

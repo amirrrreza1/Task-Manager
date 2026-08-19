@@ -18,7 +18,10 @@ export function estimateUnitForMode(mode: EstimateMode) {
   return mode === EstimateMode.TIME ? EstimateUnit.HOURS : EstimateUnit.POINTS;
 }
 
-export function assertEstimateMatchesMode(estimate: EstimateDto | null | undefined, mode: EstimateMode) {
+export function assertEstimateMatchesMode(
+  estimate: EstimateDto | null | undefined,
+  mode: EstimateMode,
+) {
   if (!estimate || estimate.unit === estimateUnitForMode(mode)) return;
   throw new BadRequestException(
     `Estimates must use ${mode === EstimateMode.TIME ? 'hours' : 'points'}, as configured in workspace settings.`,

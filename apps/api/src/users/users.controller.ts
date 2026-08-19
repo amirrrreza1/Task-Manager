@@ -100,5 +100,4 @@ export class UsersController {
   removeAvatar(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: AuthenticatedUser) {
     return this.users.removeAvatar(id, actor.id);
   }
-
 }

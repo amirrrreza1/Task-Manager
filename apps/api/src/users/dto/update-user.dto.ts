@@ -1,4 +1,12 @@
-import { IsBoolean, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsEmail,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 
 export class UpdateUserDto {
   @IsOptional()
@@ -13,6 +21,15 @@ export class UpdateUserDto {
   @MinLength(1)
   @MaxLength(100)
   displayName?: string;
+
+  @IsOptional()
+  @IsEmail()
+  email?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  telegramUsername?: string | null;
 
   @IsOptional()
   @IsBoolean()

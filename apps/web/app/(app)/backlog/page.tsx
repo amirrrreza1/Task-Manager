@@ -1,12 +1,28 @@
 'use client';
 
-import { Button, Checkbox, Input, Modal, Select, Textarea } from '../../../components/design-system';
+import {
+  Button,
+  Checkbox,
+  Input,
+  Modal,
+  Select,
+  Textarea,
+} from '../../../components/design-system';
 
 import Link from 'next/link';
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { Avatar } from '../../../components/avatar';
 import { useAuth } from '../../../components/auth-provider';
-import type { BoardResponse, ManagedUser, Paginated, SprintSummary, TaskCard } from '../../../lib/types';
+import { useToast } from '../../../components/toast-provider';
+import { useWorkspace } from '../../../components/workspace-provider';
+import type {
+  BoardResponse,
+  ManagedUser,
+  Paginated,
+  Project,
+  SprintSummary,
+  TaskCard,
+} from '../../../lib/types';
 import { backlogBoard, primaryBacklogColumn } from '../../../lib/board-columns';
 
 function formatHours(value: number) {
@@ -15,8 +31,11 @@ function formatHours(value: number) {
 
 export default function BacklogPage() {
   const { request } = useAuth();
+  const toast = useToast();
+  const { currentWorkspace } = useWorkspace();
   const [board, setBoard] = useState<BoardResponse | null>(null);
   const [users, setUsers] = useState<ManagedUser[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [sprintOptions, setSprintOptions] = useState<SprintSummary[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
   const [title, setTitle] = useState('');
@@ -24,13 +43,20 @@ export default function BacklogPage() {
   const [estimate, setEstimate] = useState('');
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [sprintId, setSprintId] = useState('');
+  const [projectId, setProjectId] = useState('');
+  const [projectFilter, setProjectFilter] = useState('');
   const [search, setSearch] = useState('');
-  const [error, setError] = useState('');
+  const [loadFailed, setLoadFailed] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const backlogColumn = board ? primaryBacklogColumn(board) : null;
   const tasks = useMemo(() => {
-    const items = backlogColumn?.tasks ?? [];
+    let items = backlogColumn?.tasks ?? [];
+    if (projectFilter) {
+      items = items.filter(
+        (task) => task.projectId === projectFilter || task.project?.id === projectFilter,
+      );
+    }
     const term = search.trim().toLowerCase();
     if (!term) return items;
     return items.filter(
@@ -38,24 +64,36 @@ export default function BacklogPage() {
         task.title.toLowerCase().includes(term) ||
         (task.description?.toLowerCase().includes(term) ?? false),
     );
-  }, [backlogColumn, search]);
+  }, [backlogColumn, search, projectFilter]);
 
   const load = useCallback(async () => {
+    setLoadFailed(false);
     try {
-      const [nextBoard, nextUsers, planned, active] = await Promise.all([
-        request<BoardResponse>('/board'),
+      const wsParam = currentWorkspace?.id ? `?workspaceId=${currentWorkspace.id}` : '';
+      const wsSprintPlanned = currentWorkspace?.id
+        ? `?workspaceId=${currentWorkspace.id}&status=PLANNED`
+        : '?status=PLANNED';
+      const wsSprintActive = currentWorkspace?.id
+        ? `?workspaceId=${currentWorkspace.id}&status=ACTIVE`
+        : '?status=ACTIVE';
+
+      const [nextBoard, nextUsers, planned, active, nextProjects] = await Promise.all([
+        request<BoardResponse>(`/board${wsParam}`),
         request<ManagedUser[]>('/users'),
-        request<Paginated<SprintSummary>>('/sprints?status=PLANNED'),
-        request<Paginated<SprintSummary>>('/sprints?status=ACTIVE'),
+        request<Paginated<SprintSummary>>(`/sprints${wsSprintPlanned}`),
+        request<Paginated<SprintSummary>>(`/sprints${wsSprintActive}`),
+        request<Project[]>(`/projects${wsParam}`),
       ]);
       setBoard(backlogBoard(nextBoard));
       setUsers(nextUsers.filter((member) => member.isActive));
       setSprintOptions([...active.items, ...planned.items]);
-      setError('');
+      setProjects(nextProjects);
+      setLoadFailed(false);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not load the backlog.');
+      setLoadFailed(true);
+      toast.fromError(caught, 'Could not load the backlog.');
     }
-  }, [request]);
+  }, [request, currentWorkspace?.id, toast]);
 
   useEffect(() => {
     void load();
@@ -65,14 +103,15 @@ export default function BacklogPage() {
     event.preventDefault();
     if (!board || !backlogColumn) return;
     setBusy(true);
-    setError('');
     try {
       await request('/tasks', {
         method: 'POST',
         body: JSON.stringify({
           title,
+          ...(currentWorkspace?.id ? { workspaceId: currentWorkspace.id } : {}),
           ...(description.trim() ? { description } : {}),
           ...(sprintId ? { sprintId } : {}),
+          ...(projectId ? { projectId } : {}),
           assigneeIds,
           ...(estimate
             ? {
@@ -89,10 +128,12 @@ export default function BacklogPage() {
       setEstimate('');
       setAssigneeIds([]);
       setSprintId('');
+      setProjectId('');
       setCreateOpen(false);
+      toast.success('Task created.');
       await load();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not create the task.');
+      toast.fromError(caught, 'Could not create the task.');
     } finally {
       setBusy(false);
     }
@@ -126,17 +167,29 @@ export default function BacklogPage() {
             placeholder="Title or description"
           />
         </label>
+        <label>
+          <span>Project</span>
+          <Select value={projectFilter} onChange={(event) => setProjectFilter(event.target.value)}>
+            <option value="">All projects</option>
+            {projects.map((proj) => (
+              <option value={proj.id} key={proj.id}>
+                {proj.key ? `[${proj.key}] ` : ''}
+                {proj.name}
+              </option>
+            ))}
+          </Select>
+        </label>
       </section>
-
-      {error ? (
-        <p className="form-error inline-alert" role="alert">
-          {error}
-        </p>
-      ) : null}
 
       {!board ? (
         <div className="board-loading">
-          <span className="spinner" /> Loading backlog…
+          {loadFailed ? (
+            <p className="empty-copy">The backlog could not be loaded.</p>
+          ) : (
+            <>
+              <span className="spinner" /> Loading backlog…
+            </>
+          )}
         </div>
       ) : (
         <section className="backlog-list" aria-label="Backlog tasks">
@@ -157,87 +210,99 @@ export default function BacklogPage() {
             if (!open) setCreateOpen(false);
           }}
         >
-            <header>
-              <p className="section-label">New work</p>
-              <h2 id="backlog-new-task-title">Create a backlog task</h2>
-            </header>
-            <form onSubmit={createTask}>
-              <label>
-                Title
-                <Input
-                  autoFocus
-                  required
-                  maxLength={240}
-                  value={title}
-                  onChange={(event) => setTitle(event.target.value)}
-                />
-              </label>
-              <label>
-                Description <small>Optional, plain text or Markdown</small>
-                <Textarea
-                  rows={4}
-                  maxLength={50000}
-                  value={description}
-                  onChange={(event) => setDescription(event.target.value)}
-                />
-              </label>
-              <label>
-                {board.settings.estimateMode === 'TIME' ? 'Hours' : 'Points'}
-                <Input
-                  min={1}
-                  max={board.settings.estimateMode === 'TIME' ? 8760 : 10000}
-                  type="number"
-                  value={estimate}
-                  onChange={(event) => setEstimate(event.target.value)}
-                  placeholder="Optional"
-                />
-              </label>
-              <label>
-                Sprint <small>Optional — planned or active</small>
-                <Select value={sprintId} onChange={(event) => setSprintId(event.target.value)}>
-                  <option value="">No sprint</option>
-                  {sprintOptions.map((sprint) => (
-                    <option value={sprint.id} key={sprint.id}>
-                      {sprint.name}
-                      {sprint.status === 'ACTIVE' ? ' (active)' : ''}
-                    </option>
-                  ))}
-                </Select>
-              </label>
-              <fieldset className="assignee-picker">
-                <legend>Assignees</legend>
-                {users.map((member) => (
-                  <label key={member.id}>
-                    <Checkbox
-                      checked={assigneeIds.includes(member.id)}
-                      onChange={(event) =>
-                        setAssigneeIds(
-                          event.target.checked
-                            ? [...assigneeIds, member.id]
-                            : assigneeIds.filter((id) => id !== member.id),
-                        )
-                      }
-                    />
-                    <Avatar
-                      hasAvatar={member.hasAvatar}
-                      name={member.displayName}
-                      size={26}
-                      userId={member.id}
-                    />
-                    <span>{member.displayName}</span>
-                  </label>
+          <header>
+            <p className="section-label">New work</p>
+            <h2 id="backlog-new-task-title">Create a backlog task</h2>
+          </header>
+          <form onSubmit={createTask}>
+            <label>
+              Title
+              <Input
+                autoFocus
+                required
+                maxLength={240}
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+              />
+            </label>
+            <label>
+              Project <small>Optional</small>
+              <Select value={projectId} onChange={(event) => setProjectId(event.target.value)}>
+                <option value="">No project</option>
+                {projects.map((proj) => (
+                  <option value={proj.id} key={proj.id}>
+                    {proj.key ? `[${proj.key}] ` : ''}
+                    {proj.name}
+                  </option>
                 ))}
-                {!users.length ? <p className="muted">No active members.</p> : null}
-              </fieldset>
-              <footer>
-                <Button variant="ghost" type="button" onClick={() => setCreateOpen(false)}>
-                  Cancel
-                </Button>
-                <Button variant="primary" disabled={busy} type="submit">
-                  {busy ? 'Creating…' : 'Create task'}
-                </Button>
-              </footer>
-            </form>
+              </Select>
+            </label>
+            <label>
+              Description <small>Optional, plain text or Markdown</small>
+              <Textarea
+                rows={4}
+                maxLength={50000}
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+              />
+            </label>
+            <label>
+              {board.settings.estimateMode === 'TIME' ? 'Hours' : 'Points'}
+              <Input
+                min={1}
+                max={board.settings.estimateMode === 'TIME' ? 8760 : 10000}
+                type="number"
+                value={estimate}
+                onChange={(event) => setEstimate(event.target.value)}
+                placeholder="Optional"
+              />
+            </label>
+            <label>
+              Sprint <small>Optional — planned or active</small>
+              <Select value={sprintId} onChange={(event) => setSprintId(event.target.value)}>
+                <option value="">No sprint</option>
+                {sprintOptions.map((sprint) => (
+                  <option value={sprint.id} key={sprint.id}>
+                    {sprint.name}
+                    {sprint.status === 'ACTIVE' ? ' (active)' : ''}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            <fieldset className="assignee-picker">
+              <legend>Assignees</legend>
+              {users.map((member) => (
+                <label key={member.id}>
+                  <Checkbox
+                    checked={assigneeIds.includes(member.id)}
+                    onChange={(event) =>
+                      setAssigneeIds(
+                        event.target.checked
+                          ? [...assigneeIds, member.id]
+                          : assigneeIds.filter((id) => id !== member.id),
+                      )
+                    }
+                  />
+                  <Avatar
+                    hasAvatar={member.hasAvatar}
+                    name={member.displayName}
+                    size={26}
+                    userId={member.id}
+                  />
+                  <span>{member.displayName}</span>
+                </label>
+              ))}
+              {!users.length ? <p className="muted">No active members.</p> : null}
+            </fieldset>
+            <footer>
+              <Button variant="ghost" type="button" onClick={() => setCreateOpen(false)}>
+                Cancel
+              </Button>
+              <Button variant="primary" disabled={busy} type="submit">
+                {busy ? 'Creating…' : 'Create task'}
+              </Button>
+            </footer>
+          </form>
         </Modal>
       ) : null}
     </div>
@@ -249,7 +314,21 @@ function BacklogTaskRow({ task }: { task: TaskCard }) {
   return (
     <article className="backlog-task">
       <Link href={`/tasks/${task.id}`} className="backlog-task-main">
-        <h2>{task.title}</h2>
+        <div className="task-title-group">
+          {task.project && (
+            <span
+              className="task-project-pill"
+              style={{
+                backgroundColor: `${task.project.color || '#2563EB'}20`,
+                color: task.project.color || '#2563EB',
+                borderColor: `${task.project.color || '#2563EB'}40`,
+              }}
+            >
+              {task.project.key ? task.project.key : task.project.name}
+            </span>
+          )}
+          <h2>{task.title}</h2>
+        </div>
         <p className={task.description ? undefined : 'is-empty'}>{task.description || '\u00A0'}</p>
         <div className="task-card-facts">
           {task.estimateValue ? (

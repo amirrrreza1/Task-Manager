@@ -1,10 +1,16 @@
-import { IsOptional, IsUUID } from 'class-validator';
+import { IsOptional, ValidateIf } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { IsUuidLike } from '../../common/validators/is-uuid-like';
 
 export class MemberReportQueryDto {
   /** Filter to a specific sprint; omit for all-time totals. */
   @ApiPropertyOptional()
   @IsOptional()
-  @IsUUID()
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined,
+  )
+  @ValidateIf((o) => typeof o.sprintId === 'string' && o.sprintId.length > 0)
+  @IsUuidLike()
   sprintId?: string;
 }

@@ -25,10 +25,14 @@ interface UploadedFile {
 
 const AVATAR_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
 
+import { NotificationsService } from '../notifications/notifications.service';
+
 const userSelect = {
   id: true,
   username: true,
   displayName: true,
+  email: true,
+  telegramUsername: true,
   role: true,
   hasAvatar: true,
   isActive: true,
@@ -45,6 +49,7 @@ export class UsersService {
     private readonly prisma: PrismaService,
     private readonly passwords: PasswordService,
     private readonly storage: LocalFileStorage,
+    private readonly notifications: NotificationsService,
     config: ConfigService,
   ) {
     this.maximumAvatarBytes = Math.min(
@@ -71,6 +76,14 @@ export class UsersService {
   async create(input: CreateUserDto, actorId: string) {
     const username = input.username.trim().toLowerCase();
     await this.assertUsernameAvailable(username);
+
+    const email = input.email?.trim().toLowerCase() || null;
+    if (email) {
+      await this.assertEmailAvailable(email);
+    }
+
+    const telegramUsername = input.telegramUsername?.trim().replace(/^@+/, '') || null;
+
     const id = crypto.randomUUID();
     return this.prisma.$transaction(async (transaction) => {
       const user = await transaction.user.create({
@@ -78,6 +91,8 @@ export class UsersService {
           id,
           username,
           displayName: input.displayName.trim(),
+          email,
+          telegramUsername,
           passwordHash: await this.passwords.hash(input.password),
         },
         select: userSelect,
@@ -106,12 +121,24 @@ export class UsersService {
     if (username && username !== existing.username)
       await this.assertUsernameAvailable(username, id);
 
+    const email = input.email !== undefined ? input.email?.trim().toLowerCase() || null : undefined;
+    if (email && email !== existing.email) {
+      await this.assertEmailAvailable(email, id);
+    }
+
+    const telegramUsername =
+      input.telegramUsername !== undefined
+        ? input.telegramUsername?.trim().replace(/^@+/, '') || null
+        : undefined;
+
     return this.prisma.$transaction(async (transaction) => {
       const user = await transaction.user.update({
         where: { id },
         data: {
           ...(username ? { username } : {}),
           ...(input.displayName !== undefined ? { displayName: input.displayName.trim() } : {}),
+          ...(email !== undefined ? { email } : {}),
+          ...(telegramUsername !== undefined ? { telegramUsername } : {}),
           ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
         },
         select: userSelect,
@@ -165,6 +192,19 @@ export class UsersService {
         },
       }),
     ]);
+
+    // Dispatch security notification
+    void this.notifications.dispatch({
+      recipientUserIds: [id],
+      actorId,
+      type: 'user.password_reset',
+      title: '🔐 Password Reset by Administrator',
+      message: 'Your Task Manager password was reset by an administrator.',
+      lines: [
+        'Your password has been updated by an administrator.',
+        'If you did not request this change, please contact your workspace administrator immediately.',
+      ],
+    });
   }
 
   async uploadAvatar(id: string, file: UploadedFile | undefined, actorId: string) {
@@ -285,5 +325,15 @@ export class UsersService {
       },
     });
     if (existing) throw new ConflictException('That username is already in use.');
+  }
+
+  private async assertEmailAvailable(email: string, excludedId?: string) {
+    const existing = await this.prisma.user.findFirst({
+      where: {
+        email: { equals: email, mode: 'insensitive' },
+        ...(excludedId ? { id: { not: excludedId } } : {}),
+      },
+    });
+    if (existing) throw new ConflictException('That email address is already in use.');
   }
 }

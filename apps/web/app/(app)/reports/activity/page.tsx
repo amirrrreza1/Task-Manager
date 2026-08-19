@@ -13,6 +13,7 @@ import {
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../../../components/auth-provider';
+import { useToast } from '../../../../components/toast-provider';
 import { formatDateTime } from '../../../../lib/app-config';
 import { Avatar } from '../../../../components/avatar';
 import type { ActivityEventItem, ManagedUser } from '../../../../lib/types';
@@ -46,6 +47,7 @@ function entityTypeLabel(et: string) {
 
 export default function ActivityLogPage() {
   const { request, user } = useAuth();
+  const toast = useToast();
   const [items, setItems] = useState<ActivityEventItem[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [filters, setFilters] = useState<Filters>(emptyFilters);
@@ -53,11 +55,12 @@ export default function ActivityLogPage() {
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState('');
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    void request<ManagedUser[]>('/users').then(setUsers).catch(() => {});
+    void request<ManagedUser[]>('/users')
+      .then(setUsers)
+      .catch(() => {});
   }, [request]);
 
   const load = useCallback(
@@ -87,19 +90,18 @@ export default function ActivityLogPage() {
   const reload = useCallback(
     async (f: Filters) => {
       setLoading(true);
-      setError('');
       try {
         const data = await load(null, f);
         if (!data) return;
         setItems(data.items);
         setNextCursor(data.nextCursor);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Could not load activity log.');
+        toast.fromError(err, 'Could not load activity log.');
       } finally {
         setLoading(false);
       }
     },
-    [load],
+    [load, toast],
   );
 
   useEffect(() => {
@@ -115,7 +117,7 @@ export default function ActivityLogPage() {
       setItems((prev) => [...prev, ...data.items]);
       setNextCursor(data.nextCursor);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not load more.');
+      toast.fromError(err, 'Could not load more.');
     } finally {
       setLoadingMore(false);
     }
@@ -133,7 +135,7 @@ export default function ActivityLogPage() {
   if (user?.role !== 'ADMIN') {
     return (
       <div className="page-stack">
-        <p className="form-error inline-alert">This page is restricted to administrators.</p>
+        <p className="muted">This page is restricted to administrators.</p>
       </div>
     );
   }
@@ -144,14 +146,19 @@ export default function ActivityLogPage() {
         <div>
           <p className="eyebrow">Admin · Reports</p>
           <h1>Activity log</h1>
-          <p className="muted">Every state change across tasks, sprints, board, users, and settings.</p>
+          <p className="muted">
+            Every state change across tasks, sprints, board, users, and settings.
+          </p>
         </div>
       </header>
 
       <section className="board-filters" aria-label="Activity log filters">
         <label>
           <span>Actor</span>
-          <Select value={filters.actorId} onChange={(e) => setFilters({ ...filters, actorId: e.target.value })}>
+          <Select
+            value={filters.actorId}
+            onChange={(e) => setFilters({ ...filters, actorId: e.target.value })}
+          >
             <option value="">Everyone</option>
             {users.map((u) => (
               <option key={u.id} value={u.id}>
@@ -162,7 +169,10 @@ export default function ActivityLogPage() {
         </label>
         <label>
           <span>Entity type</span>
-          <Select value={filters.entityType} onChange={(e) => setFilters({ ...filters, entityType: e.target.value })}>
+          <Select
+            value={filters.entityType}
+            onChange={(e) => setFilters({ ...filters, entityType: e.target.value })}
+          >
             <option value="">All types</option>
             {ENTITY_TYPES.map((et) => (
               <option key={et} value={et}>
@@ -173,11 +183,19 @@ export default function ActivityLogPage() {
         </label>
         <label>
           <span>From</span>
-          <CalendarDateInput aria-label="From date" value={filters.from} onChange={(e) => setFilters({ ...filters, from: e.target.value })} />
+          <CalendarDateInput
+            aria-label="From date"
+            value={filters.from}
+            onChange={(e) => setFilters({ ...filters, from: e.target.value })}
+          />
         </label>
         <label>
           <span>To</span>
-          <CalendarDateInput aria-label="To date" value={filters.to} onChange={(e) => setFilters({ ...filters, to: e.target.value })} />
+          <CalendarDateInput
+            aria-label="To date"
+            value={filters.to}
+            onChange={(e) => setFilters({ ...filters, to: e.target.value })}
+          />
         </label>
         <Button variant="primary" size="sm" type="button" onClick={applyFilters}>
           Apply
@@ -187,18 +205,14 @@ export default function ActivityLogPage() {
         </Button>
       </section>
 
-      {error && (
-        <p className="form-error inline-alert" role="alert">
-          {error}
-        </p>
-      )}
-
       {loading ? (
         <div className="board-loading">
           <span className="spinner" /> Loading…
         </div>
       ) : items.length === 0 ? (
-        <p className="muted" style={{ padding: '2rem 0' }}>No activity events match the current filters.</p>
+        <p className="muted" style={{ padding: '2rem 0' }}>
+          No activity events match the current filters.
+        </p>
       ) : (
         <>
           <div className="report-table-wrap" role="region" aria-label="Activity log">
@@ -239,7 +253,9 @@ export default function ActivityLogPage() {
                     <TableCell>
                       <span className="tag">{entityTypeLabel(ev.entityType)}</span>
                     </TableCell>
-                    <TableCell>{ev.entityLabel ?? <span className="muted">{ev.entityId.slice(0, 8)}…</span>}</TableCell>
+                    <TableCell>
+                      {ev.entityLabel ?? <span className="muted">{ev.entityId.slice(0, 8)}…</span>}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

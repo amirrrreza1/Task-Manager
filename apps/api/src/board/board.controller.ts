@@ -43,8 +43,8 @@ export class BoardController {
   }
 
   @Get('board-columns')
-  columns() {
-    return this.board.listColumns();
+  columns(@Query('workspaceId') workspaceId?: string) {
+    return this.board.listColumns(workspaceId);
   }
 
   @Post('board-columns')

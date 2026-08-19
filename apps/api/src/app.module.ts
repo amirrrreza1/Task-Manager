@@ -15,7 +15,12 @@ import { TasksModule } from './tasks/tasks.module';
 import { AttachmentsModule } from './attachments/attachments.module';
 import { StorageModule } from './infrastructure/storage/storage.module';
 import { SprintsModule } from './sprints/sprints.module';
+import { MailModule } from './infrastructure/mail/mail.module';
+import { TelegramModule } from './infrastructure/telegram/telegram.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { ReportsModule } from './reports/reports.module';
+import { WorkspacesModule } from './workspaces/workspaces.module';
+import { ProjectsModule } from './projects/projects.module';
 
 @Module({
   imports: [
@@ -26,8 +31,13 @@ import { ReportsModule } from './reports/reports.module';
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
     PrismaModule,
     StorageModule,
+    MailModule,
+    TelegramModule,
+    NotificationsModule,
     AuthModule,
     UsersModule,
+    WorkspacesModule,
+    ProjectsModule,
     SettingsModule,
     BoardModule,
     TasksModule,

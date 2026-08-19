@@ -29,7 +29,9 @@ export function backlogBoard(board: BoardResponse): BoardResponse {
   return { ...board, columns };
 }
 
-export function primaryBacklogColumn(board: BoardResponse): BoardResponse['columns'][number] | null {
+export function primaryBacklogColumn(
+  board: BoardResponse,
+): BoardResponse['columns'][number] | null {
   const columns = backlogBoard(board).columns;
   return columns[0] ?? null;
 }

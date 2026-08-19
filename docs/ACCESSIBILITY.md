@@ -14,16 +14,16 @@ unit coverage for sprint planning rules.
 
 ## Checklist (WCAG-oriented)
 
-| Area | Expectation | v0.4 result |
-| ---- | ----------- | ----------- |
-| Focus order | Logical tab order in forms, modals, and navigation | Pass — modals trap focus via native controls; primary nav is a single landmark |
-| Labels | Inputs tied to visible labels or `aria-label` | Pass — sprint comment textarea, board filters, and task forms use labels |
-| Dialogs | `role="dialog"`, `aria-modal`, titled via `aria-labelledby` | Pass — create task, sprint planner, and board modals |
-| Keyboard | Board/subtask DnD exposes keyboard coordinate getter | Pass — `@dnd-kit` keyboard sensor configured on board and subtasks |
-| Motion | No essential information conveyed by motion alone | Pass — status markers duplicate color/state |
-| Errors | Failures surfaced in `role="alert"` regions | Pass — inline alerts on board, backlog, sprints, and task pages |
-| Touch | Primary actions reachable without precise drag | Pass — task detail column select and links supplement drag-only board moves |
-| Color | Status uses text/marker in addition to color dots | Pass — done/open markers and column names |
+| Area        | Expectation                                                 | v0.4 result                                                                    |
+| ----------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Focus order | Logical tab order in forms, modals, and navigation          | Pass — modals trap focus via native controls; primary nav is a single landmark |
+| Labels      | Inputs tied to visible labels or `aria-label`               | Pass — sprint comment textarea, board filters, and task forms use labels       |
+| Dialogs     | `role="dialog"`, `aria-modal`, titled via `aria-labelledby` | Pass — create task, sprint planner, and board modals                           |
+| Keyboard    | Board/subtask DnD exposes keyboard coordinate getter        | Pass — `@dnd-kit` keyboard sensor configured on board and subtasks             |
+| Motion      | No essential information conveyed by motion alone           | Pass — status markers duplicate color/state                                    |
+| Errors      | Failures surfaced in `role="alert"` regions                 | Pass — inline alerts on board, backlog, sprints, and task pages                |
+| Touch       | Primary actions reachable without precise drag              | Pass — task detail column select and links supplement drag-only board moves    |
+| Color       | Status uses text/marker in addition to color dots           | Pass — done/open markers and column names                                      |
 
 ## Known limitations (tracked for v1.0)
 

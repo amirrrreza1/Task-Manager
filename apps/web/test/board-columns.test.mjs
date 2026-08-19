@@ -1,10 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import {
-  backlogBoard,
-  isBacklogColumn,
-  workflowBoard,
-} from '../lib/board-columns.ts';
+import { backlogBoard, isBacklogColumn, workflowBoard } from '../lib/board-columns.ts';
 
 describe('isBacklogColumn', () => {
   const columns = [
@@ -18,10 +14,7 @@ describe('isBacklogColumn', () => {
   });
 
   it('falls back to the leftmost column', () => {
-    const legacy = [
-      { position: 0 },
-      { position: 1 },
-    ];
+    const legacy = [{ position: 0 }, { position: 1 }];
     assert.equal(isBacklogColumn(legacy[0], legacy), true);
     assert.equal(isBacklogColumn(legacy[1], legacy), false);
   });

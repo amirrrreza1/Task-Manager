@@ -9,9 +9,9 @@ export function isBacklogColumn(
   return column.position === minPosition;
 }
 
-export function pickBacklogColumnId<T extends { id: string; isBacklog?: boolean; position: number }>(
-  columns: T[],
-): string | null {
+export function pickBacklogColumnId<
+  T extends { id: string; isBacklog?: boolean; position: number },
+>(columns: T[]): string | null {
   if (!columns.length) return null;
   const marked = columns.find((column) => column.isBacklog === true);
   if (marked) return marked.id;
@@ -19,7 +19,13 @@ export function pickBacklogColumnId<T extends { id: string; isBacklog?: boolean;
 }
 
 export function pickTodoColumnId<
-  T extends { id: string; isBacklog?: boolean; isTodo?: boolean; isDone?: boolean; position: number },
+  T extends {
+    id: string;
+    isBacklog?: boolean;
+    isTodo?: boolean;
+    isDone?: boolean;
+    position: number;
+  },
 >(columns: T[]): string | null {
   if (!columns.length) return null;
   const marked = columns.find((column) => column.isTodo === true);

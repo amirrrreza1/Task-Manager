@@ -1,18 +1,19 @@
-import { ArrayUnique, IsArray, IsOptional, IsUUID } from 'class-validator';
+import { ArrayUnique, IsArray, IsOptional } from 'class-validator';
+import { IsUuidLike } from '../../common/validators/is-uuid-like';
 
 export class CarryOverDto {
-  @IsUUID()
+  @IsUuidLike()
   targetSprintId!: string;
 
   @IsOptional()
   @IsArray()
   @ArrayUnique()
-  @IsUUID('4', { each: true })
+  @IsUuidLike({ message: 'Each task ID must be a UUID' })
   taskIds?: string[];
 
   @IsOptional()
   @IsArray()
   @ArrayUnique()
-  @IsUUID('4', { each: true })
+  @IsUuidLike({ message: 'Each subtask ID must be a UUID' })
   subtaskIds?: string[];
 }

@@ -44,7 +44,8 @@ const solarPartsFormatter = new Intl.DateTimeFormat(solarPartsLocale, {
 /** Returns the Persian-calendar date while keeping the app's stored ISO date intact. */
 export function getSolarDateParts(value: string | Date): SolarDateParts {
   const parts = solarPartsFormatter.formatToParts(asDate(value));
-  const part = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((item) => item.type === type)?.value);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((item) => item.type === type)?.value);
 
   return { day: part('day'), month: part('month'), year: part('year') };
 }

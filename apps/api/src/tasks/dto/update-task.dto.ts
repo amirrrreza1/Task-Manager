@@ -1,15 +1,16 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayUnique,
   IsArray,
   IsOptional,
   IsString,
-  IsUUID,
   MaxLength,
   MinLength,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import { EstimateDto } from '../../common/dto/estimate.dto';
+import { IsUuidLike } from '../../common/validators/is-uuid-like';
 
 export class UpdateTaskDto {
   @IsOptional()
@@ -24,8 +25,20 @@ export class UpdateTaskDto {
   description?: string | null;
 
   @IsOptional()
-  @IsUUID()
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim().length > 0 ? value.trim() : null,
+  )
+  @ValidateIf((o) => typeof o.sprintId === 'string' && o.sprintId.length > 0)
+  @IsUuidLike()
   sprintId?: string | null;
+
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim().length > 0 ? value.trim() : null,
+  )
+  @ValidateIf((o) => typeof o.projectId === 'string' && o.projectId.length > 0)
+  @IsUuidLike()
+  projectId?: string | null;
 
   @IsOptional()
   @ValidateNested()
@@ -35,6 +48,6 @@ export class UpdateTaskDto {
   @IsOptional()
   @IsArray()
   @ArrayUnique()
-  @IsUUID('4', { each: true })
+  @IsUuidLike({ message: 'Each assignee ID must be a UUID' })
   assigneeIds?: string[];
 }

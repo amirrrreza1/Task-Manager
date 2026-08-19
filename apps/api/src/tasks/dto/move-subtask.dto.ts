@@ -1,7 +1,8 @@
-import { IsDateString, IsUUID } from 'class-validator';
+import { IsDateString } from 'class-validator';
+import { IsUuidLike } from '../../common/validators/is-uuid-like';
 
 export class MoveSubtaskDto {
-  @IsUUID()
+  @IsUuidLike()
   columnId!: string;
 
   @IsDateString()

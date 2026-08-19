@@ -141,13 +141,11 @@ function Select({
       disabled={disabled}
       items={items}
       onValueChange={(nextValue) => {
-        const next = Array.isArray(nextValue) ? nextValue[0] ?? '' : nextValue ?? '';
-        onChange?.(
-          {
-            currentTarget: { value: next },
-            target: { value: next },
-          } as ChangeEvent<HTMLSelectElement>,
-        );
+        const next = Array.isArray(nextValue) ? (nextValue[0] ?? '') : (nextValue ?? '');
+        onChange?.({
+          currentTarget: { value: next },
+          target: { value: next },
+        } as ChangeEvent<HTMLSelectElement>);
       }}
       value={resolvedValue}
     >
@@ -167,7 +165,10 @@ function Select({
   );
 }
 
-type ModalProps = Omit<ComponentProps<typeof DialogContent>, 'children' | 'className' | 'closeButton' | 'closeLabel'> & {
+type ModalProps = Omit<
+  ComponentProps<typeof DialogContent>,
+  'children' | 'className' | 'closeButton' | 'closeLabel'
+> & {
   children: ReactNode;
   className?: string;
   labelledBy?: string;

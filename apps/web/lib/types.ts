@@ -4,6 +4,8 @@ export interface CurrentUser {
   id: string;
   username: string;
   displayName: string;
+  email?: string | null;
+  telegramUsername?: string | null;
   role: UserRole;
   hasAvatar: boolean;
   isBootstrapAdmin: boolean;
@@ -13,6 +15,72 @@ export interface ManagedUser extends CurrentUser {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface NotificationItem {
+  id: string;
+  userId: string;
+  actorId: string | null;
+  type: string;
+  title: string;
+  message: string;
+  link: string | null;
+  isRead: boolean;
+  emailSent: boolean;
+  telegramSent: boolean;
+  createdAt: string;
+  actor?: {
+    id: string;
+    displayName: string;
+    hasAvatar: boolean;
+  } | null;
+}
+
+export interface NotificationListResponse {
+  items: NotificationItem[];
+  unreadCount: number;
+  nextCursor: string | null;
+}
+
+export interface NotificationSettings {
+  smtpHost: string;
+  smtpPort: number;
+  smtpSecure: boolean;
+  smtpUser: string;
+  smtpHasPassword: boolean;
+  smtpFromEmail: string;
+  smtpFromName: string;
+  smtpEnabled: boolean;
+  telegramHasBotToken: boolean;
+  telegramBotTokenPreview: string;
+  telegramChatId: string;
+  telegramEnabled: boolean;
+  updatedAt: string;
+}
+
+export interface Workspace {
+  id: string;
+  name: string;
+  description: string | null;
+  estimateMode: 'TIME' | 'POINTS';
+  sprintDurationDays: number;
+  createdAt: string;
+  updatedAt: string;
+  columns?: BoardColumn[];
+  projects?: Project[];
+  _count?: { tasks: number; sprints: number; columns: number };
+}
+
+export interface Project {
+  id: string;
+  workspaceId: string;
+  name: string;
+  key: string | null;
+  description: string | null;
+  color: string | null;
+  createdAt: string;
+  updatedAt: string;
+  _count?: { tasks: number };
 }
 
 export interface AppSettings {
@@ -45,6 +113,7 @@ export interface UserSummary {
 
 export interface BoardColumn {
   id: string;
+  workspaceId?: string;
   name: string;
   color: string;
   position: number;
@@ -56,6 +125,9 @@ export interface BoardColumn {
 
 export interface TaskCard {
   id: string;
+  workspaceId?: string;
+  projectId?: string | null;
+  project?: { id: string; name: string; key: string | null; color: string | null } | null;
   title: string;
   description: string | null;
   estimateValue: number | null;
@@ -225,7 +297,12 @@ export interface SprintDetail extends Omit<SprintSummary, '_count'> {
   taskSnapshots: SprintTaskSnapshot[];
   subtaskSnapshots: SprintSubtaskSnapshot[];
   comments: SprintComment[];
-  outcomes: { total: number; completed: number; incomplete: number; estimates: Record<string, number> };
+  outcomes: {
+    total: number;
+    completed: number;
+    incomplete: number;
+    estimates: Record<string, number>;
+  };
 }
 
 export interface Paginated<T> {

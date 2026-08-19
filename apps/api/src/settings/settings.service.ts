@@ -1,12 +1,34 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
+import { MailService } from '../infrastructure/mail/mail.service';
+import { TelegramService } from '../infrastructure/telegram/telegram.service';
 import type { UpdateSettingsDto } from './dto/update-settings.dto';
+import type { UpdateSmtpSettingsDto } from './dto/update-smtp-settings.dto';
+import type { UpdateTelegramSettingsDto } from './dto/update-telegram-settings.dto';
+import type { TestSmtpDto, TestTelegramDto } from './dto/test-notification-settings.dto';
 
 @Injectable()
 export class SettingsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mailService: MailService,
+    private readonly telegramService: TelegramService,
+  ) {}
 
-  get() {
+  async get(workspaceId?: string) {
+    if (workspaceId) {
+      const ws = await this.prisma.workspace.findUnique({ where: { id: workspaceId } });
+      if (ws) {
+        return {
+          id: ws.id,
+          estimateMode: ws.estimateMode,
+          sprintDurationDays: ws.sprintDurationDays,
+          revision: 1,
+          createdAt: ws.createdAt,
+          updatedAt: ws.updatedAt,
+        };
+      }
+    }
     return this.prisma.appSettings.findUniqueOrThrow({ where: { id: 'default' } });
   }
 
@@ -23,6 +45,15 @@ export class SettingsService {
       if (updated.count !== 1) {
         throw new ConflictException('Settings changed elsewhere. Reload and try again.');
       }
+      if (input.workspaceId) {
+        await transaction.workspace.updateMany({
+          where: { id: input.workspaceId },
+          data: {
+            estimateMode: input.estimateMode,
+            sprintDurationDays: input.sprintDurationDays,
+          },
+        });
+      }
       const settings = await transaction.appSettings.findUniqueOrThrow({
         where: { id: 'default' },
       });
@@ -30,17 +61,164 @@ export class SettingsService {
         data: {
           eventType: 'settings.updated',
           entityType: 'settings',
-          entityId: '00000000-0000-0000-0000-000000000000',
+          entityId: input.workspaceId ?? '00000000-0000-0000-0000-000000000000',
           actorId,
           payload: {
             version: 1,
             estimateMode: settings.estimateMode,
             sprintDurationDays: settings.sprintDurationDays,
             revision: settings.revision,
+            workspaceId: input.workspaceId ?? null,
           },
         },
       });
       return settings;
     });
+  }
+
+  async getNotificationSettings() {
+    const config = await this.prisma.notificationConfig.upsert({
+      where: { id: 'default' },
+      update: {},
+      create: { id: 'default' },
+    });
+
+    return {
+      smtpHost: config.smtpHost ?? '',
+      smtpPort: config.smtpPort ?? 587,
+      smtpSecure: config.smtpSecure,
+      smtpUser: config.smtpUser ?? '',
+      smtpHasPassword: Boolean(config.smtpPassword),
+      smtpFromEmail: config.smtpFromEmail ?? '',
+      smtpFromName: config.smtpFromName ?? '',
+      smtpEnabled: config.smtpEnabled,
+      telegramHasBotToken: Boolean(config.telegramBotToken),
+      telegramBotTokenPreview: config.telegramBotToken
+        ? config.telegramBotToken.length > 8
+          ? `${config.telegramBotToken.slice(0, 4)}••••${config.telegramBotToken.slice(-4)}`
+          : '••••••••'
+        : '',
+      telegramChatId: config.telegramChatId ?? '',
+      telegramEnabled: config.telegramEnabled,
+      updatedAt: config.updatedAt,
+    };
+  }
+
+  async updateSmtp(input: UpdateSmtpSettingsDto, actorId: string) {
+    const current = await this.prisma.notificationConfig.upsert({
+      where: { id: 'default' },
+      update: {},
+      create: { id: 'default' },
+    });
+
+    const updated = await this.prisma.notificationConfig.update({
+      where: { id: 'default' },
+      data: {
+        smtpHost: input.smtpHost !== undefined ? input.smtpHost.trim() || null : current.smtpHost,
+        smtpPort: input.smtpPort !== undefined ? input.smtpPort : current.smtpPort,
+        smtpSecure: input.smtpSecure !== undefined ? input.smtpSecure : current.smtpSecure,
+        smtpUser: input.smtpUser !== undefined ? input.smtpUser.trim() || null : current.smtpUser,
+        smtpPassword:
+          input.smtpPassword !== undefined && input.smtpPassword.trim() !== ''
+            ? input.smtpPassword
+            : current.smtpPassword,
+        smtpFromEmail:
+          input.smtpFromEmail !== undefined
+            ? input.smtpFromEmail.trim() || null
+            : current.smtpFromEmail,
+        smtpFromName:
+          input.smtpFromName !== undefined
+            ? input.smtpFromName.trim() || null
+            : current.smtpFromName,
+        smtpEnabled: input.smtpEnabled !== undefined ? input.smtpEnabled : current.smtpEnabled,
+      },
+    });
+
+    await this.prisma.activityEvent.create({
+      data: {
+        eventType: 'settings.smtp_updated',
+        entityType: 'settings',
+        entityId: 'default',
+        actorId,
+        payload: {
+          version: 1,
+          smtpHost: updated.smtpHost,
+          smtpPort: updated.smtpPort,
+          smtpEnabled: updated.smtpEnabled,
+        },
+      },
+    });
+
+    return this.getNotificationSettings();
+  }
+
+  async updateTelegram(input: UpdateTelegramSettingsDto, actorId: string) {
+    const current = await this.prisma.notificationConfig.upsert({
+      where: { id: 'default' },
+      update: {},
+      create: { id: 'default' },
+    });
+
+    const updated = await this.prisma.notificationConfig.update({
+      where: { id: 'default' },
+      data: {
+        telegramBotToken:
+          input.telegramBotToken !== undefined && input.telegramBotToken.trim() !== ''
+            ? input.telegramBotToken.trim()
+            : current.telegramBotToken,
+        telegramChatId:
+          input.telegramChatId !== undefined
+            ? input.telegramChatId.trim() || null
+            : current.telegramChatId,
+        telegramEnabled:
+          input.telegramEnabled !== undefined ? input.telegramEnabled : current.telegramEnabled,
+      },
+    });
+
+    await this.prisma.activityEvent.create({
+      data: {
+        eventType: 'settings.telegram_updated',
+        entityType: 'settings',
+        entityId: 'default',
+        actorId,
+        payload: {
+          version: 1,
+          telegramChatId: updated.telegramChatId,
+          telegramEnabled: updated.telegramEnabled,
+        },
+      },
+    });
+
+    return this.getNotificationSettings();
+  }
+
+  async testSmtp(input: TestSmtpDto, actorId: string) {
+    let targetEmail = input.targetEmail?.trim();
+    if (!targetEmail) {
+      const actor = await this.prisma.user.findUnique({ where: { id: actorId } });
+      if (actor?.email) {
+        targetEmail = actor.email;
+      }
+    }
+
+    if (!targetEmail) {
+      throw new BadRequestException(
+        'Please provide a destination email address to receive the test email.',
+      );
+    }
+
+    try {
+      return await this.mailService.testConnection(targetEmail);
+    } catch (error) {
+      throw new BadRequestException((error as Error).message);
+    }
+  }
+
+  async testTelegram(input: TestTelegramDto) {
+    try {
+      return await this.telegramService.testConnection(input.botToken, input.chatId);
+    } catch (error) {
+      throw new BadRequestException((error as Error).message);
+    }
   }
 }
