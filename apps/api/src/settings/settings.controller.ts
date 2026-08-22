@@ -7,7 +7,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { UpdateSettingsDto } from './dto/update-settings.dto';
 import { UpdateSmtpSettingsDto } from './dto/update-smtp-settings.dto';
 import { UpdateTelegramSettingsDto } from './dto/update-telegram-settings.dto';
-import { TestSmtpDto, TestTelegramDto } from './dto/test-notification-settings.dto';
+import { TestSmtpDto } from './dto/test-notification-settings.dto';
 import { SettingsService } from './settings.service';
 
 @ApiTags('settings')
@@ -56,7 +56,7 @@ export class SettingsController {
 
   @Post('notifications/telegram/test')
   @Roles(UserRole.ADMIN)
-  testTelegram(@Body() input: TestTelegramDto) {
-    return this.settings.testTelegram(input);
+  testTelegram() {
+    return this.settings.testTelegram();
   }
 }

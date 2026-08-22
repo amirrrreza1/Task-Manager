@@ -103,6 +103,143 @@ describe('NotificationsService', () => {
     assert.deepEqual(telegramSent[0].mentions, ['@user_two']);
   });
 
+  test('dispatch skips telegram when sendTelegram is false', async () => {
+    const createdNotifications = [];
+    const emailsSent = [];
+    const telegramSent = [];
+
+    const mockPrisma = {
+      user: {
+        findMany: async () => [
+          {
+            id: 'user-2',
+            email: 'user2@example.com',
+            telegramUsername: 'user_two',
+            displayName: 'User Two',
+          },
+        ],
+        findUnique: async () => ({ displayName: 'Actor One' }),
+      },
+      notification: {
+        create: async ({ data }) => {
+          const rec = { id: 'notif-1', ...data, emailSent: false, telegramSent: false };
+          createdNotifications.push(rec);
+          return rec;
+        },
+        update: async ({ where, data }) => {
+          const matched = createdNotifications.find((n) => n.id === where.id);
+          if (matched) Object.assign(matched, data);
+          return matched;
+        },
+        updateMany: async ({ data }) => {
+          createdNotifications.forEach((n) => Object.assign(n, data));
+          return { count: createdNotifications.length };
+        },
+      },
+      $transaction: async (promises) => Promise.all(promises),
+    };
+
+    const mockMail = {
+      sendNotification: async (opts) => {
+        emailsSent.push(opts);
+        return true;
+      },
+    };
+
+    const mockTelegram = {
+      sendNotification: async (opts) => {
+        telegramSent.push(opts);
+        return true;
+      },
+    };
+
+    const service = new NotificationsService(mockPrisma, mockMail, mockTelegram);
+
+    await service.dispatch({
+      recipientUserIds: ['user-2'],
+      actorId: 'user-1',
+      type: 'task.status_changed',
+      title: 'Task Moved: Feature A → In Progress',
+      message: 'Feature A was moved to In Progress.',
+      sendTelegram: false,
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    assert.equal(createdNotifications.length, 1);
+    assert.equal(emailsSent.length, 1);
+    assert.equal(telegramSent.length, 0);
+  });
+
+  test('dispatch skips email and telegram when both channel flags are false', async () => {
+    const createdNotifications = [];
+    const emailsSent = [];
+    const telegramSent = [];
+
+    const mockPrisma = {
+      user: {
+        findMany: async () => [
+          {
+            id: 'user-2',
+            email: 'user2@example.com',
+            telegramUsername: 'user_two',
+            displayName: 'User Two',
+          },
+        ],
+        findUnique: async () => ({ displayName: 'Actor One' }),
+      },
+      notification: {
+        create: async ({ data }) => {
+          const rec = { id: 'notif-1', ...data, emailSent: false, telegramSent: false };
+          createdNotifications.push(rec);
+          return rec;
+        },
+        update: async ({ where, data }) => {
+          const matched = createdNotifications.find((n) => n.id === where.id);
+          if (matched) Object.assign(matched, data);
+          return matched;
+        },
+        updateMany: async ({ data }) => {
+          createdNotifications.forEach((n) => Object.assign(n, data));
+          return { count: createdNotifications.length };
+        },
+      },
+      $transaction: async (promises) => Promise.all(promises),
+    };
+
+    const mockMail = {
+      sendNotification: async (opts) => {
+        emailsSent.push(opts);
+        return true;
+      },
+    };
+
+    const mockTelegram = {
+      sendNotification: async (opts) => {
+        telegramSent.push(opts);
+        return true;
+      },
+    };
+
+    const service = new NotificationsService(mockPrisma, mockMail, mockTelegram);
+
+    await service.dispatch({
+      recipientUserIds: ['user-2'],
+      actorId: 'user-1',
+      type: 'task.status_changed',
+      title: 'Task Moved: Feature A → In Progress',
+      message: 'Feature A was moved to In Progress.',
+      sendEmail: false,
+      sendTelegram: false,
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    assert.equal(createdNotifications.length, 1);
+    assert.equal(emailsSent.length, 0);
+    assert.equal(telegramSent.length, 0);
+  });
+
   test('list returns paginated records and unread count', async () => {
     const mockPrisma = {
       notification: {

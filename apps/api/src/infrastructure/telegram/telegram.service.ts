@@ -1,5 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  isTelegramConfigured,
+  readTelegramEnv,
+  type TelegramRuntimeConfig,
+} from '../config/notification-env';
 
 export interface SendTelegramOptions {
   title: string;
@@ -15,34 +20,61 @@ export class TelegramService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async getConfig() {
-    return this.prisma.notificationConfig.upsert({
-      where: { id: 'default' },
-      update: {},
-      create: { id: 'default' },
-    });
+  private getEnvConfig(): TelegramRuntimeConfig {
+    return readTelegramEnv();
   }
 
   private sanitizeHtml(text: string): string {
     return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
-  async testConnection(
-    customBotToken?: string,
-    customChatId?: string,
-  ): Promise<{ success: boolean; message: string }> {
-    const config = await this.getConfig();
-    const botToken = customBotToken || config.telegramBotToken;
-    const chatId = customChatId || config.telegramChatId;
+  private sanitizeHtmlAttribute(text: string): string {
+    return this.sanitizeHtml(text).replace(/"/g, '&quot;');
+  }
+
+  private isTelegramUrlButtonAllowed(url: string): boolean {
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+      const host = parsed.hostname.toLowerCase();
+      if (
+        host === 'localhost' ||
+        host === '127.0.0.1' ||
+        host === '::1' ||
+        host.endsWith('.localhost') ||
+        host.endsWith('.local')
+      ) {
+        return false;
+      }
+      const ipv4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+      if (ipv4) {
+        const a = Number(ipv4[1]);
+        const b = Number(ipv4[2]);
+        if (a === 10 || a === 127 || (a === 192 && b === 168) || (a === 172 && b >= 16 && b <= 31)) {
+          return false;
+        }
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async testConnection(): Promise<{ success: boolean; message: string }> {
+    const telegram = this.getEnvConfig();
+    const { botToken, chatId } = telegram;
 
     if (!botToken) {
-      throw new Error('Telegram Bot Token is not configured.');
+      throw new Error(
+        'Telegram bot token is not configured. Set TELEGRAM_BOT_TOKEN in the environment.',
+      );
     }
     if (!chatId) {
-      throw new Error('Telegram Group Chat ID is not configured.');
+      throw new Error(
+        'Telegram group chat ID is not configured. Set TELEGRAM_CHAT_ID in the environment.',
+      );
     }
 
-    // 1. Verify Bot Token with getMe
     const meRes = await fetch(`https://api.telegram.org/bot${botToken}/getMe`);
     const meData = (await meRes.json()) as {
       ok: boolean;
@@ -58,7 +90,6 @@ export class TelegramService {
       ? `@${meData.result.username}`
       : meData.result.first_name;
 
-    // 2. Send test message to Chat ID
     const testText =
       `🤖 <b>Task Manager Telegram Bot Connected!</b>\n\n` +
       `✅ Bot: <b>${this.sanitizeHtml(botName)}</b>\n` +
@@ -91,8 +122,13 @@ export class TelegramService {
 
   async sendNotification(options: SendTelegramOptions): Promise<boolean> {
     try {
-      const config = await this.getConfig();
-      if (!config.telegramEnabled || !config.telegramBotToken || !config.telegramChatId) {
+      const flags = await this.prisma.notificationConfig.upsert({
+        where: { id: 'default' },
+        update: {},
+        create: { id: 'default' },
+      });
+      const telegram = this.getEnvConfig();
+      if (!flags.telegramEnabled || !isTelegramConfigured(telegram)) {
         return false;
       }
 
@@ -104,29 +140,40 @@ export class TelegramService {
 
       if (options.mentions && options.mentions.length > 0) {
         const mentionText = options.mentions
-          .map((m) => (m.startsWith('@') ? m : `@${m}`))
+          .map((m) => {
+            const mention = m.startsWith('@') ? m : `@${m}`;
+            return this.sanitizeHtml(mention);
+          })
           .join(' ');
         message += `\n👤 <b>Assigned / Mentioned:</b> ${mentionText}\n`;
       }
 
-      if (options.actionUrl) {
-        const label = options.actionLabel || 'View in Task Manager';
-        message += `\n🔗 <a href="${options.actionUrl}">${this.sanitizeHtml(label)}</a>`;
+      const actionUrl = options.actionUrl?.trim();
+      const actionLabel = options.actionLabel || 'View in Task Manager';
+      if (actionUrl) {
+        message += `\n🔗 <a href="${this.sanitizeHtmlAttribute(actionUrl)}">${this.sanitizeHtml(actionLabel)}</a>`;
+        message += `\n<code>${this.sanitizeHtml(actionUrl)}</code>`;
       }
 
-      const response = await fetch(
-        `https://api.telegram.org/bot${config.telegramBotToken}/sendMessage`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: config.telegramChatId,
-            text: message,
-            parse_mode: 'HTML',
-            disable_web_page_preview: false,
-          }),
-        },
-      );
+      const payload: Record<string, unknown> = {
+        chat_id: telegram.chatId,
+        text: message,
+        parse_mode: 'HTML',
+        disable_web_page_preview: true,
+        link_preview_options: { is_disabled: true },
+      };
+
+      if (actionUrl && this.isTelegramUrlButtonAllowed(actionUrl)) {
+        payload.reply_markup = {
+          inline_keyboard: [[{ text: actionLabel, url: actionUrl }]],
+        };
+      }
+
+      const response = await fetch(`https://api.telegram.org/bot${telegram.botToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
 
       const data = (await response.json()) as { ok: boolean; description?: string };
       if (!data.ok) {

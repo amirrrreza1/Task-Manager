@@ -3,6 +3,7 @@ import {
   IsIn,
   IsInt,
   IsNotEmpty,
+  IsOptional,
   IsString,
   Max,
   Min,
@@ -36,6 +37,10 @@ class EnvironmentVariables {
   @IsNotEmpty()
   CORS_ORIGIN!: string;
 
+  @IsOptional()
+  @IsString()
+  APP_PUBLIC_URL?: string;
+
   @IsString()
   @IsNotEmpty()
   JWT_EXPIRES_IN = '15m';
@@ -63,6 +68,42 @@ class EnvironmentVariables {
   @Max(1024)
   @Type(() => Number)
   MAX_UPLOAD_SIZE_MB = 25;
+
+  @IsOptional()
+  @IsString()
+  SMTP_HOST?: string;
+
+  @IsOptional()
+  @IsString()
+  SMTP_PORT?: string;
+
+  @IsOptional()
+  @IsString()
+  SMTP_SECURE?: string;
+
+  @IsOptional()
+  @IsString()
+  SMTP_USER?: string;
+
+  @IsOptional()
+  @IsString()
+  SMTP_PASSWORD?: string;
+
+  @IsOptional()
+  @IsString()
+  SMTP_FROM_EMAIL?: string;
+
+  @IsOptional()
+  @IsString()
+  SMTP_FROM_NAME?: string;
+
+  @IsOptional()
+  @IsString()
+  TELEGRAM_BOT_TOKEN?: string;
+
+  @IsOptional()
+  @IsString()
+  TELEGRAM_CHAT_ID?: string;
 }
 
 export function validateEnvironment(configuration: Record<string, unknown>) {
@@ -79,5 +120,5 @@ export function validateEnvironment(configuration: Record<string, unknown>) {
     throw new Error('JWT_SECRET must contain at least 32 characters.');
   }
 
-  return validated;
+  return { ...validated };
 }

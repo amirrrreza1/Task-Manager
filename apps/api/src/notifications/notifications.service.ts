@@ -2,12 +2,14 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import { MailService } from '../infrastructure/mail/mail.service';
 import { TelegramService } from '../infrastructure/telegram/telegram.service';
+import { resolvePublicWebUrl } from '../infrastructure/config/notification-env';
 import type { DispatchNotificationDto } from './dto/create-notification.dto';
 import type { NotificationQueryDto } from './dto/notification-query.dto';
 
 const actorSummary = {
   id: true,
   displayName: true,
+  color: true,
   hasAvatar: true,
 };
 
@@ -66,14 +68,13 @@ export class NotificationsService {
         ),
       );
 
-      const actionUrl = dto.link
-        ? `${process.env.CORS_ORIGIN || 'http://localhost:3000'}${dto.link.startsWith('/') ? dto.link : `/${dto.link}`}`
-        : undefined;
+      const actionUrl = resolvePublicWebUrl(dto.link);
 
       const lines = dto.lines && dto.lines.length > 0 ? dto.lines : [dto.message];
 
       // 2. Dispatch Email Notifications via SMTP (asynchronously in background)
-      const emailRecipients = recipients.filter((r) => Boolean(r.email));
+      const emailRecipients =
+        dto.sendEmail === false ? [] : recipients.filter((r) => Boolean(r.email));
       if (emailRecipients.length > 0) {
         void Promise.allSettled(
           emailRecipients.map(async (user) => {
@@ -101,41 +102,43 @@ export class NotificationsService {
       }
 
       // 3. Dispatch Telegram Group Message with @mentions (asynchronously in background)
-      const telegramMentions: string[] = [];
-      for (const r of recipients) {
-        if (r.telegramUsername) {
-          const cleanUser = r.telegramUsername.startsWith('@')
-            ? r.telegramUsername
-            : `@${r.telegramUsername}`;
-          telegramMentions.push(cleanUser);
-        } else {
-          telegramMentions.push(r.displayName);
+      if (dto.sendTelegram !== false) {
+        const telegramMentions: string[] = [];
+        for (const r of recipients) {
+          if (r.telegramUsername) {
+            const cleanUser = r.telegramUsername.startsWith('@')
+              ? r.telegramUsername
+              : `@${r.telegramUsername}`;
+            telegramMentions.push(cleanUser);
+          } else {
+            telegramMentions.push(r.displayName);
+          }
         }
+
+        void (async () => {
+          const tgLines = [...lines];
+          if (actor) {
+            tgLines.push(`Triggered by: ${actor.displayName}`);
+          }
+
+          const telegramSent = await this.telegramService.sendNotification({
+            title: dto.title,
+            lines: tgLines,
+            mentions: telegramMentions,
+            actionUrl,
+            actionLabel: dto.actionLabel || 'View in Task Manager',
+          });
+
+          if (telegramSent) {
+            await this.prisma.notification
+              .updateMany({
+                where: { id: { in: createdNotifications.map((n) => n.id) } },
+                data: { telegramSent: true },
+              })
+              .catch(() => undefined);
+          }
+        })();
       }
-
-      void (async () => {
-        const tgLines = [...lines];
-        if (actor) {
-          tgLines.push(`Triggered by: ${actor.displayName}`);
-        }
-
-        const telegramSent = await this.telegramService.sendNotification({
-          title: dto.title,
-          lines: tgLines,
-          mentions: telegramMentions,
-          actionUrl,
-          actionLabel: dto.actionLabel || 'View in Task Manager',
-        });
-
-        if (telegramSent) {
-          await this.prisma.notification
-            .updateMany({
-              where: { id: { in: createdNotifications.map((n) => n.id) } },
-              data: { telegramSent: true },
-            })
-            .catch(() => undefined);
-        }
-      })();
     } catch (error) {
       this.logger.error(
         `Error during notification dispatch: ${(error as Error).message}`,

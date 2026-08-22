@@ -7,6 +7,7 @@ import { AccessTokenGuard } from './auth/guards/access-token.guard';
 import { RolesGuard } from './auth/guards/roles.guard';
 import { HealthModule } from './health/health.module';
 import { PrismaModule } from './infrastructure/prisma/prisma.module';
+import { resolveEnvFilePaths } from './infrastructure/config/env-files';
 import { validateEnvironment } from './infrastructure/config/environment';
 import { SettingsModule } from './settings/settings.module';
 import { UsersModule } from './users/users.module';
@@ -26,6 +27,7 @@ import { ProjectsModule } from './projects/projects.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      envFilePath: resolveEnvFilePaths(),
       validate: validateEnvironment,
     }),
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),

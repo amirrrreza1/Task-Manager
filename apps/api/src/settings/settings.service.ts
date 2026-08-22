@@ -2,10 +2,16 @@ import { BadRequestException, ConflictException, Injectable } from '@nestjs/comm
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import { MailService } from '../infrastructure/mail/mail.service';
 import { TelegramService } from '../infrastructure/telegram/telegram.service';
+import {
+  isSmtpConfigured,
+  isTelegramConfigured,
+  readSmtpEnv,
+  readTelegramEnv,
+} from '../infrastructure/config/notification-env';
 import type { UpdateSettingsDto } from './dto/update-settings.dto';
 import type { UpdateSmtpSettingsDto } from './dto/update-smtp-settings.dto';
 import type { UpdateTelegramSettingsDto } from './dto/update-telegram-settings.dto';
-import type { TestSmtpDto, TestTelegramDto } from './dto/test-notification-settings.dto';
+import type { TestSmtpDto } from './dto/test-notification-settings.dto';
 
 @Injectable()
 export class SettingsService {
@@ -77,35 +83,34 @@ export class SettingsService {
   }
 
   async getNotificationSettings() {
-    const config = await this.prisma.notificationConfig.upsert({
+    const flags = await this.prisma.notificationConfig.upsert({
       where: { id: 'default' },
       update: {},
       create: { id: 'default' },
     });
+    const smtp = readSmtpEnv();
+    const telegram = readTelegramEnv();
 
     return {
-      smtpHost: config.smtpHost ?? '',
-      smtpPort: config.smtpPort ?? 587,
-      smtpSecure: config.smtpSecure,
-      smtpUser: config.smtpUser ?? '',
-      smtpHasPassword: Boolean(config.smtpPassword),
-      smtpFromEmail: config.smtpFromEmail ?? '',
-      smtpFromName: config.smtpFromName ?? '',
-      smtpEnabled: config.smtpEnabled,
-      telegramHasBotToken: Boolean(config.telegramBotToken),
-      telegramBotTokenPreview: config.telegramBotToken
-        ? config.telegramBotToken.length > 8
-          ? `${config.telegramBotToken.slice(0, 4)}••••${config.telegramBotToken.slice(-4)}`
-          : '••••••••'
-        : '',
-      telegramChatId: config.telegramChatId ?? '',
-      telegramEnabled: config.telegramEnabled,
-      updatedAt: config.updatedAt,
+      smtpConfigured: isSmtpConfigured(smtp),
+      smtpHost: smtp.host ?? '',
+      smtpPort: smtp.port,
+      smtpSecure: smtp.secure,
+      smtpUser: smtp.user ?? '',
+      smtpHasPassword: Boolean(smtp.password),
+      smtpFromEmail: smtp.fromEmail ?? '',
+      smtpFromName: smtp.fromName ?? '',
+      smtpEnabled: flags.smtpEnabled,
+      telegramConfigured: isTelegramConfigured(telegram),
+      telegramHasBotToken: Boolean(telegram.botToken),
+      telegramHasChatId: Boolean(telegram.chatId),
+      telegramEnabled: flags.telegramEnabled,
+      updatedAt: flags.updatedAt,
     };
   }
 
   async updateSmtp(input: UpdateSmtpSettingsDto, actorId: string) {
-    const current = await this.prisma.notificationConfig.upsert({
+    await this.prisma.notificationConfig.upsert({
       where: { id: 'default' },
       update: {},
       create: { id: 'default' },
@@ -114,23 +119,7 @@ export class SettingsService {
     const updated = await this.prisma.notificationConfig.update({
       where: { id: 'default' },
       data: {
-        smtpHost: input.smtpHost !== undefined ? input.smtpHost.trim() || null : current.smtpHost,
-        smtpPort: input.smtpPort !== undefined ? input.smtpPort : current.smtpPort,
-        smtpSecure: input.smtpSecure !== undefined ? input.smtpSecure : current.smtpSecure,
-        smtpUser: input.smtpUser !== undefined ? input.smtpUser.trim() || null : current.smtpUser,
-        smtpPassword:
-          input.smtpPassword !== undefined && input.smtpPassword.trim() !== ''
-            ? input.smtpPassword
-            : current.smtpPassword,
-        smtpFromEmail:
-          input.smtpFromEmail !== undefined
-            ? input.smtpFromEmail.trim() || null
-            : current.smtpFromEmail,
-        smtpFromName:
-          input.smtpFromName !== undefined
-            ? input.smtpFromName.trim() || null
-            : current.smtpFromName,
-        smtpEnabled: input.smtpEnabled !== undefined ? input.smtpEnabled : current.smtpEnabled,
+        ...(input.smtpEnabled !== undefined ? { smtpEnabled: input.smtpEnabled } : {}),
       },
     });
 
@@ -138,12 +127,10 @@ export class SettingsService {
       data: {
         eventType: 'settings.smtp_updated',
         entityType: 'settings',
-        entityId: 'default',
+        entityId: '00000000-0000-0000-0000-000000000000',
         actorId,
         payload: {
           version: 1,
-          smtpHost: updated.smtpHost,
-          smtpPort: updated.smtpPort,
           smtpEnabled: updated.smtpEnabled,
         },
       },
@@ -153,7 +140,7 @@ export class SettingsService {
   }
 
   async updateTelegram(input: UpdateTelegramSettingsDto, actorId: string) {
-    const current = await this.prisma.notificationConfig.upsert({
+    await this.prisma.notificationConfig.upsert({
       where: { id: 'default' },
       update: {},
       create: { id: 'default' },
@@ -162,16 +149,7 @@ export class SettingsService {
     const updated = await this.prisma.notificationConfig.update({
       where: { id: 'default' },
       data: {
-        telegramBotToken:
-          input.telegramBotToken !== undefined && input.telegramBotToken.trim() !== ''
-            ? input.telegramBotToken.trim()
-            : current.telegramBotToken,
-        telegramChatId:
-          input.telegramChatId !== undefined
-            ? input.telegramChatId.trim() || null
-            : current.telegramChatId,
-        telegramEnabled:
-          input.telegramEnabled !== undefined ? input.telegramEnabled : current.telegramEnabled,
+        ...(input.telegramEnabled !== undefined ? { telegramEnabled: input.telegramEnabled } : {}),
       },
     });
 
@@ -179,11 +157,10 @@ export class SettingsService {
       data: {
         eventType: 'settings.telegram_updated',
         entityType: 'settings',
-        entityId: 'default',
+        entityId: '00000000-0000-0000-0000-000000000000',
         actorId,
         payload: {
           version: 1,
-          telegramChatId: updated.telegramChatId,
           telegramEnabled: updated.telegramEnabled,
         },
       },
@@ -214,9 +191,9 @@ export class SettingsService {
     }
   }
 
-  async testTelegram(input: TestTelegramDto) {
+  async testTelegram() {
     try {
-      return await this.telegramService.testConnection(input.botToken, input.chatId);
+      return await this.telegramService.testConnection();
     } catch (error) {
       throw new BadRequestException((error as Error).message);
     }

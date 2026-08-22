@@ -43,6 +43,7 @@ export interface NotificationListResponse {
 }
 
 export interface NotificationSettings {
+  smtpConfigured: boolean;
   smtpHost: string;
   smtpPort: number;
   smtpSecure: boolean;
@@ -51,9 +52,9 @@ export interface NotificationSettings {
   smtpFromEmail: string;
   smtpFromName: string;
   smtpEnabled: boolean;
+  telegramConfigured: boolean;
   telegramHasBotToken: boolean;
-  telegramBotTokenPreview: string;
-  telegramChatId: string;
+  telegramHasChatId: boolean;
   telegramEnabled: boolean;
   updatedAt: string;
 }
@@ -310,7 +311,7 @@ export interface Paginated<T> {
   nextCursor: string | null;
 }
 
-// ─── Reports ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Reports â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface ActivityEventItem {
   id: string;

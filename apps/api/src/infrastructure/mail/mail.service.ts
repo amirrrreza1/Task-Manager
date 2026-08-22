@@ -2,6 +2,12 @@ import { Injectable, Logger } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  isSmtpConfigured,
+  readSmtpEnv,
+  resolvePublicWebOrigin,
+  type SmtpRuntimeConfig,
+} from '../config/notification-env';
 
 export interface SendEmailOptions {
   to: string;
@@ -18,40 +24,27 @@ export class MailService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async getConfig() {
-    return this.prisma.notificationConfig.upsert({
-      where: { id: 'default' },
-      update: {},
-      create: { id: 'default' },
-    });
+  private getEnvConfig(): SmtpRuntimeConfig {
+    return readSmtpEnv();
   }
 
-  private createTransporter(config: {
-    smtpHost?: string | null;
-    smtpPort?: number | null;
-    smtpSecure?: boolean | null;
-    smtpUser?: string | null;
-    smtpPassword?: string | null;
-  }): Transporter | null {
-    if (!config.smtpHost) {
+  private createTransporter(smtp: SmtpRuntimeConfig): Transporter | null {
+    if (!smtp.host) {
       return null;
     }
 
-    const port = config.smtpPort || 587;
-    const isSecure = config.smtpSecure ?? port === 465;
-
     const transportOptions: nodemailer.TransportOptions = {
-      host: config.smtpHost,
-      port,
-      secure: isSecure,
+      host: smtp.host,
+      port: smtp.port,
+      secure: smtp.secure,
       connectionTimeout: 10000,
       greetingTimeout: 10000,
       socketTimeout: 15000,
-      ...(config.smtpUser && config.smtpPassword
+      ...(smtp.user && smtp.password
         ? {
             auth: {
-              user: config.smtpUser,
-              pass: config.smtpPassword,
+              user: smtp.user,
+              pass: smtp.password,
             },
           }
         : {}),
@@ -61,20 +54,20 @@ export class MailService {
   }
 
   async testConnection(targetEmail: string): Promise<{ success: boolean; message: string }> {
-    const config = await this.getConfig();
-    if (!config.smtpHost) {
-      throw new Error('SMTP host is not configured.');
+    const smtp = this.getEnvConfig();
+    if (!isSmtpConfigured(smtp)) {
+      throw new Error('SMTP host is not configured. Set SMTP_HOST in the environment.');
     }
 
-    const transporter = this.createTransporter(config);
+    const transporter = this.createTransporter(smtp);
     if (!transporter) {
       throw new Error('Could not create SMTP transporter.');
     }
 
     await transporter.verify();
 
-    const fromName = config.smtpFromName || 'Task Manager';
-    const fromEmail = config.smtpFromEmail || config.smtpUser || 'notifications@taskmanager.local';
+    const fromName = smtp.fromName || 'Task Manager';
+    const fromEmail = smtp.fromEmail || smtp.user || 'notifications@taskmanager.local';
 
     await transporter.sendMail({
       from: `"${fromName}" <${fromEmail}>`,
@@ -89,7 +82,7 @@ export class MailService {
           `Sent at: ${new Date().toUTCString()}`,
         ],
         actionLabel: 'Open Task Manager',
-        actionUrl: process.env.CORS_ORIGIN || 'http://localhost:3000',
+        actionUrl: resolvePublicWebOrigin(),
       }),
     });
 
@@ -101,19 +94,23 @@ export class MailService {
 
   async sendNotification(options: SendEmailOptions): Promise<boolean> {
     try {
-      const config = await this.getConfig();
-      if (!config.smtpEnabled || !config.smtpHost) {
+      const flags = await this.prisma.notificationConfig.upsert({
+        where: { id: 'default' },
+        update: {},
+        create: { id: 'default' },
+      });
+      const smtp = this.getEnvConfig();
+      if (!flags.smtpEnabled || !isSmtpConfigured(smtp)) {
         return false;
       }
 
-      const transporter = this.createTransporter(config);
+      const transporter = this.createTransporter(smtp);
       if (!transporter) {
         return false;
       }
 
-      const fromName = config.smtpFromName || 'Task Manager';
-      const fromEmail =
-        config.smtpFromEmail || config.smtpUser || 'notifications@taskmanager.local';
+      const fromName = smtp.fromName || 'Task Manager';
+      const fromEmail = smtp.fromEmail || smtp.user || 'notifications@taskmanager.local';
 
       await transporter.sendMail({
         from: `"${fromName}" <${fromEmail}>`,

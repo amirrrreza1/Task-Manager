@@ -328,20 +328,11 @@ model OutboxMessage {
 }
 
 model NotificationConfig {
-  id               String   @id @default("default") @db.VarChar(32)
-  smtpHost         String?  @db.VarChar(255)
-  smtpPort         Int      @default(587)
-  smtpSecure       Boolean  @default(false)
-  smtpUser         String?  @db.VarChar(255)
-  smtpPassword     String?  @db.Text
-  smtpFromEmail    String?  @db.VarChar(255)
-  smtpFromName     String?  @db.VarChar(255)
-  smtpEnabled      Boolean  @default(false)
-  telegramBotToken String?  @db.VarChar(255)
-  telegramChatId   String?  @db.VarChar(100)
-  telegramEnabled  Boolean  @default(false)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id              String   @id @default("default") @db.VarChar(32)
+  smtpEnabled     Boolean  @default(false)
+  telegramEnabled Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 model Notification {
