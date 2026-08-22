@@ -23,6 +23,7 @@ import { pickBacklogColumnId, pickTodoColumnId } from './task-work';
 const userSummary = {
   id: true,
   displayName: true,
+  color: true,
   hasAvatar: true,
   isActive: true,
 } satisfies Prisma.UserSelect;
@@ -31,6 +32,7 @@ const projectSelect = {
   name: true,
   key: true,
   color: true,
+  icon: true,
 } satisfies Prisma.ProjectSelect;
 const attachmentInclude = {
   uploadedBy: { select: userSummary },
@@ -147,6 +149,7 @@ export class TasksService {
           sprintId: input.sprintId ?? null,
           createdById: actorId,
           position: Number(maximum._max.position ?? 0) + 1024,
+          ...(input.priority ? { priority: input.priority } : {}),
           ...estimateData(input.estimate),
           assignees: { create: (input.assigneeIds ?? []).map((userId) => ({ userId })) },
         },
@@ -234,6 +237,7 @@ export class TasksService {
           ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
           ...(input.sprintId !== undefined ? { sprintId: input.sprintId } : {}),
           ...(todoColumnId ? { columnId: todoColumnId, position: sprintPosition } : {}),
+          ...(input.priority !== undefined ? { priority: input.priority } : {}),
           ...(input.estimate !== undefined ? estimateData(input.estimate) : {}),
         },
         include: taskDetailInclude,
@@ -376,6 +380,8 @@ export class TasksService {
         lines: [`Task "${task.title}" was moved to column "${column.name}".`],
         link: `/tasks/${task.id}`,
         actionLabel: 'View Task',
+        sendEmail: column.isDone,
+        sendTelegram: column.isDone,
       });
     }
 
@@ -427,6 +433,7 @@ export class TasksService {
           assigneeId: input.assigneeId ?? null,
           createdById: actorId,
           position: (maximum._max.position ?? -1) + 1,
+          ...(input.priority ? { priority: input.priority } : {}),
           ...estimateData(input.estimate),
         },
         include: { assignee: { select: userSummary }, attachments: { include: attachmentInclude } },
@@ -475,6 +482,7 @@ export class TasksService {
             : {}),
           ...(input.assigneeId !== undefined ? { assigneeId: input.assigneeId } : {}),
           ...(input.isCompleted !== undefined ? { isCompleted: input.isCompleted } : {}),
+          ...(input.priority !== undefined ? { priority: input.priority } : {}),
           ...(input.estimate !== undefined ? estimateData(input.estimate) : {}),
         },
         include: {
@@ -625,6 +633,7 @@ export class TasksService {
       ...(query.unassigned ? { assignees: { none: {} } } : {}),
       ...(query.hasEstimate === true ? { estimateValue: { not: null } } : {}),
       ...(query.hasEstimate === false ? { estimateValue: null } : {}),
+      ...(query.priority ? { priority: query.priority } : {}),
     };
   }
 

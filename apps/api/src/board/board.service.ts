@@ -14,13 +14,13 @@ import type { UpdateColumnDto } from './dto/update-column.dto';
 
 const taskCardInclude = {
   project: {
-    select: { id: true, name: true, key: true, color: true },
+    select: { id: true, name: true, key: true, color: true, icon: true },
   },
   assignees: {
     orderBy: { assignedAt: 'asc' },
     include: {
       user: {
-        select: { id: true, displayName: true, hasAvatar: true, isActive: true },
+        select: { id: true, displayName: true, color: true, hasAvatar: true, isActive: true },
       },
     },
   },
@@ -32,6 +32,7 @@ const taskCardInclude = {
       columnId: true,
       title: true,
       description: true,
+      priority: true,
       estimateValue: true,
       estimateUnit: true,
       isCompleted: true,
@@ -40,7 +41,7 @@ const taskCardInclude = {
       createdAt: true,
       updatedAt: true,
       assignee: {
-        select: { id: true, displayName: true, hasAvatar: true, isActive: true },
+        select: { id: true, displayName: true, color: true, hasAvatar: true, isActive: true },
       },
       _count: { select: { attachments: true } },
     },
@@ -101,6 +102,7 @@ export class BoardService {
       ...(query.unassigned ? { assignees: { none: {} } } : {}),
       ...(query.hasEstimate === true ? { estimateValue: { not: null } } : {}),
       ...(query.hasEstimate === false ? { estimateValue: null } : {}),
+      ...(query.priority ? { priority: query.priority } : {}),
     };
     const subtaskWhere: Prisma.SubtaskWhereInput = {
       task: {
@@ -128,6 +130,7 @@ export class BoardService {
       ...(query.unassigned ? { assigneeId: null } : {}),
       ...(query.hasEstimate === true ? { estimateValue: { not: null } } : {}),
       ...(query.hasEstimate === false ? { estimateValue: null } : {}),
+      ...(query.priority ? { priority: query.priority } : {}),
     };
     const columnScope: Prisma.BoardColumnWhereInput = {
       workspaceId,
@@ -151,6 +154,7 @@ export class BoardService {
           columnId: true,
           title: true,
           description: true,
+          priority: true,
           estimateValue: true,
           estimateUnit: true,
           isCompleted: true,
@@ -162,6 +166,7 @@ export class BoardService {
             select: {
               id: true,
               displayName: true,
+              color: true,
               hasAvatar: true,
               isActive: true,
             },
