@@ -60,12 +60,6 @@ function GeneralSettings() {
 
   return (
     <div className="settings-layout">
-      <header className="page-header compact-header">
-        <div>
-          <h1>Planning</h1>
-        </div>
-      </header>
-
       <form className="settings-card" onSubmit={save}>
         <section>
           <div className="setting-copy">

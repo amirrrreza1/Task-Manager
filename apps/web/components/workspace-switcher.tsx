@@ -1,43 +1,42 @@
 'use client';
 
-import { BuildingCommunity } from '@appica/icons-react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { Select } from './design-system';
 import { useAuth } from './auth-provider';
 import { useWorkspace } from './workspace-provider';
 
+const CREATE_WORKSPACE_VALUE = '__create__';
+
 export function WorkspaceSwitcher() {
+  const router = useRouter();
   const { user } = useAuth();
   const { workspaces, currentWorkspace, setCurrentWorkspaceId } = useWorkspace();
 
   if (workspaces.length === 0) return null;
 
+  const canCreate = user?.role === 'ADMIN';
+
   return (
-    <div className="workspace-switcher">
-      <div className="workspace-switcher-header">
-        <span className="workspace-switcher-label">Active Workspace</span>
-      </div>
-      <div className="workspace-switcher-control">
-        <BuildingCommunity aria-hidden="true" className="workspace-switcher-icon" />
-        <select
-          aria-label="Select active workspace"
-          className="workspace-select-input"
-          value={currentWorkspace?.id ?? ''}
-          onChange={(e) => setCurrentWorkspaceId(e.target.value)}
-        >
-          {workspaces.map((ws) => (
-            <option key={ws.id} value={ws.id}>
-              {ws.name}
-            </option>
-          ))}
-        </select>
-      </div>
-      {user?.role === 'ADMIN' && (
-        <div className="workspace-switcher-actions">
-          <Link className="workspace-manage-link" href="/settings/workspaces">
-            Manage Workspaces
-          </Link>
-        </div>
-      )}
+    <div className={canCreate ? 'workspace-select workspace-select--with-create' : 'workspace-select'}>
+      <Select
+        aria-label="Select workspace"
+        value={currentWorkspace?.id ?? ''}
+        onChange={(event) => {
+          const next = event.target.value;
+          if (next === CREATE_WORKSPACE_VALUE) {
+            router.push('/settings/workspaces?create=1');
+            return;
+          }
+          setCurrentWorkspaceId(next);
+        }}
+      >
+        {workspaces.map((ws) => (
+          <option key={ws.id} value={ws.id}>
+            {ws.name}
+          </option>
+        ))}
+        {canCreate ? <option value={CREATE_WORKSPACE_VALUE}>+ Create workspace</option> : null}
+      </Select>
     </div>
   );
 }

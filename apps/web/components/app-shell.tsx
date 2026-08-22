@@ -10,13 +10,11 @@ import {
   Checklist,
   Folder,
   LayoutKanban,
-  Logout,
   ReportAnalytics,
   Settings,
   User,
   Users,
 } from '@appica/icons-react';
-import { Badge } from '@appica/ui-react/badge';
 import { Button } from '@appica/ui-react/button';
 import {
   Navigation,
@@ -27,13 +25,12 @@ import {
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, type ComponentType, type ReactNode } from 'react';
-import { Avatar } from './avatar';
 import { useAuth } from './auth-provider';
 import { useWorkspace } from './workspace-provider';
 import { WorkspaceSwitcher } from './workspace-switcher';
-import { ThemeToggle } from './theme-toggle';
 import { NotificationBell } from './notification-bell';
-import { companyIcon, companyName } from '../lib/app-config';
+import { HeaderActionsProvider, HeaderActionsSlot } from './header-actions';
+import { ProfileMenu } from './profile-menu';
 
 type NavItem = {
   href: string;
@@ -87,7 +84,7 @@ function NavigationGroup({ items, pathname }: { items: NavItem[]; pathname: stri
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const { currentWorkspace } = useWorkspace();
   const pathname = usePathname();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -97,94 +94,64 @@ export function AppShell({ children }: { children: ReactNode }) {
     sectionNames.find((item) => pathname.startsWith(item.href))?.label ?? 'Workspace';
 
   return (
-    <div className="app-frame" data-sidebar-collapsed={sidebarCollapsed || undefined}>
-      <aside className="app-sidebar">
-        <div className="sidebar-brand-row">
-          <Link className="brand" href="/board" aria-label={`${companyName} board`}>
-            <span className="brand-mark" aria-hidden="true">
-              {/* The administrator controls this URL through .env, so it cannot use Next's fixed image allowlist. */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img alt="" src={companyIcon} />
-            </span>
-            <span className="brand-copy">
-              <strong>{companyName}</strong>
-              <small>Team workspace</small>
-            </span>
-          </Link>
-          <Button
-            aria-expanded={!sidebarCollapsed}
-            aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            className="sidebar-toggle"
-            size="icon-sm"
-            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            variant="ghost"
-            onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
-          >
-            {sidebarCollapsed ? (
-              <ArrowBarRight aria-hidden="true" />
-            ) : (
-              <ArrowBarLeft aria-hidden="true" />
-            )}
-          </Button>
-        </div>
-
-        <WorkspaceSwitcher />
-
-        <Navigation
-          aria-label="Workspace navigation"
-          className="shell-navigation"
-          orientation="vertical"
-          size="md"
-          variant="pill"
-        >
-          <span className="nav-section-label">Workspace</span>
-          <NavigationGroup items={memberNavigation} pathname={pathname} />
-          {user.role === 'ADMIN' ? (
-            <>
-              <span className="nav-section-label">Administration</span>
-              <NavigationGroup items={adminNavigation} pathname={pathname} />
-            </>
-          ) : null}
-        </Navigation>
-
-        <div className="sidebar-account">
-          <div className="account-identity">
-            <Avatar hasAvatar={user.hasAvatar} name={user.displayName} size={32} userId={user.id} />
-            <span className="account-copy">
-              <strong>{user.displayName}</strong>
-              <small>{user.role === 'ADMIN' ? 'Administrator' : 'Member'}</small>
-            </span>
+    <HeaderActionsProvider>
+      <div className="app-frame" data-sidebar-collapsed={sidebarCollapsed || undefined}>
+        <aside className="app-sidebar">
+          <div className="sidebar-brand-row">
+            <WorkspaceSwitcher />
+            <NotificationBell />
           </div>
-          <div className="account-actions">
-            <ThemeToggle />
+
+          <Navigation
+            aria-label="Workspace navigation"
+            className="shell-navigation"
+            orientation="vertical"
+            size="md"
+            variant="pill"
+          >
+            <span className="nav-section-label">Workspace</span>
+            <NavigationGroup items={memberNavigation} pathname={pathname} />
+            {user.role === 'ADMIN' ? (
+              <>
+                <span className="nav-section-label">Administration</span>
+                <NavigationGroup items={adminNavigation} pathname={pathname} />
+              </>
+            ) : null}
+          </Navigation>
+
+          <div className="sidebar-account">
+            <ProfileMenu />
             <Button
-              aria-label="Sign out"
+              aria-expanded={!sidebarCollapsed}
+              aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              className="sidebar-toggle"
               size="icon-sm"
-              title="Sign out"
+              title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
               variant="ghost"
-              onClick={() => void logout()}
+              onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
             >
-              <Logout aria-hidden="true" />
+              {sidebarCollapsed ? (
+                <ArrowBarRight aria-hidden="true" />
+              ) : (
+                <ArrowBarLeft aria-hidden="true" />
+              )}
             </Button>
           </div>
-        </div>
-      </aside>
+        </aside>
 
-      <div className="app-main">
-        <header className="app-toolbar">
-          <div>
-            <span className="toolbar-kicker">{currentWorkspace?.name ?? 'Workspace'}</span>
-            <strong>{currentSection}</strong>
-          </div>
-          <div className="toolbar-actions flex items-center gap-3">
-            <NotificationBell />
-            <Badge size="sm" variant="soft">
-              {user.role === 'ADMIN' ? 'Admin access' : 'Member access'}
-            </Badge>
-          </div>
-        </header>
-        <main className="app-content">{children}</main>
+        <div className="app-main">
+          <header className="app-toolbar">
+            <div>
+              <span className="toolbar-kicker">{currentWorkspace?.name ?? 'Workspace'}</span>
+              <strong>{currentSection}</strong>
+            </div>
+            <div className="toolbar-actions flex items-center gap-3">
+              <HeaderActionsSlot />
+            </div>
+          </header>
+          <main className="app-content">{children}</main>
+        </div>
       </div>
-    </div>
+    </HeaderActionsProvider>
   );
 }

@@ -21,6 +21,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { AuthGate } from '../../../../components/auth-gate';
+import { HeaderActions } from '../../../../components/header-actions';
 import { useAuth } from '../../../../components/auth-provider';
 import { useToast } from '../../../../components/toast-provider';
 import { useWorkspace } from '../../../../components/workspace-provider';
@@ -155,10 +156,7 @@ function BoardSettings() {
 
   return (
     <div className="page-stack settings-layout">
-      <header className="page-header compact-header">
-        <div>
-          <h1>Workflow</h1>
-        </div>
+      <HeaderActions>
         <Button
           variant="primary"
           type="button"
@@ -166,7 +164,7 @@ function BoardSettings() {
         >
           Add column
         </Button>
-      </header>
+      </HeaderActions>
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={finishColumnDrag}>
         <SortableContext
           items={reorderableColumns.map((column) => `column:${column.id}`)}

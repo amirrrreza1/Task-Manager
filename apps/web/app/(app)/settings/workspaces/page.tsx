@@ -1,7 +1,9 @@
 'use client';
 
-import { FormEvent, useState } from 'react';
+import { FormEvent, Suspense, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { AuthGate } from '../../../../components/auth-gate';
+import { HeaderActions } from '../../../../components/header-actions';
 import { useAuth } from '../../../../components/auth-provider';
 import { useToast } from '../../../../components/toast-provider';
 import { useWorkspace } from '../../../../components/workspace-provider';
@@ -11,7 +13,9 @@ import type { Workspace } from '../../../../lib/types';
 export default function WorkspacesSettingsPage() {
   return (
     <AuthGate admin>
-      <WorkspacesSettings />
+      <Suspense>
+        <WorkspacesSettings />
+      </Suspense>
     </AuthGate>
   );
 }
@@ -19,6 +23,8 @@ export default function WorkspacesSettingsPage() {
 function WorkspacesSettings() {
   const { request } = useAuth();
   const toast = useToast();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { workspaces, currentWorkspace, setCurrentWorkspaceId, refreshWorkspaces } = useWorkspace();
 
   const [creating, setCreating] = useState(false);
@@ -46,6 +52,12 @@ function WorkspacesSettings() {
     setCreateSprintDuration(14);
     setCreating(true);
   };
+
+  useEffect(() => {
+    if (searchParams.get('create') !== '1') return;
+    openCreateModal();
+    router.replace('/settings/workspaces');
+  }, [router, searchParams]);
 
   const openEditModal = (ws: Workspace) => {
     setEditingWorkspace(ws);
@@ -137,19 +149,11 @@ function WorkspacesSettings() {
 
   return (
     <div className="page-stack">
-      <header className="page-header">
-        <div>
-          <h1>Workspaces</h1>
-          <p className="muted">
-            Manage team workspaces, separate task boards, sprints, and estimation workflows.
-          </p>
-        </div>
-        <div className="header-actions">
-          <Button variant="primary" onClick={openCreateModal} type="button">
-            + New Workspace
-          </Button>
-        </div>
-      </header>
+      <HeaderActions>
+        <Button variant="primary" onClick={openCreateModal} type="button">
+          + New Workspace
+        </Button>
+      </HeaderActions>
 
       <div className="workspaces-grid">
         {workspaces.map((ws) => {
@@ -288,16 +292,18 @@ function WorkspacesSettings() {
               </div>
             </div>
 
-            <label className="number-field">
-              <span>Sprint duration</span>
-              <Input
-                max={90}
-                min={1}
-                type="number"
-                value={createSprintDuration}
-                onChange={(e) => setCreateSprintDuration(Number(e.target.value))}
-              />
-              <span className="unit-label">days</span>
+            <label>
+              Sprint duration
+              <span className="number-field">
+                <Input
+                  max={90}
+                  min={1}
+                  type="number"
+                  value={createSprintDuration}
+                  onChange={(e) => setCreateSprintDuration(Number(e.target.value))}
+                />
+                <span>days</span>
+              </span>
             </label>
 
             <footer>
@@ -373,16 +379,18 @@ function WorkspacesSettings() {
               </div>
             </div>
 
-            <label className="number-field">
-              <span>Sprint duration</span>
-              <Input
-                max={90}
-                min={1}
-                type="number"
-                value={editSprintDuration}
-                onChange={(e) => setEditSprintDuration(Number(e.target.value))}
-              />
-              <span className="unit-label">days</span>
+            <label>
+              Sprint duration
+              <span className="number-field">
+                <Input
+                  max={90}
+                  min={1}
+                  type="number"
+                  value={editSprintDuration}
+                  onChange={(e) => setEditSprintDuration(Number(e.target.value))}
+                />
+                <span>days</span>
+              </span>
             </label>
 
             <footer>

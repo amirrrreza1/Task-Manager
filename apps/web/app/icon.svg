@@ -1,21 +1,26 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
   <title>Task Manager</title>
-  <defs>
-    <linearGradient id="surface" x1="10" y1="8" x2="54" y2="58" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#193855"/>
-      <stop offset="1" stop-color="#0B1C2C"/>
-    </linearGradient>
-    <linearGradient id="accent" x1="20" y1="18" x2="44" y2="46" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#4DE0AB"/>
-      <stop offset="1" stop-color="#22B981"/>
-    </linearGradient>
-  </defs>
-  <rect width="64" height="64" rx="16" fill="url(#surface)"/>
-  <path d="M19 14h18.5L47 23.5V46a5 5 0 0 1-5 5H19a5 5 0 0 1-5-5V19a5 5 0 0 1 5-5Z" fill="#F7FBFF"/>
-  <path d="M37.5 14v6.5a3 3 0 0 0 3 3H47" fill="#C9DDF0"/>
-  <rect x="20" y="26" width="10" height="10" rx="3" fill="url(#accent)"/>
-  <path d="m22.5 31 2.2 2.2 3.7-4" fill="none" stroke="#073021" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2"/>
-  <path d="M34 29h8M34 33h6" fill="none" stroke="#60758A" stroke-linecap="round" stroke-width="2.8"/>
-  <rect x="20" y="40" width="10" height="3" rx="1.5" fill="#D7E4EE"/>
-  <path d="M34 41.5h8" fill="none" stroke="#9BAEBD" stroke-linecap="round" stroke-width="2.8"/>
+  <rect width="32" height="32" rx="8" fill="#12352F"/>
+  <rect x="5.5" y="6.5" width="8" height="8" rx="2.2" fill="#3DDC97"/>
+  <path
+    d="M7.7 10.55 9.55 12.35 13.15 8.65"
+    fill="none"
+    stroke="#0B2A24"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    stroke-width="1.75"
+  />
+  <rect x="16" y="8.4" width="10.5" height="4.2" rx="2.1" fill="#D7F5E8"/>
+  <rect x="5.5" y="17.5" width="8" height="8" rx="2.2" fill="#1C4A43"/>
+  <rect
+    x="7.15"
+    y="19.15"
+    width="4.7"
+    height="4.7"
+    rx="1.15"
+    fill="none"
+    stroke="#5EE9B5"
+    stroke-width="1.35"
+  />
+  <rect x="16" y="19.4" width="8" height="4.2" rx="2.1" fill="#2A5C54"/>
 </svg>

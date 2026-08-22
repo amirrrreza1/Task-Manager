@@ -2,14 +2,9 @@ export type Calendar = 'gregorian' | 'solar';
 
 const calendarValue = process.env.NEXT_PUBLIC_CALENDAR?.trim().toLowerCase();
 const companyNameValue = process.env.NEXT_PUBLIC_COMPANY_NAME?.trim();
-const companyIconValue = process.env.NEXT_PUBLIC_COMPANY_ICON?.trim();
 
 export const calendar: Calendar = calendarValue === 'solar' ? 'solar' : 'gregorian';
 export const companyName = companyNameValue || 'Task Manager';
-export const companyIcon =
-  companyIconValue && (/^https?:\/\//i.test(companyIconValue) || companyIconValue.startsWith('/'))
-    ? companyIconValue
-    : '/icon.svg';
 
 const calendarLocale = 'en-US-u-ca-gregory';
 const solarPartsLocale = 'en-US-u-ca-persian-nu-latn';
