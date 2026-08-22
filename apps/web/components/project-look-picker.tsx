@@ -6,6 +6,7 @@ import {
   DEFAULT_PROJECT_ICON,
   PROJECT_ICON_NAMES,
   ProjectIcon,
+  isProjectIconName,
   type ProjectIconName,
 } from '../lib/project-icons';
 
@@ -64,7 +65,7 @@ export function ProjectLookModal({
   onChange: (next: { color: string; icon: ProjectIconName }) => void;
 }) {
   const [query, setQuery] = useState('');
-  const selectedIcon = icon || DEFAULT_PROJECT_ICON;
+  const selectedIcon: ProjectIconName = isProjectIconName(icon) ? icon : DEFAULT_PROJECT_ICON;
   const icons = useMemo(() => {
     const term = query.trim().toLowerCase();
     if (!term) return PROJECT_ICON_NAMES;

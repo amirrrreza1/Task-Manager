@@ -70,8 +70,8 @@ import {
   Video,
   Wallet,
   World,
-  type ComponentType,
 } from '@appica/icons-react';
+import type { ComponentType } from 'react';
 
 export const DEFAULT_PROJECT_ICON = 'Folder';
 
