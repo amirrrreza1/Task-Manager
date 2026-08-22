@@ -5,6 +5,6 @@ export class AssignSprintTasksDto {
   @IsArray()
   @ArrayMinSize(1)
   @ArrayUnique()
-  @IsUuidLike({ message: 'Each task ID must be a UUID' })
+  @IsUuidLike({ each: true, message: 'Each task ID must be a UUID' })
   taskIds!: string[];
 }

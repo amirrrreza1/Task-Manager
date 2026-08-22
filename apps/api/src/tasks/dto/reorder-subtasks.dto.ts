@@ -5,6 +5,6 @@ export class ReorderSubtasksDto {
   @IsArray()
   @ArrayMinSize(1)
   @ArrayUnique()
-  @IsUuidLike({ message: 'Each subtask ID must be a UUID' })
+  @IsUuidLike({ each: true, message: 'Each subtask ID must be a UUID' })
   subtaskIds!: string[];
 }
