@@ -81,6 +81,7 @@ export interface Project {
   key: string | null;
   description: string | null;
   color: string | null;
+  icon: string | null;
   createdAt: string;
   updatedAt: string;
   _count?: { tasks: number };
@@ -133,7 +134,13 @@ export interface TaskCard {
   id: string;
   workspaceId?: string;
   projectId?: string | null;
-  project?: { id: string; name: string; key: string | null; color: string | null } | null;
+  project?: {
+    id: string;
+    name: string;
+    key: string | null;
+    color: string | null;
+    icon: string | null;
+  } | null;
   title: string;
   description: string | null;
   priority: TaskPriority;
@@ -322,7 +329,7 @@ export interface Paginated<T> {
   nextCursor: string | null;
 }
 
-// â”€â”€â”€ Reports â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Reports ─────────────────────────────────────────────────────────────────
 
 export interface ActivityEventItem {
   id: string;

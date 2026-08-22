@@ -40,4 +40,16 @@ export class UpdateProjectDto {
     message: 'Color must be a valid hex code (e.g. #2563EB).',
   })
   color?: string | null;
+
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim().length > 0 ? value.trim() : null,
+  )
+  @ValidateIf((o) => typeof o.icon === 'string' && o.icon.length > 0)
+  @IsString()
+  @MaxLength(64)
+  @Matches(/^[A-Za-z][A-Za-z0-9]*$/, {
+    message: 'Icon must be a valid icon name.',
+  })
+  icon?: string | null;
 }

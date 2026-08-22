@@ -91,6 +91,7 @@ model Project {
   key         String?   @db.VarChar(16)
   description String?   @db.Text
   color       String?   @db.VarChar(9)
+  icon        String?   @db.VarChar(64)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)

@@ -82,6 +82,7 @@ export class ProjectsService {
     const key = input.key?.trim().toUpperCase() || null;
     const description = input.description?.trim() || null;
     const color = input.color?.trim() || '#2563EB';
+    const icon = input.icon?.trim() || 'Folder';
 
     const existing = await this.prisma.project.findFirst({
       where: { workspaceId, name },
@@ -99,6 +100,7 @@ export class ProjectsService {
           key,
           description,
           color,
+          icon,
         },
         include: {
           _count: { select: { tasks: true } },
@@ -138,6 +140,7 @@ export class ProjectsService {
     const description =
       input.description !== undefined ? input.description?.trim() || null : undefined;
     const color = input.color !== undefined ? input.color?.trim() || '#2563EB' : undefined;
+    const icon = input.icon !== undefined ? input.icon?.trim() || 'Folder' : undefined;
 
     return this.prisma.$transaction(async (transaction) => {
       const updated = await transaction.project.update({
@@ -147,6 +150,7 @@ export class ProjectsService {
           ...(key !== undefined ? { key } : {}),
           ...(description !== undefined ? { description } : {}),
           ...(color !== undefined ? { color } : {}),
+          ...(icon !== undefined ? { icon } : {}),
         },
         include: {
           _count: { select: { tasks: true } },

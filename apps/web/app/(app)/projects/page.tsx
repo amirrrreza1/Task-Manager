@@ -2,23 +2,22 @@
 
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { HeaderActions } from '../../../components/header-actions';
 import { useAuth } from '../../../components/auth-provider';
 import { useWorkspace } from '../../../components/workspace-provider';
 import { Button, Input, Modal, Textarea } from '../../../components/design-system';
+import {
+  PROJECT_COLORS,
+  ProjectLookModal,
+  ProjectLookTrigger,
+} from '../../../components/project-look-picker';
+import { DEFAULT_PROJECT_ICON, ProjectIcon } from '../../../lib/project-icons';
 import type { Project } from '../../../lib/types';
 
-const PROJECT_COLORS = [
-  { value: '#2563EB', label: 'Blue' },
-  { value: '#0284C7', label: 'Sky' },
-  { value: '#059669', label: 'Emerald' },
-  { value: '#10B981', label: 'Green' },
-  { value: '#7C3AED', label: 'Violet' },
-  { value: '#C026D3', label: 'Fuchsia' },
-  { value: '#E11D48', label: 'Rose' },
-  { value: '#EA580C', label: 'Orange' },
-  { value: '#D97706', label: 'Amber' },
-  { value: '#64748B', label: 'Slate' },
-] as const;
+type LookEditor =
+  | { source: 'create' }
+  | { source: 'edit' }
+  | { source: 'card'; project: Project; color: string; icon: string };
 
 export default function ProjectsPage() {
   const { request } = useAuth();
@@ -29,18 +28,19 @@ export default function ProjectsPage() {
   const [creating, setCreating] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [deletingProject, setDeletingProject] = useState<Project | null>(null);
+  const [lookEditor, setLookEditor] = useState<LookEditor | null>(null);
 
-  // Create form state
   const [createName, setCreateName] = useState('');
   const [createKey, setCreateKey] = useState('');
   const [createDescription, setCreateDescription] = useState('');
   const [createColor, setCreateColor] = useState<string>(PROJECT_COLORS[0].value);
+  const [createIcon, setCreateIcon] = useState(DEFAULT_PROJECT_ICON);
 
-  // Edit form state
   const [editName, setEditName] = useState('');
   const [editKey, setEditKey] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editColor, setEditColor] = useState<string>(PROJECT_COLORS[0].value);
+  const [editIcon, setEditIcon] = useState(DEFAULT_PROJECT_ICON);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -68,6 +68,8 @@ export default function ProjectsPage() {
     setCreateKey('');
     setCreateDescription('');
     setCreateColor(PROJECT_COLORS[0].value);
+    setCreateIcon(DEFAULT_PROJECT_ICON);
+    setLookEditor(null);
     setError('');
     setMessage('');
     setCreating(true);
@@ -79,6 +81,8 @@ export default function ProjectsPage() {
     setEditKey(proj.key ?? '');
     setEditDescription(proj.description ?? '');
     setEditColor(proj.color ?? PROJECT_COLORS[0].value);
+    setEditIcon(proj.icon ?? DEFAULT_PROJECT_ICON);
+    setLookEditor(null);
     setError('');
     setMessage('');
   };
@@ -89,6 +93,32 @@ export default function ProjectsPage() {
     setMessage('');
   };
 
+  function openCardLook(proj: Project) {
+    setLookEditor({
+      source: 'card',
+      project: proj,
+      color: proj.color ?? PROJECT_COLORS[0].value,
+      icon: proj.icon ?? DEFAULT_PROJECT_ICON,
+    });
+  }
+
+  async function closeLook() {
+    if (lookEditor?.source === 'card') {
+      try {
+        const updated = await request<Project>(`/projects/${lookEditor.project.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ color: lookEditor.color, icon: lookEditor.icon }),
+        });
+        setProjects((current) =>
+          current.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)),
+        );
+      } catch (caught) {
+        setError(caught instanceof Error ? caught.message : 'Could not update project look.');
+      }
+    }
+    setLookEditor(null);
+  }
+
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
     if (!createName.trim()) return;
@@ -98,6 +128,7 @@ export default function ProjectsPage() {
       const payload: Record<string, unknown> = {
         name: createName.trim(),
         color: createColor,
+        icon: createIcon,
       };
       if (createKey.trim()) payload.key = createKey.trim();
       if (createDescription.trim()) payload.description = createDescription.trim();
@@ -108,6 +139,7 @@ export default function ProjectsPage() {
         body: JSON.stringify(payload),
       });
       setCreating(false);
+      setLookEditor(null);
       setProjects((current) => [...current, created]);
       setMessage(`Project "${created.name}" created successfully.`);
     } catch (caught) {
@@ -128,6 +160,7 @@ export default function ProjectsPage() {
         key: editKey.trim() || null,
         description: editDescription.trim() || null,
         color: editColor,
+        icon: editIcon,
       };
 
       const updated = await request<Project>(`/projects/${editingProject.id}`, {
@@ -135,6 +168,7 @@ export default function ProjectsPage() {
         body: JSON.stringify(payload),
       });
       setEditingProject(null);
+      setLookEditor(null);
       setProjects((current) =>
         current.map((p) => (p.id === updated.id ? { ...p, ...updated } : p)),
       );
@@ -165,21 +199,32 @@ export default function ProjectsPage() {
     }
   }
 
+  const lookName =
+    lookEditor?.source === 'create'
+      ? createName
+      : lookEditor?.source === 'edit'
+        ? editName
+        : (lookEditor?.project.name ?? '');
+  const lookColor =
+    lookEditor?.source === 'create'
+      ? createColor
+      : lookEditor?.source === 'edit'
+        ? editColor
+        : (lookEditor?.color ?? PROJECT_COLORS[0].value);
+  const lookIcon =
+    lookEditor?.source === 'create'
+      ? createIcon
+      : lookEditor?.source === 'edit'
+        ? editIcon
+        : (lookEditor?.icon ?? DEFAULT_PROJECT_ICON);
+
   return (
     <div className="page-stack">
-      <header className="page-header">
-        <div>
-          <h1>Projects</h1>
-          <p className="muted">
-            Organize tasks into projects within {currentWorkspace?.name ?? 'this workspace'}.
-          </p>
-        </div>
-        <div className="header-actions">
-          <Button variant="primary" onClick={openCreateModal} type="button">
-            + New Project
-          </Button>
-        </div>
-      </header>
+      <HeaderActions>
+        <Button variant="primary" onClick={openCreateModal} type="button">
+          + New Project
+        </Button>
+      </HeaderActions>
 
       {error ? (
         <p className="form-error inline-alert" role="alert">
@@ -194,7 +239,7 @@ export default function ProjectsPage() {
       ) : null}
 
       {projects.length === 0 && !loading ? (
-        <div className="empty-state">
+        <div className="empty-state page-empty">
           <p>No projects found in this workspace yet.</p>
           <Button size="sm" variant="outline" onClick={openCreateModal}>
             Create your first project
@@ -216,13 +261,20 @@ export default function ProjectsPage() {
                         borderColor: `${projectColor}40`,
                       }}
                     >
+                      <ProjectIcon className="project-badge-icon" name={proj.icon} />
                       {proj.key ? proj.key : proj.name.slice(0, 3).toUpperCase()}
                     </span>
                     <span className="project-task-count">
                       {proj._count?.tasks ?? 0} {proj._count?.tasks === 1 ? 'task' : 'tasks'}
                     </span>
                   </div>
-                  <h2 className="project-card-title">{proj.name}</h2>
+                  <button
+                    className="project-card-title"
+                    type="button"
+                    onClick={() => openCardLook(proj)}
+                  >
+                    {proj.name}
+                  </button>
                   <p className="project-card-desc">
                     {proj.description || 'No description provided.'}
                   </p>
@@ -252,13 +304,15 @@ export default function ProjectsPage() {
         </div>
       )}
 
-      {/* Create Project Modal */}
       {creating && (
         <Modal
           className="modal"
           labelledBy="create-project-title"
           onOpenChange={(open) => {
-            if (!open) setCreating(false);
+            if (!open) {
+              setCreating(false);
+              setLookEditor(null);
+            }
           }}
         >
           <header>
@@ -268,14 +322,22 @@ export default function ProjectsPage() {
           <form onSubmit={handleCreate}>
             <label>
               Project name
-              <Input
-                autoFocus
-                maxLength={120}
-                placeholder="e.g. Website Redesign, Mobile App..."
-                required
-                value={createName}
-                onChange={(e) => setCreateName(e.target.value)}
-              />
+              <div className="project-name-row">
+                <ProjectLookTrigger
+                  name={createName}
+                  color={createColor}
+                  icon={createIcon}
+                  onClick={() => setLookEditor({ source: 'create' })}
+                />
+                <Input
+                  autoFocus
+                  maxLength={120}
+                  placeholder="e.g. Website Redesign, Mobile App..."
+                  required
+                  value={createName}
+                  onChange={(e) => setCreateName(e.target.value)}
+                />
+              </div>
             </label>
 
             <label>
@@ -287,22 +349,6 @@ export default function ProjectsPage() {
                 onChange={(e) => setCreateKey(e.target.value.toUpperCase())}
               />
             </label>
-
-            <div className="form-field-group">
-              <span className="field-label">Color theme</span>
-              <div className="color-swatch-picker">
-                {PROJECT_COLORS.map((col) => (
-                  <button
-                    key={col.value}
-                    type="button"
-                    className={`color-swatch-button ${createColor === col.value ? 'selected' : ''}`}
-                    style={{ backgroundColor: col.value }}
-                    title={col.label}
-                    onClick={() => setCreateColor(col.value)}
-                  />
-                ))}
-              </div>
-            </div>
 
             <label>
               Description <small>Optional</small>
@@ -333,13 +379,15 @@ export default function ProjectsPage() {
         </Modal>
       )}
 
-      {/* Edit Project Modal */}
       {editingProject && (
         <Modal
           className="modal"
           labelledBy="edit-project-title"
           onOpenChange={(open) => {
-            if (!open) setEditingProject(null);
+            if (!open) {
+              setEditingProject(null);
+              setLookEditor(null);
+            }
           }}
         >
           <header>
@@ -349,13 +397,21 @@ export default function ProjectsPage() {
           <form onSubmit={handleEdit}>
             <label>
               Project name
-              <Input
-                autoFocus
-                maxLength={120}
-                required
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-              />
+              <div className="project-name-row">
+                <ProjectLookTrigger
+                  name={editName}
+                  color={editColor}
+                  icon={editIcon}
+                  onClick={() => setLookEditor({ source: 'edit' })}
+                />
+                <Input
+                  autoFocus
+                  maxLength={120}
+                  required
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                />
+              </div>
             </label>
 
             <label>
@@ -366,22 +422,6 @@ export default function ProjectsPage() {
                 onChange={(e) => setEditKey(e.target.value.toUpperCase())}
               />
             </label>
-
-            <div className="form-field-group">
-              <span className="field-label">Color theme</span>
-              <div className="color-swatch-picker">
-                {PROJECT_COLORS.map((col) => (
-                  <button
-                    key={col.value}
-                    type="button"
-                    className={`color-swatch-button ${editColor === col.value ? 'selected' : ''}`}
-                    style={{ backgroundColor: col.value }}
-                    title={col.label}
-                    onClick={() => setEditColor(col.value)}
-                  />
-                ))}
-              </div>
-            </div>
 
             <label>
               Description <small>Optional</small>
@@ -411,7 +451,6 @@ export default function ProjectsPage() {
         </Modal>
       )}
 
-      {/* Delete Project Modal */}
       {deletingProject && (
         <Modal
           className="modal"
@@ -451,6 +490,28 @@ export default function ProjectsPage() {
           </footer>
         </Modal>
       )}
+
+      {lookEditor ? (
+        <ProjectLookModal
+          name={lookName}
+          color={lookColor}
+          icon={lookIcon}
+          onClose={() => void closeLook()}
+          onChange={({ color, icon }) => {
+            if (lookEditor.source === 'create') {
+              setCreateColor(color);
+              setCreateIcon(icon);
+              return;
+            }
+            if (lookEditor.source === 'edit') {
+              setEditColor(color);
+              setEditIcon(icon);
+              return;
+            }
+            setLookEditor({ ...lookEditor, color, icon });
+          }}
+        />
+      ) : null}
     </div>
   );
 }
