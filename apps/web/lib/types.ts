@@ -100,6 +100,8 @@ export interface ApiErrorBody {
 
 export type EstimateUnit = 'HOURS' | 'POINTS';
 
+export type TaskPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+
 export interface Estimate {
   value: number;
   unit: EstimateUnit;
@@ -131,6 +133,7 @@ export interface TaskCard {
   project?: { id: string; name: string; key: string | null; color: string | null } | null;
   title: string;
   description: string | null;
+  priority: TaskPriority;
   estimateValue: number | null;
   estimateUnit: EstimateUnit | null;
   position: string;
@@ -149,6 +152,7 @@ export interface BoardSubtask {
   columnId: string;
   title: string;
   description: string | null;
+  priority: TaskPriority;
   estimateValue: number | null;
   estimateUnit: EstimateUnit | null;
   isCompleted: boolean;
@@ -180,6 +184,7 @@ export interface Subtask {
   columnId: string;
   title: string;
   description: string | null;
+  priority: TaskPriority;
   estimateValue: number | null;
   estimateUnit: EstimateUnit | null;
   isCompleted: boolean;
@@ -257,6 +262,7 @@ export interface SprintWorkSubtask {
   id: string;
   title: string;
   isCompleted: boolean;
+  priority: TaskPriority;
   estimateValue: number | null;
   estimateUnit: EstimateUnit | null;
   assignee: UserSummary | null;
@@ -266,6 +272,7 @@ export interface SprintWorkSubtask {
 export interface SprintWorkTask {
   id: string;
   title: string;
+  priority: TaskPriority;
   estimateValue: number | null;
   estimateUnit: EstimateUnit | null;
   sprintId: string | null;
@@ -282,6 +289,7 @@ export interface SprintStandaloneSubtask {
   id: string;
   title: string;
   isCompleted: boolean;
+  priority: TaskPriority;
   estimateValue: number | null;
   estimateUnit: EstimateUnit | null;
   assignee: UserSummary | null;

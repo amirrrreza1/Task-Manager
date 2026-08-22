@@ -1,7 +1,9 @@
+import { TaskPriority } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import {
   ArrayUnique,
   IsArray,
+  IsEnum,
   IsOptional,
   IsString,
   MaxLength,
@@ -56,6 +58,10 @@ export class CreateTaskDto {
   projectId?: string | null;
 
   @IsOptional()
+  @IsEnum(TaskPriority)
+  priority?: TaskPriority;
+
+  @IsOptional()
   @ValidateNested()
   @Type(() => EstimateDto)
   estimate?: EstimateDto | null;
@@ -63,6 +69,6 @@ export class CreateTaskDto {
   @IsOptional()
   @IsArray()
   @ArrayUnique()
-  @IsUuidLike({ message: 'Each assignee ID must be a UUID' })
+  @IsUuidLike({ each: true, message: 'Each assignee ID must be a UUID' })
   assigneeIds?: string[];
 }

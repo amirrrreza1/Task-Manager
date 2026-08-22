@@ -1,6 +1,8 @@
+import { TaskPriority } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
+  IsEnum,
   IsInt,
   IsOptional,
   IsString,
@@ -13,10 +15,7 @@ import { IsUuidLike } from '../../common/validators/is-uuid-like';
 
 const toBoolean = ({ value }: { value: unknown }) => value === 'true' || value === true;
 const toOptionalString = ({ value }: { value: unknown }) =>
-  typeof value === 'string' &&
-  value.trim().length > 0 &&
-  value !== 'undefined' &&
-  value !== 'null'
+  typeof value === 'string' && value.trim().length > 0 && value !== 'undefined' && value !== 'null'
     ? value.trim()
     : undefined;
 
@@ -65,6 +64,11 @@ export class TaskQueryDto {
   @Transform(toBoolean)
   @IsBoolean()
   hasEstimate?: boolean;
+
+  @IsOptional()
+  @Transform(toOptionalString)
+  @IsEnum(TaskPriority)
+  priority?: TaskPriority;
 
   @IsOptional()
   @Transform(toOptionalString)

@@ -1,5 +1,7 @@
+import { TaskPriority } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
+  IsEnum,
   IsOptional,
   IsString,
   MaxLength,
@@ -20,6 +22,10 @@ export class CreateSubtaskDto {
   @IsString()
   @MaxLength(50_000)
   description?: string | null;
+
+  @IsOptional()
+  @IsEnum(TaskPriority)
+  priority?: TaskPriority;
 
   @IsOptional()
   @ValidateIf((o) => typeof o.assigneeId === 'string' && o.assigneeId.length > 0)

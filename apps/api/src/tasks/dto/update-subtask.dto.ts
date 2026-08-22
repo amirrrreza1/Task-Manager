@@ -1,6 +1,8 @@
+import { TaskPriority } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsBoolean,
+  IsEnum,
   IsOptional,
   IsString,
   MaxLength,
@@ -27,6 +29,10 @@ export class UpdateSubtaskDto {
   @ValidateIf((o) => typeof o.assigneeId === 'string' && o.assigneeId.length > 0)
   @IsUuidLike()
   assigneeId?: string | null;
+
+  @IsOptional()
+  @IsEnum(TaskPriority)
+  priority?: TaskPriority;
 
   @IsOptional()
   @IsBoolean()

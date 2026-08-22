@@ -1,13 +1,11 @@
+import { TaskPriority } from '@prisma/client';
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsOptional, IsString, MaxLength, ValidateIf } from 'class-validator';
+import { IsBoolean, IsEnum, IsOptional, IsString, MaxLength, ValidateIf } from 'class-validator';
 import { IsUuidLike } from '../../common/validators/is-uuid-like';
 
 const toBoolean = ({ value }: { value: unknown }) => value === 'true' || value === true;
 const toOptionalString = ({ value }: { value: unknown }) =>
-  typeof value === 'string' &&
-  value.trim().length > 0 &&
-  value !== 'undefined' &&
-  value !== 'null'
+  typeof value === 'string' && value.trim().length > 0 && value !== 'undefined' && value !== 'null'
     ? value.trim()
     : undefined;
 
@@ -38,6 +36,11 @@ export class BoardQueryDto {
   @Transform(toBoolean)
   @IsBoolean()
   hasEstimate?: boolean;
+
+  @IsOptional()
+  @Transform(toOptionalString)
+  @IsEnum(TaskPriority)
+  priority?: TaskPriority;
 
   @IsOptional()
   @Transform(toOptionalString)
