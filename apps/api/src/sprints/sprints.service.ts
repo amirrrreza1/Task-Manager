@@ -30,6 +30,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 const authorSelect = {
   id: true,
   displayName: true,
+  color: true,
   hasAvatar: true,
   isActive: true,
 };
@@ -42,6 +43,7 @@ const taskInclude = {
       id: true,
       title: true,
       isCompleted: true,
+      priority: true,
       estimateValue: true,
       estimateUnit: true,
       assignee: { select: authorSelect },
@@ -206,12 +208,12 @@ export class SprintsService {
     return this.prisma.$transaction(async (transaction) => {
       const target = await transaction.sprint.findUnique({
         where: { id },
-        select: { status: true },
+        select: { status: true, workspaceId: true },
       });
       if (!target) throw new NotFoundException('Sprint not found.');
       this.assertSprintAcceptsWork(target.status);
       const tasks = await transaction.task.findMany({
-        where: { id: { in: input.taskIds } },
+        where: { id: { in: input.taskIds }, workspaceId: target.workspaceId },
         select: {
           id: true,
           columnId: true,
@@ -231,6 +233,7 @@ export class SprintsService {
         }
       }
       const columns = await transaction.boardColumn.findMany({
+        where: { workspaceId: target.workspaceId },
         select: { id: true, isBacklog: true, isTodo: true, isDone: true, position: true },
         orderBy: { position: 'asc' },
       });
@@ -263,12 +266,12 @@ export class SprintsService {
     return this.prisma.$transaction(async (transaction) => {
       const target = await transaction.sprint.findUnique({
         where: { id },
-        select: { status: true },
+        select: { status: true, workspaceId: true },
       });
       if (!target) throw new NotFoundException('Sprint not found.');
       this.assertSprintAcceptsWork(target.status);
       const subtasks = await transaction.subtask.findMany({
-        where: { id: { in: input.subtaskIds } },
+        where: { id: { in: input.subtaskIds }, task: { workspaceId: target.workspaceId } },
         select: { id: true, sprintId: true, sprint: { select: { id: true, status: true } } },
       });
       if (subtasks.length !== input.subtaskIds.length)
@@ -282,9 +285,16 @@ export class SprintsService {
           );
         }
       }
+      const columns = await transaction.boardColumn.findMany({
+        where: { workspaceId: target.workspaceId },
+        select: { id: true, isBacklog: true, isTodo: true, isDone: true, position: true },
+        orderBy: { position: 'asc' },
+      });
+      const todoColumnId = pickTodoColumnId(columns);
+      if (!todoColumnId) throw new BadRequestException('The To Do column is not configured.');
       await transaction.subtask.updateMany({
         where: { id: { in: input.subtaskIds } },
-        data: { sprintId: id },
+        data: { sprintId: id, columnId: todoColumnId },
       });
       await this.event(transaction, 'sprint.subtasks_assigned', id, actorId, {
         subtaskIds: input.subtaskIds,
