@@ -4,6 +4,7 @@ import { Button, Input, Modal, Textarea } from '../../../components/design-syste
 
 import Link from 'next/link';
 import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { HeaderActions } from '../../../components/header-actions';
 import { useAuth } from '../../../components/auth-provider';
 import { useToast } from '../../../components/toast-provider';
 import { useWorkspace } from '../../../components/workspace-provider';
@@ -61,16 +62,11 @@ export default function SprintsPage() {
 
   return (
     <div className="page-stack">
-      <header className="page-header">
-        <div>
-          <h1>Sprints</h1>
-        </div>
-        <div className="header-actions">
-          <Button variant="primary" onClick={() => setShowForm(true)} type="button">
-            Plan sprint
-          </Button>
-        </div>
-      </header>
+      <HeaderActions>
+        <Button variant="primary" onClick={() => setShowForm(true)} type="button">
+          Plan sprint
+        </Button>
+      </HeaderActions>
       {showForm ? (
         <Modal
           className="modal"
@@ -138,7 +134,7 @@ export default function SprintsPage() {
           </Link>
         ))}
         {!sprints.length ? (
-          <div className="empty-state">
+          <div className="empty-state page-empty">
             <h2>No sprints yet</h2>
             <p>Plan your first sprint to collect work before starting it.</p>
           </div>

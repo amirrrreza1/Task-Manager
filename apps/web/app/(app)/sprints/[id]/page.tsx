@@ -23,6 +23,8 @@ import {
   useState,
 } from 'react';
 import { Avatar } from '../../../../components/avatar';
+import { HeaderActions } from '../../../../components/header-actions';
+import { PriorityBadge } from '../../../../components/priority-badge';
 import { useAuth } from '../../../../components/auth-provider';
 import { useToast } from '../../../../components/toast-provider';
 import { formatDate, formatDateTime } from '../../../../lib/app-config';
@@ -36,7 +38,6 @@ import type {
 import { isSprintWorkSelectionLocked } from '../../../../lib/sprint-work';
 import { needsSprintFinishConfirmation } from '../../../../lib/sprint-finish';
 
-const statusLabel = { PLANNED: 'Planned', ACTIVE: 'Active', COMPLETED: 'Completed' };
 const date = (value: string | null, withTime = false) =>
   withTime ? formatDateTime(value) : formatDate(value);
 const localInput = (value: string | null) =>
@@ -278,29 +279,29 @@ export default function SprintDetailPage() {
 
   return (
     <div className="page-stack sprint-detail">
-      <header className="page-header compact-header">
-        <div>
-          <Link className="back-link" href="/sprints">
-            ← All sprints
-          </Link>
-          <p className="eyebrow">{statusLabel[sprint.status]} sprint</p>
-          <h1>{sprint.name}</h1>
-          <p className="muted">{sprint.goal || 'No goal set for this sprint.'}</p>
-        </div>
-        <div className="header-actions">
-          {sprint.status !== 'COMPLETED' ? (
-            <Button variant="outline" onClick={() => void openPlanner()} type="button">
-              Add tasks
-            </Button>
-          ) : null}
-          {admin && sprint.status === 'ACTIVE' ? (
-            <Button variant="primary" disabled={busy} onClick={finishSprint} type="button">
-              Finish sprint
-            </Button>
-          ) : null}
-        </div>
-      </header>
+      <Link className="back-link" href="/sprints">
+        ← All sprints
+      </Link>
+      <HeaderActions>
+        {sprint.status !== 'COMPLETED' ? (
+          <Button variant="outline" onClick={() => void openPlanner()} type="button">
+            Add tasks
+          </Button>
+        ) : null}
+        {admin && sprint.status === 'ACTIVE' ? (
+          <Button variant="primary" disabled={busy} onClick={finishSprint} type="button">
+            Finish sprint
+          </Button>
+        ) : null}
+      </HeaderActions>
       <section className="sprint-overview">
+        <div>
+          <span>Sprint</span>
+          <strong>
+            {sprint.name}
+            {sprint.goal ? ` · ${sprint.goal}` : ''}
+          </strong>
+        </div>
         <div>
           <span>Schedule</span>
           <strong>
@@ -383,7 +384,8 @@ export default function SprintDetailPage() {
                     )}
                     <small>{'columnName' in task ? task.columnName : task.column.name}</small>
                   </div>
-                  <span>
+                  <span className="sprint-task-facts">
+                    {'priority' in task ? <PriorityBadge priority={task.priority} /> : null}
                     {task.estimateValue
                       ? `${task.estimateValue} ${task.estimateUnit === 'HOURS' ? 'h' : 'pts'}`
                       : '—'}
@@ -395,7 +397,12 @@ export default function SprintDetailPage() {
                       <div key={subtask.id}>
                         <span className={subtask.isCompleted ? 'done-marker' : 'open-marker'} />
                         <span>{subtask.title}</span>
-                        <small>{subtask.assignee?.displayName ?? 'Unassigned'}</small>
+                        <span className="sprint-task-facts">
+                          <small>{subtask.assignee?.displayName ?? 'Unassigned'}</small>
+                          {'priority' in subtask ? (
+                            <PriorityBadge priority={subtask.priority} />
+                          ) : null}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -421,7 +428,8 @@ export default function SprintDetailPage() {
                     {subtask.assignee ? ` · ${subtask.assignee.displayName}` : ''}
                   </small>
                 </div>
-                <span>
+                <span className="sprint-task-facts">
+                  <PriorityBadge priority={subtask.priority} />
                   {subtask.estimateValue
                     ? `${subtask.estimateValue} ${subtask.estimateUnit === 'HOURS' ? 'h' : 'pts'}`
                     : '—'}
@@ -465,6 +473,7 @@ export default function SprintDetailPage() {
             {sprint.comments.map((item) => (
               <article className="sprint-comment" key={item.id}>
                 <Avatar
+                  color={item.author.color}
                   hasAvatar={item.author.hasAvatar}
                   name={item.author.displayName}
                   size={30}

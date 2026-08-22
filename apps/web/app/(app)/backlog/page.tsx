@@ -12,9 +12,13 @@ import {
 import Link from 'next/link';
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { Avatar } from '../../../components/avatar';
+import { HeaderActions } from '../../../components/header-actions';
+import { PriorityBadge, PrioritySelect } from '../../../components/priority-badge';
+import { ProjectIcon } from '../../../lib/project-icons';
 import { useAuth } from '../../../components/auth-provider';
 import { useToast } from '../../../components/toast-provider';
 import { useWorkspace } from '../../../components/workspace-provider';
+import { DEFAULT_TASK_PRIORITY } from '../../../lib/priority';
 import type {
   BoardResponse,
   ManagedUser,
@@ -22,6 +26,7 @@ import type {
   Project,
   SprintSummary,
   TaskCard,
+  TaskPriority,
 } from '../../../lib/types';
 import { backlogBoard, primaryBacklogColumn } from '../../../lib/board-columns';
 
@@ -41,6 +46,7 @@ export default function BacklogPage() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [estimate, setEstimate] = useState('');
+  const [priority, setPriority] = useState<TaskPriority>(DEFAULT_TASK_PRIORITY);
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [sprintId, setSprintId] = useState('');
   const [projectId, setProjectId] = useState('');
@@ -113,6 +119,7 @@ export default function BacklogPage() {
           ...(sprintId ? { sprintId } : {}),
           ...(projectId ? { projectId } : {}),
           assigneeIds,
+          priority,
           ...(estimate
             ? {
                 estimate: {
@@ -126,6 +133,7 @@ export default function BacklogPage() {
       setTitle('');
       setDescription('');
       setEstimate('');
+      setPriority(DEFAULT_TASK_PRIORITY);
       setAssigneeIds([]);
       setSprintId('');
       setProjectId('');
@@ -141,21 +149,16 @@ export default function BacklogPage() {
 
   return (
     <div className="page-stack backlog-page">
-      <header className="page-header compact-header">
-        <div>
-          <h1>Backlog</h1>
-        </div>
-        <div className="header-actions">
-          <Button
-            variant="primary"
-            type="button"
-            onClick={() => setCreateOpen(true)}
-            disabled={!backlogColumn}
-          >
-            New task
-          </Button>
-        </div>
-      </header>
+      <HeaderActions>
+        <Button
+          variant="primary"
+          type="button"
+          onClick={() => setCreateOpen(true)}
+          disabled={!backlogColumn}
+        >
+          New task
+        </Button>
+      </HeaderActions>
 
       <section className="board-filters" aria-label="Backlog filters">
         <label className="board-search">
@@ -173,8 +176,7 @@ export default function BacklogPage() {
             <option value="">All projects</option>
             {projects.map((proj) => (
               <option value={proj.id} key={proj.id}>
-                {proj.key ? `[${proj.key}] ` : ''}
-                {proj.name}
+                {proj.key ? `${proj.key}-${proj.name}` : proj.name}
               </option>
             ))}
           </Select>
@@ -231,8 +233,7 @@ export default function BacklogPage() {
                 <option value="">No project</option>
                 {projects.map((proj) => (
                   <option value={proj.id} key={proj.id}>
-                    {proj.key ? `[${proj.key}] ` : ''}
-                    {proj.name}
+                    {proj.key ? `${proj.key}-${proj.name}` : proj.name}
                   </option>
                 ))}
               </Select>
@@ -255,6 +256,15 @@ export default function BacklogPage() {
                 value={estimate}
                 onChange={(event) => setEstimate(event.target.value)}
                 placeholder="Optional"
+              />
+            </label>
+            <label>
+              Priority
+              <PrioritySelect
+                value={priority}
+                onChange={(value) => {
+                  if (value) setPriority(value);
+                }}
               />
             </label>
             <label>
@@ -284,6 +294,7 @@ export default function BacklogPage() {
                     }
                   />
                   <Avatar
+                    color={member.color}
                     hasAvatar={member.hasAvatar}
                     name={member.displayName}
                     size={26}
@@ -324,6 +335,7 @@ function BacklogTaskRow({ task }: { task: TaskCard }) {
                 borderColor: `${task.project.color || '#2563EB'}40`,
               }}
             >
+              <ProjectIcon className="project-badge-icon" name={task.project.icon} />
               {task.project.key ? task.project.key : task.project.name}
             </span>
           )}
@@ -331,6 +343,7 @@ function BacklogTaskRow({ task }: { task: TaskCard }) {
         </div>
         <p className={task.description ? undefined : 'is-empty'}>{task.description || '\u00A0'}</p>
         <div className="task-card-facts">
+          <PriorityBadge priority={task.priority} />
           {task.estimateValue ? (
             <span>
               {task.estimateUnit === 'HOURS'
@@ -350,6 +363,7 @@ function BacklogTaskRow({ task }: { task: TaskCard }) {
           <div className="card-assignees" aria-label="Assignees">
             {task.assignees.slice(0, 4).map((item) => (
               <Avatar
+                color={item.user.color}
                 hasAvatar={item.user.hasAvatar}
                 key={item.user.id}
                 name={item.user.displayName}

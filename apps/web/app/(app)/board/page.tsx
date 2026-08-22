@@ -35,12 +35,17 @@ import { Avatar } from '../../../components/avatar';
 import { useAuth } from '../../../components/auth-provider';
 import { useToast } from '../../../components/toast-provider';
 import { useWorkspace } from '../../../components/workspace-provider';
+import { HeaderActions } from '../../../components/header-actions';
+import { PriorityBadge, PrioritySelect } from '../../../components/priority-badge';
+import { ProjectIcon } from '../../../lib/project-icons';
+import { isTaskPriority } from '../../../lib/priority';
 import type {
   BoardResponse,
   BoardSubtask,
   ManagedUser,
   Project,
   TaskCard,
+  TaskPriority,
 } from '../../../lib/types';
 import { workflowBoard } from '../../../lib/board-columns';
 import { taskDropIndex } from '../../../lib/board-dnd';
@@ -123,6 +128,7 @@ interface Filters {
   unassigned: boolean;
   mine: boolean;
   estimate: '' | 'true' | 'false';
+  priority: TaskPriority | '';
 }
 
 const emptyFilters: Filters = {
@@ -132,6 +138,7 @@ const emptyFilters: Filters = {
   unassigned: false,
   mine: false,
   estimate: '',
+  priority: '',
 };
 
 export default function BoardPage() {
@@ -177,18 +184,16 @@ export default function BoardPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const mine = params.get('mine') === 'true';
+    const estimated = params.get('hasEstimate');
+    const priority = params.get('priority') ?? '';
     setFilters({
       search: params.get('search') ?? '',
       assigneeId: mine ? '' : (params.get('assigneeId') ?? ''),
       projectId: params.get('projectId') ?? '',
       unassigned: !mine && params.get('unassigned') === 'true',
       mine,
-      estimate:
-        params.get('hasEstimate') === 'true'
-          ? 'true'
-          : params.get('hasEstimate') === 'false'
-            ? 'false'
-            : '',
+      estimate: estimated === 'true' || estimated === 'false' ? estimated : '',
+      priority: isTaskPriority(priority) ? priority : '',
     });
   }, []);
 
@@ -222,6 +227,10 @@ export default function BoardPage() {
     if (filters.estimate) {
       browserParams.set('hasEstimate', filters.estimate);
       apiParams.set('hasEstimate', filters.estimate);
+    }
+    if (filters.priority) {
+      browserParams.set('priority', filters.priority);
+      apiParams.set('priority', filters.priority);
     }
     const browserQuery = browserParams.toString();
     const apiQuery = apiParams.toString();
@@ -607,51 +616,47 @@ export default function BoardPage() {
 
   return (
     <div className="page-stack board-page">
-      <header className="page-header compact-header board-header">
-        <div>
-          <h1>Board</h1>
-        </div>
-        <div className="header-actions">
-          {user?.role === 'ADMIN' ? (
-            <Button nativeButton={false} variant="outline" render={<Link href="/settings/board" />}>
-              Configure board
-            </Button>
-          ) : null}
-          <Button nativeButton={false} variant="primary" render={<Link href="/backlog" />}>
-            Backlog
+      <HeaderActions>
+        {user?.role === 'ADMIN' ? (
+          <Button nativeButton={false} variant="outline" render={<Link href="/settings/board" />}>
+            Configure board
           </Button>
-        </div>
-      </header>
+        ) : null}
+        <Button nativeButton={false} variant="primary" render={<Link href="/backlog" />}>
+          Backlog
+        </Button>
+      </HeaderActions>
 
       <section className="board-filters" aria-label="Board filters">
         <label className="board-search">
-          <span>Search</span>
           <Input
             type="search"
             value={filters.search}
             onChange={(event) => setFilters({ ...filters, search: event.target.value })}
-            placeholder="Title or description"
+            aria-label="Search"
+            placeholder="Search"
           />
         </label>
         <label>
-          <span>Project</span>
           <Select
-            value={filters.projectId}
+            aria-label="Project"
+            placeholder="Project"
+            value={filters.projectId || undefined}
             onChange={(event) => setFilters({ ...filters, projectId: event.target.value })}
           >
             <option value="">All projects</option>
             {projects.map((proj) => (
               <option value={proj.id} key={proj.id}>
-                {proj.key ? `[${proj.key}] ` : ''}
-                {proj.name}
+                {proj.key ? `${proj.key}-${proj.name}` : proj.name}
               </option>
             ))}
           </Select>
         </label>
         <label>
-          <span>Assignee</span>
           <Select
-            value={filters.mine ? (user?.id ?? '') : filters.assigneeId}
+            aria-label="Assignee"
+            placeholder="Assignee"
+            value={filters.mine ? (user?.id ?? undefined) : filters.assigneeId || undefined}
             disabled={filters.unassigned || filters.mine}
             onChange={(event) =>
               setFilters({
@@ -671,9 +676,10 @@ export default function BoardPage() {
           </Select>
         </label>
         <label>
-          <span>Estimate</span>
           <Select
-            value={filters.estimate}
+            aria-label="Estimate"
+            placeholder="Estimate"
+            value={filters.estimate || undefined}
             onChange={(event) =>
               setFilters({ ...filters, estimate: event.target.value as Filters['estimate'] })
             }
@@ -682,6 +688,15 @@ export default function BoardPage() {
             <option value="true">Estimated</option>
             <option value="false">No estimate</option>
           </Select>
+        </label>
+        <label>
+          <PrioritySelect
+            allowAny
+            aria-label="Priority"
+            placeholder="Priority"
+            value={filters.priority}
+            onChange={(value) => setFilters({ ...filters, priority: value })}
+          />
         </label>
         <div className="board-filter-toggles" role="group" aria-label="Quick filters">
           <label className="check-field">
@@ -892,6 +907,7 @@ function TaskCardContent({
       <Link
         href={`/tasks/${task.id}`}
         className="task-card-main"
+        data-priority={task.priority}
         tabIndex={interactive ? undefined : -1}
         onClick={(event) => {
           if (!interactive) {
@@ -912,6 +928,7 @@ function TaskCardContent({
                   borderColor: `${task.project.color || '#2563EB'}40`,
                 }}
               >
+                <ProjectIcon className="project-badge-icon" name={task.project.icon} />
                 {task.project.key ? task.project.key : task.project.name}
               </span>
             )}
@@ -930,6 +947,7 @@ function TaskCardContent({
                 <div className="card-assignee-avatars">
                   {task.assignees.slice(0, 3).map((item) => (
                     <Avatar
+                      color={item.user.color}
                       hasAvatar={item.user.hasAvatar}
                       initialsSize={18}
                       key={item.user.id}
@@ -958,6 +976,7 @@ function TaskCardContent({
         </div>
         <p className={task.description ? undefined : 'is-empty'}>{task.description || '\u00A0'}</p>
         <div className="task-card-facts">
+          <PriorityBadge priority={task.priority} />
           {task.estimateValue ? (
             <span>
               {task.estimateUnit === 'HOURS'
@@ -1117,6 +1136,7 @@ function BoardSubtaskCard({
   return (
     <Link
       className={`board-subtask-card ${subtask.isCompleted ? 'completed' : ''} ${standalone ? 'standalone' : ''}`}
+      data-priority={subtask.priority}
       href={`/tasks/${parentTask.id}`}
       aria-label={`Subtask ${title} for ${parentTask.title}`}
       onClick={(event) => onNavigateGuard?.(event)}
@@ -1129,6 +1149,7 @@ function BoardSubtaskCard({
           {subtask.description || '\u00A0'}
         </p>
         <div className="task-card-facts">
+          <PriorityBadge priority={subtask.priority} />
           {subtask.estimateValue ? (
             <span>
               {subtask.estimateUnit === 'HOURS'
@@ -1146,6 +1167,7 @@ function BoardSubtaskCard({
       <div className="board-subtask-assignee" aria-hidden={!subtask.assignee}>
         {subtask.assignee ? (
           <Avatar
+            color={subtask.assignee.color}
             hasAvatar={subtask.assignee.hasAvatar}
             initialsSize={18}
             name={subtask.assignee.displayName}

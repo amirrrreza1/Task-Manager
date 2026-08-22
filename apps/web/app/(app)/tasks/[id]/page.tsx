@@ -30,9 +30,13 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Avatar } from '../../../../components/avatar';
+import { HeaderActions } from '../../../../components/header-actions';
+import { PriorityBadge, PrioritySelect } from '../../../../components/priority-badge';
+import { ProjectIcon } from '../../../../lib/project-icons';
 import { useAuth } from '../../../../components/auth-provider';
 import { useToast } from '../../../../components/toast-provider';
 import { formatDateTime } from '../../../../lib/app-config';
+import { DEFAULT_TASK_PRIORITY } from '../../../../lib/priority';
 import type {
   AppSettings,
   Attachment,
@@ -43,6 +47,7 @@ import type {
   SprintSummary,
   Subtask,
   TaskDetail,
+  TaskPriority,
 } from '../../../../lib/types';
 
 interface SubtaskForm {
@@ -51,6 +56,7 @@ interface SubtaskForm {
   description: string;
   estimate: string;
   assigneeId: string;
+  priority: TaskPriority;
 }
 
 export default function TaskPage() {
@@ -69,6 +75,7 @@ export default function TaskPage() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [estimate, setEstimate] = useState('');
+  const [priority, setPriority] = useState<TaskPriority>(DEFAULT_TASK_PRIORITY);
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [subtaskForm, setSubtaskForm] = useState<SubtaskForm | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -99,6 +106,7 @@ export default function TaskPage() {
       setTitle(nextTask.title);
       setDescription(nextTask.description ?? '');
       setEstimate(nextTask.estimateValue?.toString() ?? '');
+      setPriority(nextTask.priority);
       setAssigneeIds(nextTask.assignees.map((item) => item.user.id));
 
       const wsParam = nextTask.workspaceId ? `?workspaceId=${nextTask.workspaceId}` : '';
@@ -127,6 +135,7 @@ export default function TaskPage() {
           assigneeIds,
           sprintId: sprintId || null,
           projectId: projectId || null,
+          priority,
           estimate: estimate ? { value: Number(estimate), unit: workspaceEstimateUnit } : null,
         }),
       });
@@ -167,6 +176,7 @@ export default function TaskPage() {
             title: subtaskForm.title,
             description: subtaskForm.description || null,
             assigneeId: subtaskForm.assigneeId || null,
+            priority: subtaskForm.priority,
             estimate: subtaskForm.estimate
               ? { value: Number(subtaskForm.estimate), unit: workspaceEstimateUnit }
               : null,
@@ -210,13 +220,6 @@ export default function TaskPage() {
     } finally {
       setBusy(false);
     }
-  }
-
-  async function reorderSubtask(index: number, direction: -1 | 1) {
-    if (!task) return;
-    const target = index + direction;
-    if (target < 0 || target >= task.subtasks.length) return;
-    await saveSubtaskOrder(arrayMove(task.subtasks, index, target));
   }
 
   function finishSubtaskDrag(event: DragEndEvent) {
@@ -339,17 +342,18 @@ export default function TaskPage() {
                   borderColor: `${task.project.color || '#2563EB'}40`,
                 }}
               >
-                {task.project.key ? `[${task.project.key}] ` : ''}
-                {task.project.name}
+                <ProjectIcon className="project-badge-icon" name={task.project.icon} />
+                {task.project.key ? `${task.project.key}-${task.project.name}` : task.project.name}
               </span>
             )}
+            <PriorityBadge priority={task.priority} />
           </div>
           <h1>{task.title}</h1>
           <p className="muted">
             Created by {task.createdBy.displayName} · Updated {formatDateTime(task.updatedAt)}
           </p>
         </div>
-        <div className="header-actions">
+        <HeaderActions>
           <Button variant="outline" onClick={() => setEditing(true)} type="button">
             Edit task
           </Button>
@@ -361,7 +365,7 @@ export default function TaskPage() {
           >
             Delete
           </Button>
-        </div>
+        </HeaderActions>
       </header>
 
       <div className="task-detail-grid">
@@ -393,6 +397,7 @@ export default function TaskPage() {
                     description: '',
                     estimate: '',
                     assigneeId: '',
+                    priority: DEFAULT_TASK_PRIORITY,
                   })
                 }
                 type="button"
@@ -410,7 +415,7 @@ export default function TaskPage() {
                 strategy={verticalListSortingStrategy}
               >
                 <div className="subtask-list">
-                  {task.subtasks.map((subtask, index) => (
+                  {task.subtasks.map((subtask) => (
                     <SortableSubtaskShell
                       id={subtask.id}
                       title={subtask.title}
@@ -439,6 +444,7 @@ export default function TaskPage() {
                           <strong>{subtask.title}</strong>
                           {subtask.description ? <small>{subtask.description}</small> : null}
                           <div className="subtask-meta">
+                            <PriorityBadge priority={subtask.priority} />
                             {subtask.estimateValue ? (
                               <span>
                                 {formatEstimate(subtask.estimateValue, subtask.estimateUnit)}
@@ -469,22 +475,8 @@ export default function TaskPage() {
                         </Select>
                         <div className="subtask-actions">
                           <Button
-                            disabled={busy || index === 0}
-                            aria-label={`Move ${subtask.title} up`}
-                            onClick={() => void reorderSubtask(index, -1)}
-                            type="button"
-                          >
-                            ↑
-                          </Button>
-                          <Button
-                            disabled={busy || index === task.subtasks.length - 1}
-                            aria-label={`Move ${subtask.title} down`}
-                            onClick={() => void reorderSubtask(index, 1)}
-                            type="button"
-                          >
-                            ↓
-                          </Button>
-                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() =>
                               setSubtaskForm({
                                 id: subtask.id,
@@ -492,6 +484,7 @@ export default function TaskPage() {
                                 description: subtask.description ?? '',
                                 estimate: subtask.estimateValue?.toString() ?? '',
                                 assigneeId: subtask.assigneeId ?? '',
+                                priority: subtask.priority,
                               })
                             }
                             type="button"
@@ -499,7 +492,8 @@ export default function TaskPage() {
                             Edit
                           </Button>
                           <Button
-                            className="danger"
+                            variant="destructive"
+                            size="sm"
                             onClick={() => void removeSubtask(subtask)}
                             type="button"
                           >
@@ -590,12 +584,16 @@ export default function TaskPage() {
                   borderColor: `${task.project.color || '#2563EB'}40`,
                 }}
               >
-                {task.project.key ? `[${task.project.key}] ` : ''}
-                {task.project.name}
+                <ProjectIcon className="project-badge-icon" name={task.project.icon} />
+                {task.project.key ? `${task.project.key}-${task.project.name}` : task.project.name}
               </p>
             ) : (
               <p className="muted">No project</p>
             )}
+          </section>
+          <section>
+            <h2>Priority</h2>
+            <PriorityBadge priority={task.priority} />
           </section>
           <section>
             <h2>Estimate</h2>
@@ -612,6 +610,7 @@ export default function TaskPage() {
                 {task.assignees.map((item) => (
                   <span key={item.user.id}>
                     <Avatar
+                      color={item.user.color}
                       hasAvatar={item.user.hasAvatar}
                       name={item.user.displayName}
                       size={31}
@@ -656,8 +655,7 @@ export default function TaskPage() {
                 <option value="">No project</option>
                 {projects.map((proj) => (
                   <option key={proj.id} value={proj.id}>
-                    {proj.key ? `[${proj.key}] ` : ''}
-                    {proj.name}
+                    {proj.key ? `${proj.key}-${proj.name}` : proj.name}
                   </option>
                 ))}
               </Select>
@@ -669,6 +667,15 @@ export default function TaskPage() {
                 maxLength={50000}
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
+              />
+            </label>
+            <label>
+              Priority
+              <PrioritySelect
+                value={priority}
+                onChange={(value) => {
+                  if (value) setPriority(value);
+                }}
               />
             </label>
             <label>
@@ -714,6 +721,7 @@ export default function TaskPage() {
                     }
                   />
                   <Avatar
+                    color={member.color}
                     hasAvatar={member.hasAvatar}
                     name={member.displayName}
                     size={26}
@@ -784,6 +792,15 @@ export default function TaskPage() {
                   </option>
                 ))}
               </Select>
+            </label>
+            <label>
+              Priority
+              <PrioritySelect
+                value={subtaskForm.priority}
+                onChange={(value) => {
+                  if (value) setSubtaskForm({ ...subtaskForm, priority: value });
+                }}
+              />
             </label>
             <label>
               Estimate ({workspaceEstimateUnit === 'HOURS' ? 'hours' : 'points'})
