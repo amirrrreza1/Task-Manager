@@ -91,18 +91,23 @@ export function Avatar({
   initialsSize,
   userId,
   hasAvatar = false,
+  color,
+  title,
 }: {
   name: string;
   size?: number;
   initialsSize?: number;
   userId?: string;
   hasAvatar?: boolean;
+  color?: string | null;
+  title?: string | false;
 }) {
   const src = useAvatarSrc(userId, hasAvatar);
   const style = {
     width: size,
     height: size,
     fontSize: initialsSize ?? Math.max(16, Math.round(size * 0.6)),
+    ...(color ? { backgroundColor: color } : {}),
   } as CSSProperties;
 
   return (
@@ -111,7 +116,7 @@ export function Avatar({
       size={size}
       style={style}
       aria-label={`${name}'s avatar`}
-      title={name}
+      title={title === false ? undefined : (title ?? name)}
     >
       {src ? <AvatarImage alt="" src={src} /> : null}
       <AvatarFallback>{firstLetter(name)}</AvatarFallback>

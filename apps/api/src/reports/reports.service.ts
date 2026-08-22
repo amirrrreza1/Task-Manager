@@ -6,6 +6,7 @@ import type { MemberReportQueryDto } from './dto/member-report-query.dto';
 const actorSelect = {
   id: true,
   displayName: true,
+  color: true,
   hasAvatar: true,
   isActive: true,
 };

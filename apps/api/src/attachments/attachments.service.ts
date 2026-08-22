@@ -21,7 +21,7 @@ interface UploadedFile {
 
 const attachmentInclude = {
   uploadedBy: {
-    select: { id: true, displayName: true, hasAvatar: true, isActive: true },
+    select: { id: true, displayName: true, color: true, hasAvatar: true, isActive: true },
   },
 } satisfies Prisma.AttachmentInclude;
 

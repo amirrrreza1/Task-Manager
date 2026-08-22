@@ -15,6 +15,7 @@ import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import { LocalFileStorage } from '../infrastructure/storage/local-file-storage.service';
 import type { CreateUserDto } from './dto/create-user.dto';
 import type { UpdateUserDto } from './dto/update-user.dto';
+import { pickLeastUsedUserColor } from './user-colors';
 
 interface UploadedFile {
   path: string;
@@ -31,6 +32,7 @@ const userSelect = {
   id: true,
   username: true,
   displayName: true,
+  color: true,
   email: true,
   telegramUsername: true,
   role: true,
@@ -83,6 +85,11 @@ export class UsersService {
     }
 
     const telegramUsername = input.telegramUsername?.trim().replace(/^@+/, '') || null;
+    const usedColors = await this.prisma.user.findMany({ select: { color: true } });
+    const color = pickLeastUsedUserColor(
+      usedColors.map((user) => user.color),
+      input.color,
+    );
 
     const id = crypto.randomUUID();
     return this.prisma.$transaction(async (transaction) => {
@@ -93,6 +100,7 @@ export class UsersService {
           displayName: input.displayName.trim(),
           email,
           telegramUsername,
+          color,
           passwordHash: await this.passwords.hash(input.password),
         },
         select: userSelect,
@@ -140,6 +148,7 @@ export class UsersService {
           ...(email !== undefined ? { email } : {}),
           ...(telegramUsername !== undefined ? { telegramUsername } : {}),
           ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
+          ...(input.color !== undefined ? { color: input.color } : {}),
         },
         select: userSelect,
       });

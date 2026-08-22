@@ -1,12 +1,16 @@
+import { Transform } from 'class-transformer';
 import {
   IsBoolean,
   IsEmail,
+  IsHexColor,
+  IsIn,
   IsOptional,
   IsString,
   Matches,
   MaxLength,
   MinLength,
 } from 'class-validator';
+import { toUserColorInput, USER_COLORS } from '../user-colors';
 
 export class UpdateUserDto {
   @IsOptional()
@@ -34,4 +38,10 @@ export class UpdateUserDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @IsOptional()
+  @Transform(({ value }) => toUserColorInput(value))
+  @IsHexColor()
+  @IsIn(USER_COLORS)
+  color?: string;
 }

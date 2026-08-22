@@ -149,7 +149,7 @@ export function NotificationBell() {
 
       {open ? (
         <div
-          className="absolute right-0 mt-2 w-80 sm:w-96 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-2xl z-50 overflow-hidden flex flex-col max-h-[480px] animate-in fade-in zoom-in-95 duration-100"
+          className="absolute left-0 mt-2 w-80 sm:w-96 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-2xl z-50 overflow-hidden flex flex-col max-h-[480px] animate-in fade-in zoom-in-95 duration-100"
           role="dialog"
           aria-label="Notifications Panel"
         >
@@ -203,6 +203,7 @@ export function NotificationBell() {
                   <div className="flex-shrink-0 mt-0.5">
                     {item.actor ? (
                       <Avatar
+                        color={item.actor.color}
                         hasAvatar={item.actor.hasAvatar}
                         name={item.actor.displayName}
                         size={28}

@@ -6,9 +6,11 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { AuthGate } from '../../../../components/auth-gate';
 import { Avatar } from '../../../../components/avatar';
+import { HeaderActions } from '../../../../components/header-actions';
 import { useAuth } from '../../../../components/auth-provider';
 import { useToast } from '../../../../components/toast-provider';
 import type { ManagedUser } from '../../../../lib/types';
+import { pickLeastUsedUserColor, USER_COLORS } from '../../../../lib/user-colors';
 
 interface CreateForm {
   displayName: string;
@@ -16,6 +18,7 @@ interface CreateForm {
   password: string;
   email?: string;
   telegramUsername?: string;
+  color: string;
 }
 
 const emptyCreateForm: CreateForm = {
@@ -24,6 +27,7 @@ const emptyCreateForm: CreateForm = {
   password: '',
   email: '',
   telegramUsername: '',
+  color: USER_COLORS[0].value,
 };
 
 function UsersAdmin() {
@@ -71,6 +75,7 @@ function UsersAdmin() {
         ...(createForm.telegramUsername?.trim()
           ? { telegramUsername: createForm.telegramUsername.trim().replace(/^@+/, '') }
           : {}),
+        color: createForm.color,
       };
       const created = await request<ManagedUser>('/users', {
         method: 'POST',
@@ -130,14 +135,21 @@ function UsersAdmin() {
 
   return (
     <div className="page-stack people-page">
-      <header className="page-header compact-header">
-        <div>
-          <h1>People</h1>
-        </div>
-        <Button variant="primary" onClick={() => setCreateOpen(true)} type="button">
+      <HeaderActions>
+        <Button
+          variant="primary"
+          onClick={() => {
+            setCreateForm({
+              ...emptyCreateForm,
+              color: pickLeastUsedUserColor(users.map((user) => user.color)),
+            });
+            setCreateOpen(true);
+          }}
+          type="button"
+        >
           Add member
         </Button>
-      </header>
+      </HeaderActions>
 
       <section className="people-toolbar" aria-label="User filters">
         <label className="search-field">
@@ -166,7 +178,12 @@ function UsersAdmin() {
         {visibleUsers.map((user) => (
           <article className="people-row" key={user.id}>
             <div className="person-cell">
-              <Avatar hasAvatar={user.hasAvatar} name={user.displayName} userId={user.id} />
+              <Avatar
+                color={user.color}
+                hasAvatar={user.hasAvatar}
+                name={user.displayName}
+                userId={user.id}
+              />
               <span>
                 <strong>
                   <Link className="report-link" href={`/profile/${user.id}`}>
@@ -272,6 +289,30 @@ function UsersAdmin() {
                   setCreateForm({ ...createForm, telegramUsername: event.target.value })
                 }
               />
+            </label>
+            <label>
+              Color
+              <div className="user-color-field">
+                <Avatar
+                  color={createForm.color}
+                  name={createForm.displayName || 'Member'}
+                  size={36}
+                />
+                <div className="color-swatch-picker" role="radiogroup" aria-label="Member color">
+                  {USER_COLORS.map((col) => (
+                    <button
+                      key={col.value}
+                      aria-checked={createForm.color === col.value}
+                      className={`color-swatch-button ${createForm.color === col.value ? 'selected' : ''}`}
+                      onClick={() => setCreateForm({ ...createForm, color: col.value })}
+                      role="radio"
+                      style={{ backgroundColor: col.value }}
+                      title={col.label}
+                      type="button"
+                    />
+                  ))}
+                </div>
+              </div>
             </label>
             <label>
               Temporary password

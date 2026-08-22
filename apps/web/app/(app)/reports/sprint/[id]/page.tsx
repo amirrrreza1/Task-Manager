@@ -12,6 +12,7 @@ import {
 
 import Link from 'next/link';
 import { use, useEffect, useState } from 'react';
+import { HeaderActions } from '../../../../../components/header-actions';
 import { useAuth } from '../../../../../components/auth-provider';
 import { useToast } from '../../../../../components/toast-provider';
 import { formatDate } from '../../../../../lib/app-config';
@@ -61,7 +62,13 @@ function TaskRow({ task }: { task: SprintReportTask }) {
             <span className="report-assignees">
               {task.assignees.map((u) => (
                 <span key={u.id} title={u.displayName}>
-                  <Avatar hasAvatar={u.hasAvatar} name={u.displayName} size={20} userId={u.id} />
+                  <Avatar
+                    color={u.color}
+                    hasAvatar={u.hasAvatar}
+                    name={u.displayName}
+                    size={20}
+                    userId={u.id}
+                  />
                 </span>
               ))}
             </span>
@@ -111,6 +118,7 @@ function MemberCard({ contribution }: { contribution: MemberContribution }) {
         aria-expanded={open}
       >
         <Avatar
+          color={contribution.user.color}
           hasAvatar={contribution.user.hasAvatar}
           name={contribution.user.displayName}
           size={32}
@@ -208,23 +216,13 @@ export default function SprintReportPage({ params }: { params: Promise<{ id: str
 
   return (
     <div className="page-stack">
-      <header className="page-header compact-header">
-        <div>
-          <p className="eyebrow">
-            <Link href="/reports" className="report-link">
-              Reports
-            </Link>{' '}
-            › Sprint
-          </p>
-          <h1>{report ? report.sprint.name : 'Sprint report'}</h1>
-          {report?.sprint.goal && <p className="muted">{report.sprint.goal}</p>}
-        </div>
-        {report && (
+      {report ? (
+        <HeaderActions>
           <Button nativeButton={false} variant="outline" render={<Link href={`/sprints/${id}`} />}>
             View sprint
           </Button>
-        )}
-      </header>
+        </HeaderActions>
+      ) : null}
 
       {loading ? (
         <div className="board-loading">

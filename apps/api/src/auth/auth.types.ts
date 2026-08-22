@@ -4,6 +4,7 @@ export interface AuthenticatedUser {
   id: string;
   username: string;
   displayName: string;
+  color: string;
   email?: string | null;
   telegramUsername?: string | null;
   role: UserRole;

@@ -142,16 +142,6 @@ export default function ActivityLogPage() {
 
   return (
     <div className="page-stack">
-      <header className="page-header compact-header">
-        <div>
-          <p className="eyebrow">Admin · Reports</p>
-          <h1>Activity log</h1>
-          <p className="muted">
-            Every state change across tasks, sprints, board, users, and settings.
-          </p>
-        </div>
-      </header>
-
       <section className="board-filters" aria-label="Activity log filters">
         <label>
           <span>Actor</span>
@@ -236,6 +226,7 @@ export default function ActivityLogPage() {
                       {ev.actor ? (
                         <span className="report-actor">
                           <Avatar
+                            color={ev.actor.color}
                             hasAvatar={ev.actor.hasAvatar}
                             name={ev.actor.displayName}
                             size={20}

@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
+import { pickLeastUsedUserColor } from '../users/user-colors';
 import { PasswordService } from './password.service';
 
 @Injectable()
@@ -27,6 +28,7 @@ export class BootstrapAdminService implements OnApplicationBootstrap {
       if (usernameOwner) {
         throw new Error(`ADMIN_USERNAME is already owned by a non-bootstrap account: ${username}`);
       }
+      const usedColors = await this.prisma.user.findMany({ select: { color: true } });
       await this.prisma.user.create({
         data: {
           username,
@@ -35,6 +37,7 @@ export class BootstrapAdminService implements OnApplicationBootstrap {
           role: 'ADMIN',
           isActive: true,
           isBootstrapAdmin: true,
+          color: pickLeastUsedUserColor(usedColors.map((user) => user.color)),
         },
       });
       this.logger.log('Bootstrap administrator created.');

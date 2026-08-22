@@ -39,12 +39,6 @@ export default function ReportsIndexPage() {
 
   return (
     <div className="page-stack">
-      <header className="page-header compact-header">
-        <div>
-          <h1>Reports</h1>
-        </div>
-      </header>
-
       {/* Activity log */}
       <section aria-labelledby="log-heading">
         <h2 id="log-heading" className="section-label" style={{ marginBottom: '0.75rem' }}>
@@ -80,6 +74,7 @@ export default function ReportsIndexPage() {
             {members.map((member) => (
               <Link key={member.id} className="report-card" href={`/reports/member/${member.id}`}>
                 <Avatar
+                  color={member.color}
                   hasAvatar={member.hasAvatar}
                   name={member.displayName}
                   size={36}

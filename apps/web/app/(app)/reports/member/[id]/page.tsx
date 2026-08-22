@@ -14,7 +14,6 @@ import Link from 'next/link';
 import { use, useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../../../../../components/auth-provider';
 import { useToast } from '../../../../../components/toast-provider';
-import { Avatar } from '../../../../../components/avatar';
 import type { MemberReport, ReportSubtask, SprintSummary } from '../../../../../lib/types';
 
 function formatEstimate(value: number | null, unit: string | null) {
@@ -101,32 +100,6 @@ export default function MemberReportPage({ params }: { params: Promise<{ id: str
 
   return (
     <div className="page-stack">
-      <header className="page-header compact-header">
-        <div>
-          <p className="eyebrow">
-            <Link href="/reports" className="report-link">
-              Reports
-            </Link>{' '}
-            › Member
-          </p>
-          {report ? (
-            <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <Avatar
-                  hasAvatar={report.user.hasAvatar}
-                  name={report.user.displayName}
-                  size={40}
-                  userId={report.user.id}
-                />
-                <h1>{report.user.displayName}</h1>
-              </div>
-            </>
-          ) : (
-            <h1>Member report</h1>
-          )}
-        </div>
-      </header>
-
       <section className="board-filters" aria-label="Report filters">
         <label>
           <span>Sprint</span>

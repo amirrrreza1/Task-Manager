@@ -4,6 +4,7 @@ export interface CurrentUser {
   id: string;
   username: string;
   displayName: string;
+  color: string;
   email?: string | null;
   telegramUsername?: string | null;
   role: UserRole;
@@ -32,6 +33,7 @@ export interface NotificationItem {
   actor?: {
     id: string;
     displayName: string;
+    color: string;
     hasAvatar: boolean;
   } | null;
 }
@@ -110,6 +112,7 @@ export interface Estimate {
 export interface UserSummary {
   id: string;
   displayName: string;
+  color: string;
   hasAvatar: boolean;
   isActive: boolean;
 }

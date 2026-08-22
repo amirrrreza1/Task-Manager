@@ -157,6 +157,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
     <div className="settings-layout profile-page">
       <header className="profile-identity">
         <Avatar
+          color={profile.color}
           hasAvatar={profile.hasAvatar}
           name={profile.displayName}
           size={84}

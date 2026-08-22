@@ -1,4 +1,15 @@
-import { IsEmail, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { Transform } from 'class-transformer';
+import {
+  IsEmail,
+  IsHexColor,
+  IsIn,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
+import { toUserColorInput, USER_COLORS } from '../user-colors';
 
 export class CreateUserDto {
   @IsString()
@@ -25,4 +36,10 @@ export class CreateUserDto {
   @IsString()
   @MaxLength(64)
   telegramUsername?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => toUserColorInput(value))
+  @IsHexColor()
+  @IsIn(USER_COLORS)
+  color?: string;
 }
