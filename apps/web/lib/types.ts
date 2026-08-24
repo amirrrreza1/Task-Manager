@@ -59,6 +59,10 @@ export interface NotificationSettings {
   telegramHasChatId: boolean;
   telegramHasMessageThreadId?: boolean;
   telegramMessageThreadId?: number | null;
+  telegramHasProxy?: boolean;
+  telegramProxyUrl?: string | null;
+  telegramEnvProxyUrl?: string | null;
+  telegramEffectiveProxyUrl?: string | null;
   telegramEnabled: boolean;
   updatedAt: string;
 }
@@ -196,6 +200,7 @@ export interface Attachment {
   mimeType: string;
   sizeBytes: number;
   checksum: string;
+  comment: string | null;
   uploadedBy: UserSummary;
   createdAt: string;
 }
