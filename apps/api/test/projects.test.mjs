@@ -260,6 +260,7 @@ describe('ProjectsService', () => {
     });
 
     const updated = await service.update('proj-1', { seniorUserIds: ['user-senior-3'] }, 'admin-1');
+    assert.ok(updated);
 
     assert.equal(deleteCount, 1);
     assert.equal(seniorInserts.length, 1);

@@ -1,10 +1,12 @@
 import {
+  Body,
   Controller,
   Delete,
   Get,
   HttpCode,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Res,
   UploadedFile,
@@ -18,6 +20,8 @@ import type { Response } from 'express';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AttachmentsService } from './attachments.service';
+import { UpdateAttachmentDto } from './dto/update-attachment.dto';
+import { UploadAttachmentDto } from './dto/upload-attachment.dto';
 
 const maxBytes = (Number(process.env.MAX_UPLOAD_SIZE_MB) || 25) * 1024 * 1024;
 const upload = FileInterceptor('file', {
@@ -36,9 +40,10 @@ export class TaskAttachmentsController {
   create(
     @Param('id', ParseUUIDPipe) id: string,
     @UploadedFile() file: Express.Multer.File | undefined,
+    @Body() body: UploadAttachmentDto,
     @CurrentUser() actor: AuthenticatedUser,
   ) {
-    return this.attachments.uploadToTask(id, file, actor.id);
+    return this.attachments.uploadToTask(id, file, actor.id, body?.comment);
   }
 }
 
@@ -53,9 +58,10 @@ export class SubtaskAttachmentsController {
   create(
     @Param('id', ParseUUIDPipe) id: string,
     @UploadedFile() file: Express.Multer.File | undefined,
+    @Body() body: UploadAttachmentDto,
     @CurrentUser() actor: AuthenticatedUser,
   ) {
-    return this.attachments.uploadToSubtask(id, file, actor.id);
+    return this.attachments.uploadToSubtask(id, file, actor.id, body?.comment);
   }
 }
 
@@ -87,6 +93,15 @@ export class AttachmentsController {
       .open(attachment.storageKey)
       .on('error', () => response.destroy())
       .pipe(response);
+  }
+
+  @Patch(':id')
+  update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() input: UpdateAttachmentDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.attachments.update(id, input, actor.id);
   }
 
   @Delete(':id')

@@ -107,19 +107,22 @@ export function Avatar({
     width: size,
     height: size,
     fontSize: initialsSize ?? Math.max(16, Math.round(size * 0.6)),
+    color: '#fff',
     ...(color ? { backgroundColor: color } : {}),
   } as CSSProperties;
 
   return (
     <AppicaAvatar
-      className="avatar"
+      className="avatar text-white"
       size={size}
       style={style}
       aria-label={`${name}'s avatar`}
       title={title === false ? undefined : (title ?? name)}
     >
       {src ? <AvatarImage alt="" src={src} /> : null}
-      <AvatarFallback>{firstLetter(name)}</AvatarFallback>
+      <AvatarFallback className="text-white" style={{ color: '#fff' }}>
+        {firstLetter(name)}
+      </AvatarFallback>
     </AppicaAvatar>
   );
 }

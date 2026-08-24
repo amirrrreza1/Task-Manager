@@ -262,6 +262,12 @@ label:not([data-slot='field-label']) small {
   letter-spacing: -0.04em;
 }
 
+.avatar,
+.avatar [data-slot='avatar-fallback'],
+[data-slot='avatar-fallback'] {
+  color: #fff;
+}
+
 .avatar img {
   width: 100%;
   height: 100%;
@@ -2387,11 +2393,19 @@ input[type='color'] {
   cursor: grabbing;
 }
 .subtask-row {
+  display: flex;
+  flex-direction: column;
+  padding: 12px 16px;
+  gap: 10px;
+  background: var(--surface);
+  transition: background-color 0.15s ease;
+}
+.subtask-row-main {
   display: grid;
   align-items: center;
-  padding: 14px 18px;
-  grid-template-columns: auto minmax(180px, 1fr) minmax(150px, 210px) auto;
+  grid-template-columns: auto minmax(180px, 1fr) minmax(140px, 200px) auto;
   gap: 12px;
+  width: 100%;
 }
 .subtask-row.completed .subtask-copy > strong {
   color: var(--faint);
@@ -2400,6 +2414,13 @@ input[type='color'] {
 .subtask-copy {
   display: grid;
   gap: 4px;
+  min-width: 0;
+}
+.subtask-copy strong {
+  font-size: 0.88rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .subtask-copy small {
   overflow: hidden;
@@ -2410,10 +2431,12 @@ input[type='color'] {
 }
 .subtask-meta {
   display: flex;
+  align-items: center;
   margin-top: 4px;
-  gap: 5px;
+  gap: 6px;
+  flex-wrap: wrap;
 }
-.subtask-row select {
+.subtask-row-main select {
   min-height: 36px;
   padding: 6px 9px;
   font-size: 0.75rem;
@@ -2428,68 +2451,234 @@ input[type='color'] {
   padding: 0 7px;
   font-size: 0.7rem;
 }
-.subtask-files {
-  display: flex;
-  grid-column: 2 / -1;
-  flex-wrap: wrap;
+
+.subtask-attachment-pill {
+  display: inline-flex;
   align-items: center;
-  gap: 7px;
-}
-.file-button {
-  position: relative;
-  overflow: hidden;
-  cursor: pointer;
-}
-.file-button input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-}
-.subtask-files > .file-button {
-  padding: 5px 8px;
-  border: 1px dashed var(--border-strong);
-  border-radius: 7px;
+  gap: 4px;
+  padding: 2px 7px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-2);
   color: var(--muted);
-  font-size: 0.68rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
 }
-.file-list {
-  display: grid;
+.subtask-attachment-pill:hover {
+  background: var(--surface-3, rgba(255, 255, 255, 0.08));
+  color: var(--foreground);
+  border-color: var(--border-strong, var(--border));
 }
-.file-row {
-  display: grid;
-  min-height: 58px;
+
+/* Subtask Attachments Panel */
+.subtask-attachments-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-left: 28px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.subtask-attachments-header {
+  display: flex;
   align-items: center;
-  padding: 10px 18px;
-  grid-template-columns: 1fr auto auto;
+  justify-content: space-between;
   gap: 8px;
 }
-.file-row + .file-row {
-  border-top: 1px solid var(--border);
+.subtask-attachments-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
-.file-row > div {
+.subtask-add-file-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px dashed var(--border-strong, var(--border));
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.72rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.subtask-add-file-btn:hover {
+  color: var(--foreground);
+  border-color: var(--foreground);
+  background: var(--surface-3, rgba(255, 255, 255, 0.05));
+}
+.subtask-file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Shared File Card Component (used in both Task & Subtask) */
+.file-card {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  gap: 6px;
+  transition: border-color 0.15s ease;
+}
+.file-card:hover {
+  border-color: var(--border-strong, var(--border));
+}
+.file-card-main {
   display: grid;
-  min-width: 0;
-  gap: 3px;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
 }
-.file-row strong,
-.file-row small {
+.file-card-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--muted);
+}
+.file-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.file-card-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.file-card-name {
+  font-size: 0.82rem;
+  font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.file-row strong {
-  font-size: 0.8rem;
+.file-card-size {
+  font-size: 0.72rem;
+  color: var(--muted);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
-.file-row small {
-  color: var(--faint);
-  font-size: 0.65rem;
+.file-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.subtask-files .file-row {
-  min-height: 38px;
-  padding: 3px 6px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
+.file-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.file-card-actions button {
+  min-height: 28px;
+  padding: 0 8px;
+  font-size: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* File Comment Box */
+.file-comment-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  border-left: 3px solid var(--accent, #3b82f6);
+  margin-top: 2px;
+}
+.file-comment-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.file-comment-icon {
+  color: var(--accent, #3b82f6);
+  flex-shrink: 0;
+}
+.file-comment-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+.file-comment-text {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--foreground);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Upload Dropzone inside Modal */
+.upload-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  border: 2px dashed var(--border-strong, var(--border));
+  border-radius: 10px;
+  background: var(--surface-2);
+  cursor: pointer;
+  text-align: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+.upload-dropzone:hover {
+  border-color: var(--accent, #3b82f6);
+  background: var(--surface-3, rgba(255, 255, 255, 0.04));
+}
+.upload-dropzone-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent, #3b82f6);
+  margin-bottom: 2px;
+}
+.upload-dropzone-title {
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: var(--foreground);
+  word-break: break-all;
+}
+.upload-dropzone-hint {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.task-file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 .task-sidebar {
   position: sticky;
@@ -2572,10 +2761,10 @@ input[type='color'] {
     border-top: 0;
     border-left: 1px solid var(--border);
   }
-  .subtask-row {
+  .subtask-row-main {
     grid-template-columns: auto 1fr minmax(140px, 190px);
   }
-  .subtask-actions {
+  .subtask-row-main .subtask-actions {
     grid-column: 2 / -1;
     width: fit-content;
   }
@@ -2684,14 +2873,16 @@ input[type='color'] {
     border-top: 1px solid var(--border);
     border-left: 0;
   }
-  .subtask-row {
+  .subtask-row-main {
     grid-template-columns: auto 1fr;
   }
-  .subtask-row > select,
-  .subtask-actions,
-  .subtask-files {
+  .subtask-row-main > select,
+  .subtask-row-main .subtask-actions {
     grid-column: 2;
     width: 100%;
+  }
+  .subtask-attachments-panel {
+    margin-left: 0;
   }
   .column-settings-row {
     grid-template-columns: auto 1fr auto;
@@ -2779,14 +2970,13 @@ input[type='color'] {
   .form-grid {
     grid-template-columns: 1fr;
   }
-  .file-row {
-    grid-template-columns: 1fr auto;
+  .file-card-main {
+    grid-template-columns: 1fr;
+    gap: 8px;
   }
-  .file-row .danger-ghost {
-    grid-column: 2;
-  }
-  .subtask-files .file-row {
-    width: 100%;
+  .file-card-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
   }
 }
 

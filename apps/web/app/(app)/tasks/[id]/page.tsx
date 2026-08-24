@@ -29,6 +29,16 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import {
+  ChevronDown,
+  ChevronUp,
+  Download,
+  FileText,
+  MessageDots,
+  Paperclip,
+  Plus,
+  Trash,
+} from '@appica/icons-react';
 import { Avatar } from '../../../../components/avatar';
 import { HeaderActions } from '../../../../components/header-actions';
 import { PriorityBadge, PrioritySelect } from '../../../../components/priority-badge';
@@ -78,6 +88,36 @@ export default function TaskPage() {
   const [priority, setPriority] = useState<TaskPriority>(DEFAULT_TASK_PRIORITY);
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [subtaskForm, setSubtaskForm] = useState<SubtaskForm | null>(null);
+
+  // Attachment upload & comment modals
+  const [uploadModal, setUploadModal] = useState<{
+    owner: 'task' | 'subtask';
+    ownerId: string;
+    title: string;
+  } | null>(null);
+  const [uploadFileSelected, setUploadFileSelected] = useState<File | null>(null);
+  const [uploadComment, setUploadComment] = useState('');
+
+  const [commentModal, setCommentModal] = useState<{ attachment: Attachment } | null>(null);
+  const [editingCommentText, setEditingCommentText] = useState('');
+
+  // Expand / collapse subtask attachments
+  const [expandedSubtaskFiles, setExpandedSubtaskFiles] = useState<Record<string, boolean>>({});
+
+  function toggleSubtaskFiles(subtaskId: string) {
+    setExpandedSubtaskFiles((prev) => ({
+      ...prev,
+      [subtaskId]: prev[subtaskId] === undefined ? false : !prev[subtaskId],
+    }));
+  }
+
+  function isSubtaskFilesExpanded(subtask: Subtask) {
+    if (expandedSubtaskFiles[subtask.id] !== undefined) {
+      return expandedSubtaskFiles[subtask.id];
+    }
+    return subtask.attachments.length > 0;
+  }
+
   const [loadFailed, setLoadFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const workspaceEstimateUnit: EstimateUnit =
@@ -251,10 +291,18 @@ export default function TaskPage() {
     }
   }
 
-  async function uploadFile(owner: 'task' | 'subtask', ownerId: string, file: File | undefined) {
+  async function uploadFile(
+    owner: 'task' | 'subtask',
+    ownerId: string,
+    file: File | undefined,
+    comment?: string,
+  ) {
     if (!file) return;
     const form = new FormData();
     form.append('file', file);
+    if (comment && comment.trim()) {
+      form.append('comment', comment.trim());
+    }
     setBusy(true);
     try {
       await request(
@@ -262,9 +310,34 @@ export default function TaskPage() {
         { method: 'POST', body: form },
       );
       toast.success('File uploaded.');
+      setUploadModal(null);
+      setUploadFileSelected(null);
+      setUploadComment('');
+      if (owner === 'subtask') {
+        setExpandedSubtaskFiles((prev) => ({ ...prev, [ownerId]: true }));
+      }
       await load();
     } catch (caught) {
       toast.fromError(caught, 'Could not upload the file.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveAttachmentComment(attachmentId: string, commentText: string) {
+    setBusy(true);
+    try {
+      await request(`/attachments/${attachmentId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          comment: commentText && commentText.trim().length > 0 ? commentText.trim() : null,
+        }),
+      });
+      toast.success('Comment saved.');
+      setCommentModal(null);
+      await load();
+    } catch (caught) {
+      toast.fromError(caught, 'Could not save comment.');
     } finally {
       setBusy(false);
     }
@@ -426,101 +499,171 @@ export default function TaskPage() {
                         className={`subtask-row ${subtask.isCompleted ? 'completed' : ''}`}
                         onPointerDown={(event) => {
                           const target = event.target as HTMLElement;
-                          if (target.closest('button, input, select, label, a')) {
+                          if (
+                            target.closest(
+                              'button, input, select, label, a, .subtask-attachments-panel, .file-card',
+                            )
+                          ) {
                             event.stopPropagation();
                           }
                         }}
                       >
-                        <Checkbox
-                          className="subtask-check"
-                          aria-label={`Mark ${subtask.title} ${subtask.isCompleted ? 'incomplete' : 'complete'}`}
-                          checked={subtask.isCompleted}
-                          disabled={busy}
-                          onChange={() =>
-                            void patchSubtask(subtask, { isCompleted: !subtask.isCompleted })
-                          }
-                        />
-                        <div className="subtask-copy">
-                          <strong>{subtask.title}</strong>
-                          {subtask.description ? <small>{subtask.description}</small> : null}
-                          <div className="subtask-meta">
-                            <PriorityBadge priority={subtask.priority} />
-                            {subtask.estimateValue ? (
-                              <span>
-                                {formatEstimate(subtask.estimateValue, subtask.estimateUnit)}
-                              </span>
-                            ) : null}
-                            {subtask.attachments.length ? (
-                              <span>
-                                {subtask.attachments.length} file
-                                {subtask.attachments.length === 1 ? '' : 's'}
-                              </span>
-                            ) : null}
+                        <div className="subtask-row-main">
+                          <Checkbox
+                            className="subtask-check"
+                            aria-label={`Mark ${subtask.title} ${subtask.isCompleted ? 'incomplete' : 'complete'}`}
+                            checked={subtask.isCompleted}
+                            disabled={busy}
+                            onChange={() =>
+                              void patchSubtask(subtask, { isCompleted: !subtask.isCompleted })
+                            }
+                          />
+                          <div className="subtask-copy">
+                            <strong>{subtask.title}</strong>
+                            {subtask.description ? <small>{subtask.description}</small> : null}
+                            <div className="subtask-meta">
+                              <PriorityBadge priority={subtask.priority} />
+                              {subtask.estimateValue ? (
+                                <span>
+                                  {formatEstimate(subtask.estimateValue, subtask.estimateUnit)}
+                                </span>
+                              ) : null}
+                              {subtask.attachments.length > 0 ? (
+                                <button
+                                  type="button"
+                                  className="subtask-attachment-pill"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleSubtaskFiles(subtask.id);
+                                  }}
+                                  title={
+                                    isSubtaskFilesExpanded(subtask)
+                                      ? 'Hide attachments'
+                                      : 'Show attachments'
+                                  }
+                                >
+                                  <Paperclip size={13} aria-hidden="true" />
+                                  <span>
+                                    {subtask.attachments.length}{' '}
+                                    {subtask.attachments.length === 1 ? 'file' : 'files'}
+                                  </span>
+                                  {isSubtaskFilesExpanded(subtask) ? (
+                                    <ChevronUp size={12} aria-hidden="true" />
+                                  ) : (
+                                    <ChevronDown size={12} aria-hidden="true" />
+                                  )}
+                                </button>
+                              ) : null}
+                            </div>
+                          </div>
+                          <Select
+                            aria-label={`Assignee for ${subtask.title}`}
+                            value={subtask.assigneeId ?? ''}
+                            disabled={busy}
+                            onChange={(event) =>
+                              void patchSubtask(subtask, { assigneeId: event.target.value || null })
+                            }
+                          >
+                            <option value="">Unassigned</option>
+                            {users.map((member) => (
+                              <option value={member.id} key={member.id}>
+                                {member.displayName}
+                              </option>
+                            ))}
+                          </Select>
+                          <div className="subtask-actions">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setUploadModal({
+                                  owner: 'subtask',
+                                  ownerId: subtask.id,
+                                  title: subtask.title,
+                                });
+                                setUploadFileSelected(null);
+                                setUploadComment('');
+                              }}
+                              type="button"
+                              title="Attach file"
+                            >
+                              <Paperclip size={14} aria-hidden="true" />
+                              <span className="sr-only">Attach file</span>
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() =>
+                                setSubtaskForm({
+                                  id: subtask.id,
+                                  title: subtask.title,
+                                  description: subtask.description ?? '',
+                                  estimate: subtask.estimateValue?.toString() ?? '',
+                                  assigneeId: subtask.assigneeId ?? '',
+                                  priority: subtask.priority,
+                                })
+                              }
+                              type="button"
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => void removeSubtask(subtask)}
+                              type="button"
+                            >
+                              Delete
+                            </Button>
                           </div>
                         </div>
-                        <Select
-                          aria-label={`Assignee for ${subtask.title}`}
-                          value={subtask.assigneeId ?? ''}
-                          disabled={busy}
-                          onChange={(event) =>
-                            void patchSubtask(subtask, { assigneeId: event.target.value || null })
-                          }
-                        >
-                          <option value="">Unassigned</option>
-                          {users.map((member) => (
-                            <option value={member.id} key={member.id}>
-                              {member.displayName}
-                            </option>
-                          ))}
-                        </Select>
-                        <div className="subtask-actions">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() =>
-                              setSubtaskForm({
-                                id: subtask.id,
-                                title: subtask.title,
-                                description: subtask.description ?? '',
-                                estimate: subtask.estimateValue?.toString() ?? '',
-                                assigneeId: subtask.assigneeId ?? '',
-                                priority: subtask.priority,
-                              })
-                            }
-                            type="button"
+
+                        {isSubtaskFilesExpanded(subtask) && (
+                          <div
+                            className="subtask-attachments-panel"
+                            onPointerDown={(e) => e.stopPropagation()}
                           >
-                            Edit
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => void removeSubtask(subtask)}
-                            type="button"
-                          >
-                            Delete
-                          </Button>
-                        </div>
-                        <div className="subtask-files">
-                          <label className="file-button">
-                            Attach file
-                            <Input
-                              type="file"
-                              disabled={busy}
-                              onChange={(event) => {
-                                void uploadFile('subtask', subtask.id, event.target.files?.[0]);
-                                event.target.value = '';
-                              }}
-                            />
-                          </label>
-                          {subtask.attachments.map((file) => (
-                            <FileRow
-                              file={file}
-                              key={file.id}
-                              onDownload={downloadFile}
-                              onDelete={deleteFile}
-                            />
-                          ))}
-                        </div>
+                            <div className="subtask-attachments-header">
+                              <span className="subtask-attachments-title">
+                                <Paperclip size={13} aria-hidden="true" />
+                                Attachments ({subtask.attachments.length})
+                              </span>
+                              <button
+                                type="button"
+                                className="subtask-add-file-btn"
+                                onClick={() => {
+                                  setUploadModal({
+                                    owner: 'subtask',
+                                    ownerId: subtask.id,
+                                    title: subtask.title,
+                                  });
+                                  setUploadFileSelected(null);
+                                  setUploadComment('');
+                                }}
+                              >
+                                <Plus size={13} aria-hidden="true" />
+                                Attach file
+                              </button>
+                            </div>
+
+                            {subtask.attachments.length > 0 ? (
+                              <div className="subtask-file-list">
+                                {subtask.attachments.map((file) => (
+                                  <FileCard
+                                    file={file}
+                                    key={file.id}
+                                    onDownload={downloadFile}
+                                    onDelete={deleteFile}
+                                    onEditComment={(file) => {
+                                      setCommentModal({ attachment: file });
+                                      setEditingCommentText(file.comment ?? '');
+                                    }}
+                                  />
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+                        )}
                       </article>
                     </SortableSubtaskShell>
                   ))}
@@ -539,25 +682,35 @@ export default function TaskPage() {
                 <h2>Files</h2>
                 <p>{task.attachments.length} attached</p>
               </div>
-              <label className="button secondary compact file-button">
+              <Button
+                variant="outline"
+                size="sm"
+                type="button"
+                onClick={() => {
+                  setUploadModal({
+                    owner: 'task',
+                    ownerId: task.id,
+                    title: task.title,
+                  });
+                  setUploadFileSelected(null);
+                  setUploadComment('');
+                }}
+              >
+                <Plus size={14} aria-hidden="true" />
                 Upload file
-                <Input
-                  type="file"
-                  disabled={busy}
-                  onChange={(event) => {
-                    void uploadFile('task', task.id, event.target.files?.[0]);
-                    event.target.value = '';
-                  }}
-                />
-              </label>
+              </Button>
             </header>
-            <div className="file-list">
+            <div className="task-file-list">
               {task.attachments.map((file) => (
-                <FileRow
+                <FileCard
                   file={file}
                   key={file.id}
                   onDownload={downloadFile}
                   onDelete={deleteFile}
+                  onEditComment={(file) => {
+                    setCommentModal({ attachment: file });
+                    setEditingCommentText(file.comment ?? '');
+                  }}
                 />
               ))}
               {!task.attachments.length ? <p className="empty-copy">No files attached.</p> : null}
@@ -826,6 +979,151 @@ export default function TaskPage() {
           </form>
         </Modal>
       ) : null}
+
+      {uploadModal ? (
+        <Modal
+          className="modal attachment-modal"
+          labelledBy="upload-file-title"
+          onOpenChange={(open) => {
+            if (!open) {
+              setUploadModal(null);
+              setUploadFileSelected(null);
+              setUploadComment('');
+            }
+          }}
+        >
+          <header>
+            <p className="section-label">
+              {uploadModal.owner === 'task' ? 'Task attachment' : 'Subtask attachment'}
+            </p>
+            <h2 id="upload-file-title">Attach file</h2>
+            <p className="muted" style={{ fontSize: '0.82rem', marginTop: '0.2rem' }}>
+              {uploadModal.title}
+            </p>
+          </header>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (uploadFileSelected) {
+                void uploadFile(
+                  uploadModal.owner,
+                  uploadModal.ownerId,
+                  uploadFileSelected,
+                  uploadComment,
+                );
+              }
+            }}
+          >
+            <label className="upload-dropzone">
+              <span className="upload-dropzone-icon">
+                <Paperclip size={26} aria-hidden="true" />
+              </span>
+              <span className="upload-dropzone-title">
+                {uploadFileSelected ? uploadFileSelected.name : 'Choose a file to attach'}
+              </span>
+              <span className="upload-dropzone-hint">
+                {uploadFileSelected
+                  ? `${formatBytes(uploadFileSelected.size)} · Click to change file`
+                  : 'Click or browse from your device (up to 25 MB)'}
+              </span>
+              <Input
+                type="file"
+                className="sr-only"
+                disabled={busy}
+                required={!uploadFileSelected}
+                onChange={(event) => {
+                  const f = event.target.files?.[0];
+                  if (f) setUploadFileSelected(f);
+                }}
+              />
+            </label>
+
+            <label>
+              Comment <small>Optional</small>
+              <Textarea
+                rows={3}
+                maxLength={50000}
+                value={uploadComment}
+                onChange={(event) => setUploadComment(event.target.value)}
+                placeholder="Add an optional comment or note about this file..."
+              />
+            </label>
+
+            <footer>
+              <Button
+                variant="ghost"
+                type="button"
+                onClick={() => {
+                  setUploadModal(null);
+                  setUploadFileSelected(null);
+                  setUploadComment('');
+                }}
+              >
+                Cancel
+              </Button>
+              <Button variant="primary" disabled={busy || !uploadFileSelected} type="submit">
+                {busy ? 'Uploading…' : 'Attach file'}
+              </Button>
+            </footer>
+          </form>
+        </Modal>
+      ) : null}
+
+      {commentModal ? (
+        <Modal
+          className="modal comment-modal"
+          labelledBy="file-comment-title"
+          onOpenChange={(open) => {
+            if (!open) setCommentModal(null);
+          }}
+        >
+          <header>
+            <p className="section-label">File comment</p>
+            <h2 id="file-comment-title">
+              {commentModal.attachment.comment ? 'Edit comment on file' : 'Add comment on file'}
+            </h2>
+            <p className="muted" style={{ fontSize: '0.82rem', marginTop: '0.2rem' }}>
+              {commentModal.attachment.originalName}
+            </p>
+          </header>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void saveAttachmentComment(commentModal.attachment.id, editingCommentText);
+            }}
+          >
+            <label>
+              Comment
+              <Textarea
+                autoFocus
+                rows={4}
+                maxLength={50000}
+                value={editingCommentText}
+                onChange={(event) => setEditingCommentText(event.target.value)}
+                placeholder="Write a comment or notes about this file..."
+              />
+            </label>
+            <footer>
+              <Button variant="ghost" type="button" onClick={() => setCommentModal(null)}>
+                Cancel
+              </Button>
+              {commentModal.attachment.comment ? (
+                <Button
+                  variant="destructive"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void saveAttachmentComment(commentModal.attachment.id, '')}
+                >
+                  Remove comment
+                </Button>
+              ) : null}
+              <Button variant="primary" disabled={busy} type="submit">
+                Save comment
+              </Button>
+            </footer>
+          </form>
+        </Modal>
+      ) : null}
     </div>
   );
 }
@@ -860,29 +1158,81 @@ function SortableSubtaskShell({
   );
 }
 
-function FileRow({
+function FileCard({
   file,
   onDownload,
   onDelete,
+  onEditComment,
 }: {
   file: Attachment;
   onDownload(file: Attachment): void;
   onDelete(file: Attachment): void;
+  onEditComment(file: Attachment): void;
 }) {
   return (
-    <article className="file-row">
-      <div>
-        <strong>{file.originalName}</strong>
-        <small>
-          {formatBytes(file.sizeBytes)} · uploaded by {file.uploadedBy.displayName}
-        </small>
+    <article className="file-card">
+      <div className="file-card-main">
+        <div className="file-card-icon" aria-hidden="true">
+          <FileText size={18} />
+        </div>
+        <div className="file-card-info">
+          <div className="file-card-name-row">
+            <strong className="file-card-name" title={file.originalName}>
+              {file.originalName}
+            </strong>
+            <span className="file-card-size">{formatBytes(file.sizeBytes)}</span>
+          </div>
+          <div className="file-card-meta">
+            <span>
+              Uploaded by <strong>{file.uploadedBy.displayName}</strong>
+            </span>
+            <span>·</span>
+            <span>{formatDateTime(file.createdAt)}</span>
+          </div>
+        </div>
+        <div className="file-card-actions">
+          <Button
+            variant="ghost"
+            size="sm"
+            type="button"
+            onClick={() => onDownload(file)}
+            title="Download file"
+          >
+            <Download size={13} aria-hidden="true" />
+            <span>Download</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            type="button"
+            onClick={() => onEditComment(file)}
+            title={file.comment ? 'Edit comment' : 'Add comment'}
+          >
+            <MessageDots size={13} aria-hidden="true" />
+            <span>{file.comment ? 'Edit comment' : 'Add comment'}</span>
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            type="button"
+            onClick={() => onDelete(file)}
+            title="Delete file"
+          >
+            <Trash size={13} aria-hidden="true" />
+            <span>Delete</span>
+          </Button>
+        </div>
       </div>
-      <Button variant="ghost" size="sm" type="button" onClick={() => onDownload(file)}>
-        Download
-      </Button>
-      <Button variant="destructive" size="sm" type="button" onClick={() => onDelete(file)}>
-        Delete
-      </Button>
+
+      {file.comment ? (
+        <div className="file-comment-box">
+          <div className="file-comment-header">
+            <MessageDots size={13} aria-hidden="true" className="file-comment-icon" />
+            <span className="file-comment-label">Comment</span>
+          </div>
+          <p className="file-comment-text">{file.comment}</p>
+        </div>
+      ) : null}
     </article>
   );
 }
