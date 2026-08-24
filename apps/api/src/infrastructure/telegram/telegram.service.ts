@@ -107,7 +107,18 @@ export class TelegramService {
     const meOptions: RequestInit & { dispatcher?: Dispatcher } = {
       ...(dispatcher ? { dispatcher } : {}),
     };
-    const meRes = await fetch(`https://api.telegram.org/bot${botToken}/getMe`, meOptions);
+
+    let meRes: Response;
+    try {
+      meRes = await fetch(`https://api.telegram.org/bot${botToken}/getMe`, meOptions);
+    } catch (error) {
+      const cause = (error as any)?.cause?.message || (error as any)?.cause;
+      const proxyNote = effectiveProxy ? ` via proxy (${effectiveProxy})` : '';
+      throw new Error(
+        `Failed to connect to Telegram${proxyNote}: ${(error as Error).message}${cause ? ` - ${cause}` : ''}`,
+      );
+    }
+
     const meData = (await meRes.json()) as {
       ok: boolean;
       description?: string;
@@ -147,7 +158,17 @@ export class TelegramService {
       body: JSON.stringify(payload),
       ...(dispatcher ? { dispatcher } : {}),
     };
-    const sendRes = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, sendOptions);
+
+    let sendRes: Response;
+    try {
+      sendRes = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, sendOptions);
+    } catch (error) {
+      const cause = (error as any)?.cause?.message || (error as any)?.cause;
+      const proxyNote = effectiveProxy ? ` via proxy (${effectiveProxy})` : '';
+      throw new Error(
+        `Failed to send test message to Telegram${proxyNote}: ${(error as Error).message}${cause ? ` - ${cause}` : ''}`,
+      );
+    }
 
     const sendData = (await sendRes.json()) as { ok: boolean; description?: string };
     if (!sendData.ok) {
