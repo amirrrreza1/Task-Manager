@@ -5,14 +5,15 @@ import Link from 'next/link';
 import { HeaderActions } from '../../../components/header-actions';
 import { useAuth } from '../../../components/auth-provider';
 import { useWorkspace } from '../../../components/workspace-provider';
-import { Button, Input, Modal, Textarea } from '../../../components/design-system';
+import { Avatar } from '../../../components/avatar';
+import { Button, Checkbox, Input, Modal, Textarea } from '../../../components/design-system';
 import {
   PROJECT_COLORS,
   ProjectLookModal,
   ProjectLookTrigger,
 } from '../../../components/project-look-picker';
 import { DEFAULT_PROJECT_ICON, ProjectIcon } from '../../../lib/project-icons';
-import type { Project } from '../../../lib/types';
+import type { Project, UserSummary } from '../../../lib/types';
 
 type LookEditor =
   | { source: 'create' }
@@ -24,6 +25,7 @@ export default function ProjectsPage() {
   const { currentWorkspace } = useWorkspace();
 
   const [projects, setProjects] = useState<Project[]>([]);
+  const [users, setUsers] = useState<UserSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
@@ -35,12 +37,14 @@ export default function ProjectsPage() {
   const [createDescription, setCreateDescription] = useState('');
   const [createColor, setCreateColor] = useState<string>(PROJECT_COLORS[0].value);
   const [createIcon, setCreateIcon] = useState(DEFAULT_PROJECT_ICON);
+  const [createSeniorUserIds, setCreateSeniorUserIds] = useState<string[]>([]);
 
   const [editName, setEditName] = useState('');
   const [editKey, setEditKey] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editColor, setEditColor] = useState<string>(PROJECT_COLORS[0].value);
   const [editIcon, setEditIcon] = useState(DEFAULT_PROJECT_ICON);
+  const [editSeniorUserIds, setEditSeniorUserIds] = useState<string[]>([]);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -49,8 +53,12 @@ export default function ProjectsPage() {
   const load = useCallback(async () => {
     try {
       const wsParam = currentWorkspace?.id ? `?workspaceId=${currentWorkspace.id}` : '';
-      const items = await request<Project[]>(`/projects${wsParam}`);
+      const [items, userList] = await Promise.all([
+        request<Project[]>(`/projects${wsParam}`),
+        request<UserSummary[]>('/users'),
+      ]);
       setProjects(items);
+      setUsers(userList.filter((user) => user.isActive));
       setError('');
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Could not load projects.');
@@ -69,6 +77,7 @@ export default function ProjectsPage() {
     setCreateDescription('');
     setCreateColor(PROJECT_COLORS[0].value);
     setCreateIcon(DEFAULT_PROJECT_ICON);
+    setCreateSeniorUserIds([]);
     setLookEditor(null);
     setError('');
     setMessage('');
@@ -82,6 +91,7 @@ export default function ProjectsPage() {
     setEditDescription(proj.description ?? '');
     setEditColor(proj.color ?? PROJECT_COLORS[0].value);
     setEditIcon(proj.icon ?? DEFAULT_PROJECT_ICON);
+    setEditSeniorUserIds((proj.seniors ?? []).map((s) => s.user.id));
     setLookEditor(null);
     setError('');
     setMessage('');
@@ -129,6 +139,7 @@ export default function ProjectsPage() {
         name: createName.trim(),
         color: createColor,
         icon: createIcon,
+        seniorUserIds: createSeniorUserIds,
       };
       if (createKey.trim()) payload.key = createKey.trim();
       if (createDescription.trim()) payload.description = createDescription.trim();
@@ -161,6 +172,7 @@ export default function ProjectsPage() {
         description: editDescription.trim() || null,
         color: editColor,
         icon: editIcon,
+        seniorUserIds: editSeniorUserIds,
       };
 
       const updated = await request<Project>(`/projects/${editingProject.id}`, {
@@ -278,6 +290,27 @@ export default function ProjectsPage() {
                   <p className="project-card-desc">
                     {proj.description || 'No description provided.'}
                   </p>
+                  <div className="project-card-seniors">
+                    <span className="project-seniors-label">Seniors (Reviewers)</span>
+                    {proj.seniors && proj.seniors.length > 0 ? (
+                      <div className="project-seniors-list">
+                        {proj.seniors.map((s) => (
+                          <span key={s.user.id} className="project-senior-item">
+                            <Avatar
+                              color={s.user.color}
+                              hasAvatar={s.user.hasAvatar}
+                              name={s.user.displayName}
+                              size={20}
+                              userId={s.user.id}
+                            />
+                            <span>{s.user.displayName}</span>
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="project-senior-none">No seniors assigned</span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="project-card-actions">
@@ -361,6 +394,39 @@ export default function ProjectsPage() {
               />
             </label>
 
+            {users.length > 0 && (
+              <fieldset className="assignee-picker">
+                <legend>
+                  Project Seniors{' '}
+                  <small style={{ fontWeight: 400, color: 'var(--foreground-muted)' }}>
+                    (Reviewers notified when tasks enter review)
+                  </small>
+                </legend>
+                {users.map((member) => (
+                  <label key={member.id}>
+                    <Checkbox
+                      checked={createSeniorUserIds.includes(member.id)}
+                      onChange={(event) =>
+                        setCreateSeniorUserIds(
+                          event.target.checked
+                            ? [...createSeniorUserIds, member.id]
+                            : createSeniorUserIds.filter((userId) => userId !== member.id),
+                        )
+                      }
+                    />
+                    <Avatar
+                      color={member.color}
+                      hasAvatar={member.hasAvatar}
+                      name={member.displayName}
+                      size={26}
+                      userId={member.id}
+                    />
+                    <span>{member.displayName}</span>
+                  </label>
+                ))}
+              </fieldset>
+            )}
+
             {error && (
               <p className="form-error" role="alert">
                 {error}
@@ -432,6 +498,39 @@ export default function ProjectsPage() {
                 onChange={(e) => setEditDescription(e.target.value)}
               />
             </label>
+
+            {users.length > 0 && (
+              <fieldset className="assignee-picker">
+                <legend>
+                  Project Seniors{' '}
+                  <small style={{ fontWeight: 400, color: 'var(--foreground-muted)' }}>
+                    (Reviewers notified when tasks enter review)
+                  </small>
+                </legend>
+                {users.map((member) => (
+                  <label key={member.id}>
+                    <Checkbox
+                      checked={editSeniorUserIds.includes(member.id)}
+                      onChange={(event) =>
+                        setEditSeniorUserIds(
+                          event.target.checked
+                            ? [...editSeniorUserIds, member.id]
+                            : editSeniorUserIds.filter((userId) => userId !== member.id),
+                        )
+                      }
+                    />
+                    <Avatar
+                      color={member.color}
+                      hasAvatar={member.hasAvatar}
+                      name={member.displayName}
+                      size={26}
+                      userId={member.id}
+                    />
+                    <span>{member.displayName}</span>
+                  </label>
+                ))}
+              </fieldset>
+            )}
 
             {error && (
               <p className="form-error" role="alert">

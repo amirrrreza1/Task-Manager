@@ -4417,6 +4417,45 @@ label:not([data-slot='field-label']) {
   margin-bottom: 0.25rem;
 }
 
+.project-card-seniors {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.25rem;
+}
+
+.project-seniors-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--foreground-muted);
+}
+
+.project-seniors-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.project-senior-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem 0.45rem 0.15rem 0.2rem;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.78rem;
+}
+
+.project-senior-none {
+  font-size: 0.78rem;
+  color: var(--foreground-muted);
+  font-style: italic;
+}
+
 .project-icon-picker {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(2.25rem, 1fr));

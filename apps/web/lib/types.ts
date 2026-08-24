@@ -57,6 +57,8 @@ export interface NotificationSettings {
   telegramConfigured: boolean;
   telegramHasBotToken: boolean;
   telegramHasChatId: boolean;
+  telegramHasMessageThreadId?: boolean;
+  telegramMessageThreadId?: number | null;
   telegramEnabled: boolean;
   updatedAt: string;
 }
@@ -74,6 +76,13 @@ export interface Workspace {
   _count?: { tasks: number; sprints: number; columns: number };
 }
 
+export interface ProjectSenior {
+  projectId: string;
+  userId: string;
+  assignedAt: string;
+  user: UserSummary;
+}
+
 export interface Project {
   id: string;
   workspaceId: string;
@@ -84,6 +93,7 @@ export interface Project {
   icon: string | null;
   createdAt: string;
   updatedAt: string;
+  seniors?: ProjectSenior[];
   _count?: { tasks: number };
 }
 
@@ -126,6 +136,7 @@ export interface BoardColumn {
   position: number;
   isBacklog?: boolean;
   isTodo?: boolean;
+  isReview?: boolean;
   isDone: boolean;
   tasks?: TaskCard[];
 }
@@ -140,6 +151,7 @@ export interface TaskCard {
     key: string | null;
     color: string | null;
     icon: string | null;
+    seniors?: ProjectSenior[];
   } | null;
   title: string;
   description: string | null;

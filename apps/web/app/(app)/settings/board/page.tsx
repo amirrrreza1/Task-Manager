@@ -1,6 +1,6 @@
 'use client';
 
-import { Button, Input, Modal, Select } from '../../../../components/design-system';
+import { Button, Checkbox, Input, Modal, Select } from '../../../../components/design-system';
 
 import { FormEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -31,6 +31,7 @@ interface ColumnForm {
   id?: string;
   name: string;
   color: string;
+  isReview: boolean;
 }
 
 const COLUMN_COLORS = [
@@ -86,6 +87,7 @@ function BoardSettings() {
         body: JSON.stringify({
           name: form.name,
           color: form.color,
+          isReview: form.isReview,
           ...(currentWorkspace?.id ? { workspaceId: currentWorkspace.id } : {}),
         }),
       });
@@ -160,7 +162,7 @@ function BoardSettings() {
         <Button
           variant="primary"
           type="button"
-          onClick={() => setForm({ name: '', color: COLUMN_COLORS[0].value })}
+          onClick={() => setForm({ name: '', color: COLUMN_COLORS[0].value, isReview: false })}
         >
           Add column
         </Button>
@@ -188,8 +190,22 @@ function BoardSettings() {
                           style={{ background: column.color }}
                           aria-hidden="true"
                         />
-                        <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <strong>{column.name}</strong>
+                          {column.isReview ? (
+                            <span
+                              style={{
+                                fontSize: '0.7rem',
+                                padding: '2px 6px',
+                                background: 'rgba(139, 92, 246, 0.15)',
+                                color: '#8B5CF6',
+                                borderRadius: '4px',
+                                fontWeight: 600,
+                              }}
+                            >
+                              Review
+                            </span>
+                          ) : null}
                         </div>
                         <div className="row-actions">
                           <Button
@@ -201,6 +217,7 @@ function BoardSettings() {
                                 id: column.id,
                                 name: column.name,
                                 color: column.color.slice(0, 7),
+                                isReview: Boolean(column.isReview),
                               })
                             }
                           >
@@ -270,6 +287,13 @@ function BoardSettings() {
                 value={form.name}
                 onChange={(event) => setForm({ ...form, name: event.target.value })}
               />
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+              <Checkbox
+                checked={form.isReview}
+                onChange={(e) => setForm({ ...form, isReview: e.target.checked })}
+              />
+              <span>Review state (triggers review notification to project seniors)</span>
             </label>
             <fieldset className="column-color-picker">
               <legend>Color</legend>
