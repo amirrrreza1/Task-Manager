@@ -14,7 +14,21 @@ import type { UpdateColumnDto } from './dto/update-column.dto';
 
 const taskCardInclude = {
   project: {
-    select: { id: true, name: true, key: true, color: true, icon: true },
+    select: {
+      id: true,
+      name: true,
+      key: true,
+      color: true,
+      icon: true,
+      seniors: {
+        orderBy: { assignedAt: 'asc' },
+        include: {
+          user: {
+            select: { id: true, displayName: true, color: true, hasAvatar: true, isActive: true },
+          },
+        },
+      },
+    },
   },
   assignees: {
     orderBy: { assignedAt: 'asc' },
@@ -222,12 +236,14 @@ export class BoardService {
       });
       const doneColumn = columns.find((column) => column.isDone);
       if (!doneColumn) throw new BadRequestException('The Done column is not configured.');
+      const isReview = input.isReview ?? name.toLowerCase().includes('review');
       const column = await transaction.boardColumn.create({
         data: {
           workspaceId,
           name,
           color: input.color.toUpperCase(),
           position: (columns.at(-1)?.position ?? -1) + 1,
+          isReview,
         },
       });
       const columnIds = [
@@ -260,6 +276,7 @@ export class BoardService {
         data: {
           ...(input.name !== undefined ? { name: input.name.trim() } : {}),
           ...(input.color !== undefined ? { color: input.color.toUpperCase() } : {}),
+          ...(input.isReview !== undefined ? { isReview: input.isReview } : {}),
         },
       });
       await this.event(transaction, 'board_column.updated', id, actor.id, {

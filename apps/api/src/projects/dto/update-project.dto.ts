@@ -1,5 +1,15 @@
 import { Transform } from 'class-transformer';
-import { IsOptional, IsString, Matches, MaxLength, MinLength, ValidateIf } from 'class-validator';
+import {
+  ArrayUnique,
+  IsArray,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+  MinLength,
+  ValidateIf,
+} from 'class-validator';
+import { IsUuidLike } from '../../common/validators/is-uuid-like';
 
 export class UpdateProjectDto {
   @IsOptional()
@@ -52,4 +62,10 @@ export class UpdateProjectDto {
     message: 'Icon must be a valid icon name.',
   })
   icon?: string | null;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsUuidLike({ each: true, message: 'Each senior user ID must be a UUID' })
+  seniorUserIds?: string[];
 }

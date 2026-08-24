@@ -7,18 +7,51 @@ import type { UpdateWorkspaceDto } from './dto/update-workspace.dto';
 const DEFAULT_WORKSPACE_ID = '00000000-0000-0000-0000-000000000001';
 
 const DEFAULT_COLUMNS = [
-  { name: 'Backlog', color: '#64748B', position: 0, isBacklog: true, isTodo: false, isDone: false },
-  { name: 'To Do', color: '#2563EB', position: 1, isBacklog: false, isTodo: true, isDone: false },
+  {
+    name: 'Backlog',
+    color: '#64748B',
+    position: 0,
+    isBacklog: true,
+    isTodo: false,
+    isReview: false,
+    isDone: false,
+  },
+  {
+    name: 'To Do',
+    color: '#2563EB',
+    position: 1,
+    isBacklog: false,
+    isTodo: true,
+    isReview: false,
+    isDone: false,
+  },
   {
     name: 'In progress',
     color: '#F59E0B',
     position: 2,
     isBacklog: false,
     isTodo: false,
+    isReview: false,
     isDone: false,
   },
-  { name: 'Review', color: '#8B5CF6', position: 3, isBacklog: false, isTodo: false, isDone: false },
-  { name: 'Done', color: '#059669', position: 4, isBacklog: false, isTodo: false, isDone: true },
+  {
+    name: 'Review',
+    color: '#8B5CF6',
+    position: 3,
+    isBacklog: false,
+    isTodo: false,
+    isReview: true,
+    isDone: false,
+  },
+  {
+    name: 'Done',
+    color: '#059669',
+    position: 4,
+    isBacklog: false,
+    isTodo: false,
+    isReview: false,
+    isDone: true,
+  },
 ];
 
 @Injectable()
@@ -88,6 +121,7 @@ export class WorkspacesService {
             position: col.position,
             isBacklog: col.isBacklog,
             isTodo: col.isTodo,
+            isReview: col.isReview,
             isDone: col.isDone,
           },
         });

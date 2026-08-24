@@ -4,13 +4,31 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import type { CreateProjectDto } from './dto/create-project.dto';
 import type { ProjectQueryDto } from './dto/project-query.dto';
 import type { UpdateProjectDto } from './dto/update-project.dto';
 
 const DEFAULT_WORKSPACE_ID = '00000000-0000-0000-0000-000000000001';
+
+const userSummary = {
+  id: true,
+  displayName: true,
+  color: true,
+  hasAvatar: true,
+  isActive: true,
+} satisfies Prisma.UserSelect;
+
+const projectInclude = {
+  _count: { select: { tasks: true } },
+  seniors: {
+    orderBy: { assignedAt: 'asc' },
+    include: {
+      user: { select: userSummary },
+    },
+  },
+} satisfies Prisma.ProjectInclude;
 
 @Injectable()
 export class ProjectsService {
@@ -33,6 +51,17 @@ export class ProjectsService {
       },
     });
     return defaultWs.id;
+  }
+
+  private async assertActiveUsers(ids: string[]) {
+    if (!ids.length) return;
+    if (new Set(ids).size !== ids.length) {
+      throw new BadRequestException('Senior IDs must be unique.');
+    }
+    const count = await this.prisma.user.count({ where: { id: { in: ids }, isActive: true } });
+    if (count !== ids.length) {
+      throw new BadRequestException('Every senior must be an active user.');
+    }
   }
 
   private async event(
@@ -58,18 +87,14 @@ export class ProjectsService {
     return this.prisma.project.findMany({
       where: { workspaceId },
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-      include: {
-        _count: { select: { tasks: true } },
-      },
+      include: projectInclude,
     });
   }
 
   async get(id: string) {
     const project = await this.prisma.project.findUnique({
       where: { id },
-      include: {
-        _count: { select: { tasks: true } },
-      },
+      include: projectInclude,
     });
     if (!project) throw new NotFoundException('Project not found.');
     return project;
@@ -83,6 +108,10 @@ export class ProjectsService {
     const description = input.description?.trim() || null;
     const color = input.color?.trim() || '#2563EB';
     const icon = input.icon?.trim() || 'Folder';
+
+    if (input.seniorUserIds && input.seniorUserIds.length > 0) {
+      await this.assertActiveUsers(input.seniorUserIds);
+    }
 
     const existing = await this.prisma.project.findFirst({
       where: { workspaceId, name },
@@ -101,16 +130,22 @@ export class ProjectsService {
           description,
           color,
           icon,
+          ...(input.seniorUserIds && input.seniorUserIds.length > 0
+            ? {
+                seniors: {
+                  create: input.seniorUserIds.map((userId) => ({ userId })),
+                },
+              }
+            : {}),
         },
-        include: {
-          _count: { select: { tasks: true } },
-        },
+        include: projectInclude,
       });
 
       await this.event(transaction, 'project.created', project.id, actorId, {
         name,
         key,
         workspaceId,
+        seniorUserIds: input.seniorUserIds ?? [],
       });
 
       return project;
@@ -136,6 +171,10 @@ export class ProjectsService {
       }
     }
 
+    if (input.seniorUserIds !== undefined) {
+      await this.assertActiveUsers(input.seniorUserIds);
+    }
+
     const key = input.key !== undefined ? input.key?.trim().toUpperCase() || null : undefined;
     const description =
       input.description !== undefined ? input.description?.trim() || null : undefined;
@@ -143,6 +182,15 @@ export class ProjectsService {
     const icon = input.icon !== undefined ? input.icon?.trim() || 'Folder' : undefined;
 
     return this.prisma.$transaction(async (transaction) => {
+      if (input.seniorUserIds !== undefined) {
+        await transaction.projectSenior.deleteMany({ where: { projectId: id } });
+        if (input.seniorUserIds.length > 0) {
+          await transaction.projectSenior.createMany({
+            data: input.seniorUserIds.map((userId) => ({ projectId: id, userId })),
+          });
+        }
+      }
+
       const updated = await transaction.project.update({
         where: { id },
         data: {
@@ -152,9 +200,7 @@ export class ProjectsService {
           ...(color !== undefined ? { color } : {}),
           ...(icon !== undefined ? { icon } : {}),
         },
-        include: {
-          _count: { select: { tasks: true } },
-        },
+        include: projectInclude,
       });
 
       await this.event(transaction, 'project.updated', id, actorId, {

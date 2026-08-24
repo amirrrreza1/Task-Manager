@@ -1,5 +1,7 @@
 import { Transform } from 'class-transformer';
 import {
+  ArrayUnique,
+  IsArray,
   IsOptional,
   IsString,
   Matches,
@@ -97,4 +99,10 @@ export class CreateProjectDto {
     message: 'Icon must be a valid icon name.',
   })
   icon?: string | null;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsUuidLike({ each: true, message: 'Each senior user ID must be a UUID' })
+  seniorUserIds?: string[];
 }

@@ -1,5 +1,6 @@
 import { Transform } from 'class-transformer';
 import {
+  IsBoolean,
   IsHexColor,
   IsIn,
   IsOptional,
@@ -28,4 +29,8 @@ export class CreateColumnDto {
   @IsHexColor()
   @IsIn(BOARD_COLUMN_COLORS)
   color!: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isReview?: boolean;
 }
