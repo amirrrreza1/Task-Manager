@@ -291,7 +291,7 @@ export default function ProjectsPage() {
                     {proj.description || 'No description provided.'}
                   </p>
                   <div className="project-card-seniors">
-                    <span className="project-seniors-label">Seniors (Reviewers)</span>
+                    <span className="project-seniors-label">Seniors</span>
                     {proj.seniors && proj.seniors.length > 0 ? (
                       <div className="project-seniors-list">
                         {proj.seniors.map((s) => (
@@ -396,12 +396,7 @@ export default function ProjectsPage() {
 
             {users.length > 0 && (
               <fieldset className="assignee-picker">
-                <legend>
-                  Project Seniors{' '}
-                  <small style={{ fontWeight: 400, color: 'var(--foreground-muted)' }}>
-                    (Reviewers notified when tasks enter review)
-                  </small>
-                </legend>
+                <legend>Project Seniors</legend>
                 {users.map((member) => (
                   <label key={member.id}>
                     <Checkbox
@@ -501,12 +496,7 @@ export default function ProjectsPage() {
 
             {users.length > 0 && (
               <fieldset className="assignee-picker">
-                <legend>
-                  Project Seniors{' '}
-                  <small style={{ fontWeight: 400, color: 'var(--foreground-muted)' }}>
-                    (Reviewers notified when tasks enter review)
-                  </small>
-                </legend>
+                <legend>Project Seniors</legend>
                 {users.map((member) => (
                   <label key={member.id}>
                     <Checkbox
