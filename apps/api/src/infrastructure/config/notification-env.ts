@@ -12,6 +12,7 @@ export type TelegramRuntimeConfig = {
   botToken: string | null;
   chatId: string | null;
   messageThreadId: number | null;
+  proxyUrl: string | null;
 };
 
 function envString(key: string): string | null {
@@ -59,7 +60,21 @@ export function readTelegramEnv(): TelegramRuntimeConfig {
     botToken: envString('TELEGRAM_BOT_TOKEN'),
     chatId: envString('TELEGRAM_CHAT_ID'),
     messageThreadId: Number.isInteger(parsedThread) ? parsedThread : null,
+    proxyUrl: envString('TELEGRAM_PROXY_URL') || envString('TELEGRAM_PROXY'),
   };
+}
+
+export function maskProxyUrl(proxyUrl: string | null): string | null {
+  if (!proxyUrl) return null;
+  try {
+    const parsed = new URL(proxyUrl);
+    if (parsed.password) {
+      parsed.password = '***';
+    }
+    return parsed.toString();
+  } catch {
+    return proxyUrl;
+  }
 }
 
 export function isSmtpConfigured(smtp: SmtpRuntimeConfig): boolean {

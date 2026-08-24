@@ -108,6 +108,10 @@ class EnvironmentVariables {
   @IsOptional()
   @IsString()
   TELEGRAM_MESSAGE_THREAD_ID?: string;
+
+  @IsOptional()
+  @IsString()
+  TELEGRAM_PROXY_URL?: string;
 }
 
 export function validateEnvironment(configuration: Record<string, unknown>) {

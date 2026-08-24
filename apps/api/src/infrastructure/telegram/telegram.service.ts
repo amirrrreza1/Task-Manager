@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ProxyAgent, type Dispatcher } from 'undici';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   isTelegramConfigured,
@@ -17,8 +18,24 @@ export interface SendTelegramOptions {
 @Injectable()
 export class TelegramService {
   private readonly logger = new Logger(TelegramService.name);
+  private proxyDispatcher: Dispatcher | null = null;
+  private cachedProxyUrl: string | null = null;
 
   constructor(private readonly prisma: PrismaService) {}
+
+  private getDispatcher(proxyUrl: string | null): Dispatcher | undefined {
+    if (!proxyUrl) {
+      this.proxyDispatcher = null;
+      this.cachedProxyUrl = null;
+      return undefined;
+    }
+    if (this.proxyDispatcher && this.cachedProxyUrl === proxyUrl) {
+      return this.proxyDispatcher;
+    }
+    this.cachedProxyUrl = proxyUrl;
+    this.proxyDispatcher = new ProxyAgent(proxyUrl);
+    return this.proxyDispatcher;
+  }
 
   private getEnvConfig(): TelegramRuntimeConfig {
     return readTelegramEnv();
@@ -66,6 +83,11 @@ export class TelegramService {
   }
 
   async testConnection(): Promise<{ success: boolean; message: string }> {
+    const flags = await this.prisma.notificationConfig.upsert({
+      where: { id: 'default' },
+      update: {},
+      create: { id: 'default' },
+    });
     const telegram = this.getEnvConfig();
     const { botToken, chatId, messageThreadId } = telegram;
 
@@ -80,7 +102,12 @@ export class TelegramService {
       );
     }
 
-    const meRes = await fetch(`https://api.telegram.org/bot${botToken}/getMe`);
+    const effectiveProxy = flags.telegramProxyUrl?.trim() || telegram.proxyUrl;
+    const dispatcher = this.getDispatcher(effectiveProxy);
+    const meOptions: RequestInit & { dispatcher?: Dispatcher } = {
+      ...(dispatcher ? { dispatcher } : {}),
+    };
+    const meRes = await fetch(`https://api.telegram.org/bot${botToken}/getMe`, meOptions);
     const meData = (await meRes.json()) as {
       ok: boolean;
       description?: string;
@@ -114,11 +141,13 @@ export class TelegramService {
       payload.message_thread_id = messageThreadId;
     }
 
-    const sendRes = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+    const sendOptions: RequestInit & { dispatcher?: Dispatcher } = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
-    });
+      ...(dispatcher ? { dispatcher } : {}),
+    };
+    const sendRes = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, sendOptions);
 
     const sendData = (await sendRes.json()) as { ok: boolean; description?: string };
     if (!sendData.ok) {
@@ -191,11 +220,18 @@ export class TelegramService {
         };
       }
 
-      const response = await fetch(`https://api.telegram.org/bot${telegram.botToken}/sendMessage`, {
+      const effectiveProxy = flags.telegramProxyUrl?.trim() || telegram.proxyUrl;
+      const dispatcher = this.getDispatcher(effectiveProxy);
+      const notifyOptions: RequestInit & { dispatcher?: Dispatcher } = {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
-      });
+        ...(dispatcher ? { dispatcher } : {}),
+      };
+      const response = await fetch(
+        `https://api.telegram.org/bot${telegram.botToken}/sendMessage`,
+        notifyOptions,
+      );
 
       const data = (await response.json()) as { ok: boolean; description?: string };
       if (!data.ok) {

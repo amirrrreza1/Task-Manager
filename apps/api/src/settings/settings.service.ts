@@ -5,6 +5,7 @@ import { TelegramService } from '../infrastructure/telegram/telegram.service';
 import {
   isSmtpConfigured,
   isTelegramConfigured,
+  maskProxyUrl,
   readSmtpEnv,
   readTelegramEnv,
 } from '../infrastructure/config/notification-env';
@@ -90,6 +91,8 @@ export class SettingsService {
     });
     const smtp = readSmtpEnv();
     const telegram = readTelegramEnv();
+    const dbProxy = flags.telegramProxyUrl ? flags.telegramProxyUrl.trim() : null;
+    const effectiveProxy = dbProxy || telegram.proxyUrl;
 
     return {
       smtpConfigured: isSmtpConfigured(smtp),
@@ -106,6 +109,10 @@ export class SettingsService {
       telegramHasChatId: Boolean(telegram.chatId),
       telegramHasMessageThreadId: telegram.messageThreadId !== null,
       telegramMessageThreadId: telegram.messageThreadId,
+      telegramProxyUrl: dbProxy ?? '',
+      telegramEnvProxyUrl: telegram.proxyUrl ? maskProxyUrl(telegram.proxyUrl) : null,
+      telegramHasProxy: Boolean(effectiveProxy),
+      telegramEffectiveProxyUrl: maskProxyUrl(effectiveProxy),
       telegramEnabled: flags.telegramEnabled,
       updatedAt: flags.updatedAt,
     };
@@ -148,10 +155,17 @@ export class SettingsService {
       create: { id: 'default' },
     });
 
+    let proxyUpdate: { telegramProxyUrl?: string | null } = {};
+    if (input.telegramProxyUrl !== undefined) {
+      const trimmed = input.telegramProxyUrl ? input.telegramProxyUrl.trim() : null;
+      proxyUpdate = { telegramProxyUrl: trimmed ? trimmed : null };
+    }
+
     const updated = await this.prisma.notificationConfig.update({
       where: { id: 'default' },
       data: {
         ...(input.telegramEnabled !== undefined ? { telegramEnabled: input.telegramEnabled } : {}),
+        ...proxyUpdate,
       },
     });
 
@@ -164,6 +178,7 @@ export class SettingsService {
         payload: {
           version: 1,
           telegramEnabled: updated.telegramEnabled,
+          telegramProxyUrl: maskProxyUrl(updated.telegramProxyUrl),
         },
       },
     });

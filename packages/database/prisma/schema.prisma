@@ -297,6 +297,7 @@ model Attachment {
   mimeType     String              @db.VarChar(127)
   sizeBytes    BigInt
   checksum     String              @db.VarChar(64)
+  comment      String?             @db.Text
   uploadedById String              @db.Uuid
   createdAt    DateTime            @default(now())
   task         Task?               @relation(fields: [taskId], references: [id], onDelete: Cascade)
@@ -355,11 +356,12 @@ model OutboxMessage {
 }
 
 model NotificationConfig {
-  id              String   @id @default("default") @db.VarChar(32)
-  smtpEnabled     Boolean  @default(false)
-  telegramEnabled Boolean  @default(false)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id               String   @id @default("default") @db.VarChar(32)
+  smtpEnabled      Boolean  @default(false)
+  telegramEnabled  Boolean  @default(false)
+  telegramProxyUrl String?  @db.VarChar(500)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }
 
 model Notification {
