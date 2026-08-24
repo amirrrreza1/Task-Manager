@@ -66,6 +66,7 @@ model User {
   refreshSessions   RefreshSession[]
   notifications     Notification[]       @relation("NotificationRecipient")
   triggeredNotifications Notification[]  @relation("NotificationActor")
+  seniorProjects    ProjectSenior[]      @relation("ProjectSeniors")
 
   @@index([isActive])
 }
@@ -85,17 +86,18 @@ model Workspace {
 }
 
 model Project {
-  id          String    @id @default(uuid()) @db.Uuid
-  workspaceId String    @default("00000000-0000-0000-0000-000000000001") @db.Uuid
-  name        String    @db.VarChar(120)
-  key         String?   @db.VarChar(16)
-  description String?   @db.Text
-  color       String?   @db.VarChar(9)
-  icon        String?   @db.VarChar(64)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  id          String          @id @default(uuid()) @db.Uuid
+  workspaceId String          @default("00000000-0000-0000-0000-000000000001") @db.Uuid
+  name        String          @db.VarChar(120)
+  key         String?         @db.VarChar(16)
+  description String?         @db.Text
+  color       String?         @db.VarChar(9)
+  icon        String?         @db.VarChar(64)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  workspace   Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   tasks       Task[]
+  seniors     ProjectSenior[]
 
   @@unique([workspaceId, name])
   @@index([workspaceId])
@@ -118,6 +120,7 @@ model BoardColumn {
   position    Int
   isBacklog   Boolean   @default(false)
   isTodo      Boolean   @default(false)
+  isReview    Boolean   @default(false)
   isDone      Boolean   @default(false)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -239,6 +242,17 @@ model TaskAssignment {
   user       User     @relation(fields: [userId], references: [id], onDelete: Restrict)
 
   @@id([taskId, userId])
+  @@index([userId])
+}
+
+model ProjectSenior {
+  projectId  String   @db.Uuid
+  userId     String   @db.Uuid
+  assignedAt DateTime @default(now())
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user       User     @relation("ProjectSeniors", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, userId])
   @@index([userId])
 }
 
