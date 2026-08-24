@@ -297,14 +297,14 @@ export default function SprintDetailPage() {
       <section className="sprint-overview">
         <div>
           <span>Sprint</span>
-          <strong>
+          <strong title={sprint.goal ? `${sprint.name} · ${sprint.goal}` : sprint.name}>
             {sprint.name}
             {sprint.goal ? ` · ${sprint.goal}` : ''}
           </strong>
         </div>
         <div>
           <span>Schedule</span>
-          <strong>
+          <strong title={`${date(sprint.startsAt)} — ${date(sprint.endsAt)}`}>
             {date(sprint.startsAt)} — {date(sprint.endsAt)}
           </strong>
         </div>

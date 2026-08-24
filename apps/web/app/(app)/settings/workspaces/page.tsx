@@ -418,29 +418,33 @@ function WorkspacesSettings() {
             <p className="section-label">Delete Workspace</p>
             <h2 id="delete-workspace-title">Delete &ldquo;{deletingWorkspace.name}&rdquo;?</h2>
           </header>
-          <div>
-            <p style={{ marginBottom: '1rem', color: 'var(--foreground-muted)' }}>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              void handleDelete();
+            }}
+          >
+            <p className="muted">
               Are you sure you want to delete this workspace? This will permanently delete all board
               columns, sprints, tasks, and subtasks associated with this workspace.
             </p>
             {workspaces.length <= 1 && (
               <p className="muted">You cannot delete the last remaining workspace.</p>
             )}
-          </div>
-          <footer>
-            <Button type="button" variant="ghost" onClick={() => setDeletingWorkspace(null)}>
-              Cancel
-            </Button>
-            <Button
-              disabled={saving || workspaces.length <= 1}
-              type="button"
-              variant="primary"
-              className="button-danger-fill"
-              onClick={handleDelete}
-            >
-              {saving ? 'Deleting…' : 'Delete workspace'}
-            </Button>
-          </footer>
+            <footer>
+              <Button type="button" variant="ghost" onClick={() => setDeletingWorkspace(null)}>
+                Cancel
+              </Button>
+              <Button
+                disabled={saving || workspaces.length <= 1}
+                type="submit"
+                variant="primary"
+                className="button-danger-fill"
+              >
+                {saving ? 'Deleting…' : 'Delete workspace'}
+              </Button>
+            </footer>
+          </form>
         </Modal>
       )}
     </div>
