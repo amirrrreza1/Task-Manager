@@ -65,13 +65,12 @@ export class UsersController {
   }
 
   @Patch(':id')
-  @Roles(UserRole.ADMIN)
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() input: UpdateUserDto,
     @CurrentUser() viewer: AuthenticatedUser,
   ) {
-    return this.users.update(id, input, viewer.id);
+    return this.users.update(id, input, viewer);
   }
 
   @Put(':id/password')
@@ -93,11 +92,11 @@ export class UsersController {
     @UploadedFile() file: Express.Multer.File | undefined,
     @CurrentUser() actor: AuthenticatedUser,
   ) {
-    return this.users.uploadAvatar(id, file, actor.id);
+    return this.users.uploadAvatar(id, file, actor);
   }
 
   @Delete(':id/avatar')
   removeAvatar(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: AuthenticatedUser) {
-    return this.users.removeAvatar(id, actor.id);
+    return this.users.removeAvatar(id, actor);
   }
 }

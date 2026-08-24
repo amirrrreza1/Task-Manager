@@ -13,6 +13,7 @@ import { basename } from 'node:path';
 import { PasswordService } from '../auth/password.service';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import { LocalFileStorage } from '../infrastructure/storage/local-file-storage.service';
+import type { AuthenticatedUser } from '../auth/auth.types';
 import type { CreateUserDto } from './dto/create-user.dto';
 import type { UpdateUserDto } from './dto/update-user.dto';
 import { pickLeastUsedUserColor } from './user-colors';
@@ -118,10 +119,27 @@ export class UsersService {
     });
   }
 
-  async update(id: string, input: UpdateUserDto, actorId: string) {
+  async update(id: string, input: UpdateUserDto, actor: AuthenticatedUser) {
     const existing = await this.prisma.user.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('User not found.');
-    if (existing.isBootstrapAdmin && (input.username !== undefined || input.isActive === false)) {
+
+    const isSelf = actor.id === id;
+    const isAdmin = actor.role === 'ADMIN';
+
+    if (!isAdmin && !isSelf) {
+      throw new ForbiddenException('You can only update your own profile.');
+    }
+
+    if (!isAdmin) {
+      if (input.isActive !== undefined || input.role !== undefined || input.username !== undefined) {
+        throw new ForbiddenException('Only administrators can change role, status, or username.');
+      }
+    }
+
+    if (
+      existing.isBootstrapAdmin &&
+      (input.username !== undefined || input.isActive === false || input.role !== undefined)
+    ) {
       throw new ForbiddenException('The bootstrap administrator is controlled by the environment.');
     }
 
@@ -149,6 +167,7 @@ export class UsersService {
           ...(telegramUsername !== undefined ? { telegramUsername } : {}),
           ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
           ...(input.color !== undefined ? { color: input.color } : {}),
+          ...(input.role !== undefined ? { role: input.role } : {}),
         },
         select: userSelect,
       });
@@ -163,7 +182,7 @@ export class UsersService {
           eventType: 'user.updated',
           entityType: 'user',
           entityId: id,
-          actorId,
+          actorId: actor.id,
           payload: {
             version: 1,
             fields: Object.keys(input).filter((key) => key !== 'password'),
@@ -216,8 +235,10 @@ export class UsersService {
     });
   }
 
-  async uploadAvatar(id: string, file: UploadedFile | undefined, actorId: string) {
-    if (actorId !== id) throw new ForbiddenException('You can only change your own avatar.');
+  async uploadAvatar(id: string, file: UploadedFile | undefined, actor: AuthenticatedUser) {
+    if (actor.role !== 'ADMIN' && actor.id !== id) {
+      throw new ForbiddenException('You do not have permission to change this avatar.');
+    }
     if (!file) throw new BadRequestException('Choose an image to upload.');
 
     try {
@@ -257,7 +278,7 @@ export class UsersService {
               eventType: 'user.avatar_uploaded',
               entityType: 'user',
               entityId: id,
-              actorId,
+              actorId: actor.id,
               payload: { version: 1, mimeType, sizeBytes: file.size },
             },
           });
@@ -274,8 +295,10 @@ export class UsersService {
     }
   }
 
-  async removeAvatar(id: string, actorId: string) {
-    if (actorId !== id) throw new ForbiddenException('You can only change your own avatar.');
+  async removeAvatar(id: string, actor: AuthenticatedUser) {
+    if (actor.role !== 'ADMIN' && actor.id !== id) {
+      throw new ForbiddenException('You do not have permission to change this avatar.');
+    }
     const existing = await this.prisma.user.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('User not found.');
     if (!existing.hasAvatar || !existing.avatarStorageKey) {
@@ -297,7 +320,7 @@ export class UsersService {
           eventType: 'user.avatar_removed',
           entityType: 'user',
           entityId: id,
-          actorId,
+          actorId: actor.id,
           payload: { version: 1 },
         },
       });

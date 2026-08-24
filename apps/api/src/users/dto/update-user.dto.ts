@@ -44,4 +44,9 @@ export class UpdateUserDto {
   @IsHexColor()
   @IsIn(USER_COLORS)
   color?: string;
+
+  @IsOptional()
+  @IsIn(['ADMIN', 'MEMBER'])
+  role?: 'ADMIN' | 'MEMBER';
 }
+

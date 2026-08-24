@@ -304,8 +304,22 @@ export default function SprintDetailPage() {
         </div>
         <div>
           <span>Schedule</span>
-          <strong title={`${date(sprint.startsAt)} — ${date(sprint.endsAt)}`}>
-            {date(sprint.startsAt)} — {date(sprint.endsAt)}
+          <strong
+            className="sprint-schedule-dates"
+            title={
+              sprint.startsAt || sprint.endsAt
+                ? `${date(sprint.startsAt)} — ${date(sprint.endsAt)}`
+                : 'Not scheduled'
+            }
+          >
+            {sprint.startsAt || sprint.endsAt ? (
+              <>
+                <span>{date(sprint.startsAt)}</span>
+                <span>{date(sprint.endsAt)}</span>
+              </>
+            ) : (
+              <span>Not scheduled</span>
+            )}
           </strong>
         </div>
         <div>
