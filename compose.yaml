@@ -44,6 +44,7 @@ services:
       SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Task Manager}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      TELEGRAM_MESSAGE_THREAD_ID: ${TELEGRAM_MESSAGE_THREAD_ID:-}
     depends_on:
       database:
         condition: service_healthy

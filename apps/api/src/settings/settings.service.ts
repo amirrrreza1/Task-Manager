@@ -104,6 +104,8 @@ export class SettingsService {
       telegramConfigured: isTelegramConfigured(telegram),
       telegramHasBotToken: Boolean(telegram.botToken),
       telegramHasChatId: Boolean(telegram.chatId),
+      telegramHasMessageThreadId: telegram.messageThreadId !== null,
+      telegramMessageThreadId: telegram.messageThreadId,
       telegramEnabled: flags.telegramEnabled,
       updatedAt: flags.updatedAt,
     };

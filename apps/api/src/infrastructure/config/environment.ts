@@ -104,6 +104,10 @@ class EnvironmentVariables {
   @IsOptional()
   @IsString()
   TELEGRAM_CHAT_ID?: string;
+
+  @IsOptional()
+  @IsString()
+  TELEGRAM_MESSAGE_THREAD_ID?: string;
 }
 
 export function validateEnvironment(configuration: Record<string, unknown>) {

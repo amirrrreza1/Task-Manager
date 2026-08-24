@@ -50,7 +50,12 @@ export class TelegramService {
       if (ipv4) {
         const a = Number(ipv4[1]);
         const b = Number(ipv4[2]);
-        if (a === 10 || a === 127 || (a === 192 && b === 168) || (a === 172 && b >= 16 && b <= 31)) {
+        if (
+          a === 10 ||
+          a === 127 ||
+          (a === 192 && b === 168) ||
+          (a === 172 && b >= 16 && b <= 31)
+        ) {
           return false;
         }
       }
@@ -62,7 +67,7 @@ export class TelegramService {
 
   async testConnection(): Promise<{ success: boolean; message: string }> {
     const telegram = this.getEnvConfig();
-    const { botToken, chatId } = telegram;
+    const { botToken, chatId, messageThreadId } = telegram;
 
     if (!botToken) {
       throw new Error(
@@ -90,21 +95,29 @@ export class TelegramService {
       ? `@${meData.result.username}`
       : meData.result.first_name;
 
+    const topicNote =
+      messageThreadId !== null ? ` (Topic ID: <code>${messageThreadId}</code>)` : '';
     const testText =
       `🤖 <b>Task Manager Telegram Bot Connected!</b>\n\n` +
       `✅ Bot: <b>${this.sanitizeHtml(botName)}</b>\n` +
       `🕒 Timestamp: <code>${new Date().toISOString()}</code>\n\n` +
-      `Notifications and @mentions will be sent to this group chat.`;
+      `Notifications and @mentions will be sent to this group chat${topicNote ? ` topic` : ''}.`;
+
+    const payload: Record<string, unknown> = {
+      chat_id: chatId,
+      text: testText,
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+    };
+
+    if (messageThreadId !== null) {
+      payload.message_thread_id = messageThreadId;
+    }
 
     const sendRes = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: testText,
-        parse_mode: 'HTML',
-        disable_web_page_preview: true,
-      }),
+      body: JSON.stringify(payload),
     });
 
     const sendData = (await sendRes.json()) as { ok: boolean; description?: string };
@@ -114,9 +127,14 @@ export class TelegramService {
       );
     }
 
+    const targetDesc =
+      messageThreadId !== null
+        ? `group chat (${chatId}, topic ${messageThreadId})`
+        : `group chat (${chatId})`;
+
     return {
       success: true,
-      message: `Test message successfully sent by ${botName} to group chat (${chatId}).`,
+      message: `Test message successfully sent by ${botName} to ${targetDesc}.`,
     };
   }
 
@@ -162,6 +180,10 @@ export class TelegramService {
         disable_web_page_preview: true,
         link_preview_options: { is_disabled: true },
       };
+
+      if (telegram.messageThreadId !== null) {
+        payload.message_thread_id = telegram.messageThreadId;
+      }
 
       if (actionUrl && this.isTelegramUrlButtonAllowed(actionUrl)) {
         payload.reply_markup = {

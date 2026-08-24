@@ -11,6 +11,7 @@ export type SmtpRuntimeConfig = {
 export type TelegramRuntimeConfig = {
   botToken: string | null;
   chatId: string | null;
+  messageThreadId: number | null;
 };
 
 function envString(key: string): string | null {
@@ -18,7 +19,9 @@ function envString(key: string): string | null {
   if (raw === undefined || raw === null) {
     return null;
   }
-  const text = String(raw).trim().replace(/^['"]|['"]$/g, '');
+  const text = String(raw)
+    .trim()
+    .replace(/^['"]|['"]$/g, '');
   return text ? text : null;
 }
 
@@ -50,9 +53,12 @@ export function readSmtpEnv(): SmtpRuntimeConfig {
 }
 
 export function readTelegramEnv(): TelegramRuntimeConfig {
+  const threadRaw = envString('TELEGRAM_MESSAGE_THREAD_ID');
+  const parsedThread = threadRaw ? Number(threadRaw) : NaN;
   return {
     botToken: envString('TELEGRAM_BOT_TOKEN'),
     chatId: envString('TELEGRAM_CHAT_ID'),
+    messageThreadId: Number.isInteger(parsedThread) ? parsedThread : null,
   };
 }
 
