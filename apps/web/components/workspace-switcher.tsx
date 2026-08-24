@@ -17,7 +17,9 @@ export function WorkspaceSwitcher() {
   const canCreate = user?.role === 'ADMIN';
 
   return (
-    <div className={canCreate ? 'workspace-select workspace-select--with-create' : 'workspace-select'}>
+    <div
+      className={canCreate ? 'workspace-select workspace-select--with-create' : 'workspace-select'}
+    >
       <Select
         aria-label="Select workspace"
         value={currentWorkspace?.id ?? ''}

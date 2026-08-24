@@ -147,7 +147,10 @@ const projectIcons = {
   Wallet,
   Box,
   Package,
-} satisfies Record<string, ComponentType<{ 'aria-hidden'?: boolean | 'true' | 'false'; className?: string }>>;
+} satisfies Record<
+  string,
+  ComponentType<{ 'aria-hidden'?: boolean | 'true' | 'false'; className?: string }>
+>;
 
 export type ProjectIconName = keyof typeof projectIcons;
 
@@ -157,13 +160,7 @@ export function isProjectIconName(value: string | null | undefined): value is Pr
   return Boolean(value && value in projectIcons);
 }
 
-export function ProjectIcon({
-  name,
-  className,
-}: {
-  name?: string | null;
-  className?: string;
-}) {
+export function ProjectIcon({ name, className }: { name?: string | null; className?: string }) {
   const Icon = isProjectIconName(name) ? projectIcons[name] : projectIcons[DEFAULT_PROJECT_ICON];
   return <Icon aria-hidden="true" className={className} />;
 }

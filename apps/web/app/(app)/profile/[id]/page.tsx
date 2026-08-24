@@ -188,7 +188,9 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
     if (!canEdit || !profile) return;
     setAvatarBusy(true);
     try {
-      const updated = await request<ManagedUser>(`/users/${profile.id}/avatar`, { method: 'DELETE' });
+      const updated = await request<ManagedUser>(`/users/${profile.id}/avatar`, {
+        method: 'DELETE',
+      });
       invalidateAvatarCache(profile.id);
       setProfile(updated);
       if (isSelf) {
@@ -280,9 +282,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
           <section>
             <div className="setting-copy">
               <h2>Profile & Contact Details</h2>
-              <p>
-                Manage identity, contact information, profile color, and access privileges.
-              </p>
+              <p>Manage identity, contact information, profile color, and access privileges.</p>
             </div>
             <div className="stacked-fields">
               <label>
@@ -311,7 +311,9 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                   onChange={(event) => setUsername(event.target.value)}
                 />
                 {profile.isBootstrapAdmin ? (
-                  <small>The bootstrap administrator username is managed via environment variables.</small>
+                  <small>
+                    The bootstrap administrator username is managed via environment variables.
+                  </small>
                 ) : !isAdmin ? (
                   <small>Only workspace administrators can change account usernames.</small>
                 ) : null}
@@ -320,12 +322,12 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
               <label>
                 Profile Picture Color
                 <div className="user-color-field">
-                  <Avatar
-                    color={effectiveColor}
-                    name={effectiveDisplayName}
-                    size={36}
-                  />
-                  <div className="color-swatch-picker" role="radiogroup" aria-label="Profile picture color">
+                  <Avatar color={effectiveColor} name={effectiveDisplayName} size={36} />
+                  <div
+                    className="color-swatch-picker"
+                    role="radiogroup"
+                    aria-label="Profile picture color"
+                  >
                     {USER_COLORS.map((col) => (
                       <button
                         key={col.value}
@@ -340,7 +342,9 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                     ))}
                   </div>
                 </div>
-                <small>Used for initial avatars, badge accents, and mentions across the board.</small>
+                <small>
+                  Used for initial avatars, badge accents, and mentions across the board.
+                </small>
               </label>
 
               <label>
@@ -384,7 +388,9 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                     {profile.isBootstrapAdmin ? (
                       <small>The bootstrap administrator role cannot be altered.</small>
                     ) : (
-                      <small>Administrators have full management privileges across the workspace.</small>
+                      <small>
+                        Administrators have full management privileges across the workspace.
+                      </small>
                     )}
                   </label>
 
@@ -399,7 +405,8 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                         <option value="inactive">Inactive</option>
                       </Select>
                       <small>
-                        Inactive members cannot log in, and all their active sessions will be terminated.
+                        Inactive members cannot log in, and all their active sessions will be
+                        terminated.
                       </small>
                     </label>
                   ) : null}
@@ -484,7 +491,8 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
             <div className="setting-copy">
               <h2>Password Management</h2>
               <p className="muted">
-                The bootstrap administrator password is set via environment variables (<code>BOOTSTRAP_ADMIN_PASSWORD</code>).
+                The bootstrap administrator password is set via environment variables (
+                <code>BOOTSTRAP_ADMIN_PASSWORD</code>).
               </p>
             </div>
           </section>
@@ -494,7 +502,8 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
               <div className="setting-copy">
                 <h2>Reset Member Password</h2>
                 <p>
-                  As an administrator, you can set a new password for {profile.displayName}. This immediately signs them out of all active sessions.
+                  As an administrator, you can set a new password for {profile.displayName}. This
+                  immediately signs them out of all active sessions.
                 </p>
               </div>
               <div className="stacked-fields">

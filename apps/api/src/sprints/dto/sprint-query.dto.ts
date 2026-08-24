@@ -4,10 +4,7 @@ import { SprintStatus } from '@prisma/client';
 import { IsUuidLike } from '../../common/validators/is-uuid-like';
 
 const toOptionalString = ({ value }: { value: unknown }) =>
-  typeof value === 'string' &&
-  value.trim().length > 0 &&
-  value !== 'undefined' &&
-  value !== 'null'
+  typeof value === 'string' && value.trim().length > 0 && value !== 'undefined' && value !== 'null'
     ? value.trim()
     : undefined;
 

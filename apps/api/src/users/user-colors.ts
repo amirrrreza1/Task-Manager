@@ -26,7 +26,10 @@ export function toUserColorInput(value: unknown) {
   return normalizeUserColor(value) ?? value.trim();
 }
 
-export function pickLeastUsedUserColor(existingColors: string[], preferred?: string | null): UserColor {
+export function pickLeastUsedUserColor(
+  existingColors: string[],
+  preferred?: string | null,
+): UserColor {
   const chosen = preferred ? normalizeUserColor(preferred) : null;
   if (chosen && USER_COLOR_SET.has(chosen)) return chosen;
 

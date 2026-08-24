@@ -73,9 +73,13 @@ export function ProjectLookModal({
   }, [query]);
 
   return (
-    <Modal className="modal project-look-modal" labelledBy="project-look-title" onOpenChange={(open) => {
-      if (!open) onClose();
-    }}>
+    <Modal
+      className="modal project-look-modal"
+      labelledBy="project-look-title"
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
       <header>
         <p className="section-label">Appearance</p>
         <h2 id="project-look-title">Choose look</h2>

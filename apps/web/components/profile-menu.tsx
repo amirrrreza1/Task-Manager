@@ -51,12 +51,7 @@ export function ProfileMenu() {
   }
 
   return (
-    <div
-      className="profile-menu"
-      ref={rootRef}
-      onMouseEnter={showMenu}
-      onMouseLeave={hideMenu}
-    >
+    <div className="profile-menu" ref={rootRef} onMouseEnter={showMenu} onMouseLeave={hideMenu}>
       <button
         aria-expanded={open}
         aria-haspopup="dialog"
@@ -96,11 +91,7 @@ export function ProfileMenu() {
           </div>
           <div className="profile-menu-actions">
             <ThemeToggle label="Theme" />
-            <Button
-              className="profile-menu-signout"
-              variant="ghost"
-              onClick={() => void logout()}
-            >
+            <Button className="profile-menu-signout" variant="ghost" onClick={() => void logout()}>
               <Logout aria-hidden="true" />
               Sign out
             </Button>

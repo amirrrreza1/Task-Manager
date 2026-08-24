@@ -131,7 +131,11 @@ export class UsersService {
     }
 
     if (!isAdmin) {
-      if (input.isActive !== undefined || input.role !== undefined || input.username !== undefined) {
+      if (
+        input.isActive !== undefined ||
+        input.role !== undefined ||
+        input.username !== undefined
+      ) {
         throw new ForbiddenException('Only administrators can change role, status, or username.');
       }
     }
