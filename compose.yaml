@@ -51,6 +51,8 @@ services:
         condition: service_healthy
     ports:
       - '${API_PORT:-4000}:4000'
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
     volumes:
       - uploads:/app/uploads
 
