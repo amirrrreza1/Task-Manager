@@ -33,6 +33,10 @@ const projectSelect = {
   key: true,
   color: true,
   icon: true,
+  seniors: {
+    orderBy: { assignedAt: 'asc' },
+    include: { user: { select: userSummary } },
+  },
 } satisfies Prisma.ProjectSelect;
 const attachmentInclude = {
   uploadedBy: { select: userSummary },
@@ -285,7 +289,16 @@ export class TasksService {
   async move(id: string, input: MoveTaskDto, actorId: string) {
     const task = await this.prisma.task.findUnique({
       where: { id },
-      include: { assignees: { select: { userId: true } } },
+      include: {
+        assignees: { select: { userId: true } },
+        project: {
+          select: {
+            id: true,
+            name: true,
+            seniors: { select: { userId: true } },
+          },
+        },
+      },
     });
     if (!task) throw new NotFoundException('Task not found.');
     if (task.updatedAt.getTime() !== new Date(input.expectedUpdatedAt).getTime())
@@ -370,19 +383,49 @@ export class TasksService {
     });
 
     if (task.columnId !== input.columnId) {
-      const recipientUserIds = [...task.assignees.map((a) => a.userId), task.createdById];
-      void this.notifications.dispatch({
-        recipientUserIds,
-        actorId,
-        type: 'task.status_changed',
-        title: `🔄 Task Moved: ${task.title} → ${column.name}`,
-        message: `"${task.title}" was moved to ${column.name}.`,
-        lines: [`Task "${task.title}" was moved to column "${column.name}".`],
-        link: `/tasks/${task.id}`,
-        actionLabel: 'View Task',
-        sendEmail: column.isDone,
-        sendTelegram: column.isDone,
-      });
+      const isReviewState = Boolean(
+        column.isReview ||
+          column.name.trim().toLowerCase() === 'review' ||
+          column.name.trim().toLowerCase() === 'in review' ||
+          column.name.trim().toLowerCase().includes('review'),
+      );
+
+      const projectSeniorIds = task.project?.seniors.map((s) => s.userId) ?? [];
+      const recipientUserIds = Array.from(
+        new Set([...task.assignees.map((a) => a.userId), task.createdById, ...projectSeniorIds]),
+      );
+
+      if (isReviewState) {
+        void this.notifications.dispatch({
+          recipientUserIds,
+          actorId,
+          type: 'task.review_requested',
+          title: `🔍 Task In Review: ${task.title}`,
+          message: `Task "${task.title}" has gone to review state.`,
+          lines: [
+            `Task "${task.title}" has gone to review state.`,
+            task.project ? `Project: ${task.project.name}` : '',
+            `Column: ${column.name}`,
+          ].filter(Boolean),
+          link: `/tasks/${task.id}`,
+          actionLabel: 'Review Task',
+          sendEmail: true,
+          sendTelegram: true,
+        });
+      } else {
+        void this.notifications.dispatch({
+          recipientUserIds,
+          actorId,
+          type: 'task.status_changed',
+          title: `🔄 Task Moved: ${task.title} → ${column.name}`,
+          message: `"${task.title}" was moved to ${column.name}.`,
+          lines: [`Task "${task.title}" was moved to column "${column.name}".`],
+          link: `/tasks/${task.id}`,
+          actionLabel: 'View Task',
+          sendEmail: column.isDone,
+          sendTelegram: column.isDone,
+        });
+      }
     }
 
     return updatedTask;
