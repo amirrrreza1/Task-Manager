@@ -59,6 +59,7 @@ model User {
   taskAssignments   TaskAssignment[]
   assignedSubtasks  Subtask[]           @relation("SubtaskAssignee")
   sprintComments    SprintComment[]
+  workItemComments  WorkItemComment[]
   activityEvents    ActivityEvent[]      @relation("ActivityActor")
   createdTasks      Task[]               @relation("TaskCreator")
   createdSubtasks   Subtask[]            @relation("SubtaskCreator")
@@ -224,6 +225,7 @@ model Task {
   assignees       TaskAssignment[]
   subtasks        Subtask[]
   attachments     Attachment[]
+  comments        WorkItemComment[]
   sprintSnapshots SprintTaskSnapshot[]
 
   @@index([workspaceId, columnId, position])
@@ -278,6 +280,7 @@ model Subtask {
   assignee       User?        @relation("SubtaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
   createdBy      User         @relation("SubtaskCreator", fields: [createdById], references: [id], onDelete: Restrict)
   attachments    Attachment[]
+  comments       WorkItemComment[]
   sprintSnapshots SprintSubtaskSnapshot[]
 
   @@index([taskId, position])
@@ -297,7 +300,6 @@ model Attachment {
   mimeType     String              @db.VarChar(127)
   sizeBytes    BigInt
   checksum     String              @db.VarChar(64)
-  comment      String?             @db.Text
   uploadedById String              @db.Uuid
   createdAt    DateTime            @default(now())
   task         Task?               @relation(fields: [taskId], references: [id], onDelete: Cascade)
@@ -307,6 +309,22 @@ model Attachment {
   @@index([taskId])
   @@index([subtaskId])
   @@index([uploadedById])
+}
+
+model WorkItemComment {
+  id        String   @id @default(uuid()) @db.Uuid
+  body      String   @db.Text
+  taskId    String?  @db.Uuid
+  subtaskId String?  @db.Uuid
+  authorId  String   @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  task      Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  subtask   Subtask? @relation(fields: [subtaskId], references: [id], onDelete: Cascade)
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([taskId, createdAt])
+  @@index([subtaskId, createdAt])
 }
 
 model RefreshSession {

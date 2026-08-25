@@ -200,9 +200,17 @@ export interface Attachment {
   mimeType: string;
   sizeBytes: number;
   checksum: string;
-  comment: string | null;
   uploadedBy: UserSummary;
   createdAt: string;
+}
+
+export interface WorkItemComment {
+  id: string;
+  body: string;
+  authorId: string;
+  author: UserSummary;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Subtask {
@@ -229,6 +237,15 @@ export interface TaskDetail extends Omit<TaskCard, 'subtasks' | '_count'> {
   createdBy: UserSummary;
   subtasks: Subtask[];
   attachments: Attachment[];
+  comments: WorkItemComment[];
+}
+
+export interface SubtaskDetail extends Subtask {
+  task: { id: string; title: string; workspaceId: string };
+  column: BoardColumn;
+  sprint: { id: string; name: string; status: string } | null;
+  createdBy: UserSummary;
+  comments: WorkItemComment[];
 }
 
 export interface BoardResponse {

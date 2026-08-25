@@ -1,16 +1,19 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { EstimateMode, type Prisma } from '@prisma/client';
+import { EstimateMode, UserRole, type Prisma } from '@prisma/client';
+import type { AuthenticatedUser } from '../auth/auth.types';
 import { assertEstimate, assertEstimateMatchesMode } from '../common/estimate';
 import { estimateData, type EstimateDto } from '../common/dto/estimate.dto';
 import { LocalFileStorage } from '../infrastructure/storage/local-file-storage.service';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import type { CreateSubtaskDto } from './dto/create-subtask.dto';
+import type { CommentDto } from './dto/comment.dto';
 import type { CreateTaskDto } from './dto/create-task.dto';
 import type { MoveSubtaskDto } from './dto/move-subtask.dto';
 import type { MoveTaskDto } from './dto/move-task.dto';
@@ -55,6 +58,10 @@ const taskDetailInclude = {
     },
   },
   attachments: { orderBy: { createdAt: 'asc' }, include: attachmentInclude },
+  comments: {
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    include: { author: { select: userSummary } },
+  },
 } satisfies Prisma.TaskInclude;
 
 @Injectable()
@@ -107,6 +114,26 @@ export class TasksService {
     const task = await this.prisma.task.findUnique({ where: { id }, include: taskDetailInclude });
     if (!task) throw new NotFoundException('Task not found.');
     return this.serializeTask(task);
+  }
+
+  async getSubtask(taskId: string, id: string) {
+    const subtask = await this.prisma.subtask.findFirst({
+      where: { id, taskId },
+      include: {
+        task: { select: { id: true, title: true, workspaceId: true } },
+        column: true,
+        sprint: { select: { id: true, name: true, status: true } },
+        createdBy: { select: userSummary },
+        assignee: { select: userSummary },
+        attachments: { orderBy: { createdAt: 'asc' }, include: attachmentInclude },
+        comments: {
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          include: { author: { select: userSummary } },
+        },
+      },
+    });
+    if (!subtask) throw new NotFoundException('Subtask not found.');
+    return this.serializeSubtask(subtask);
   }
 
   async create(input: CreateTaskDto, actorId: string) {
@@ -658,6 +685,150 @@ export class TasksService {
     await Promise.all(subtask.attachments.map((item) => this.storage.delete(item.storageKey)));
   }
 
+  async commentOnTask(id: string, input: CommentDto, actorId: string) {
+    await this.assertTask(id);
+    return this.createComment({ taskId: id }, input, actorId, 'task', id);
+  }
+
+  async commentOnSubtask(taskId: string, id: string, input: CommentDto, actorId: string) {
+    await this.assertSubtask(taskId, id);
+    return this.createComment({ subtaskId: id }, input, actorId, 'subtask', id, { taskId });
+  }
+
+  async updateTaskComment(
+    taskId: string,
+    commentId: string,
+    input: CommentDto,
+    actor: AuthenticatedUser,
+  ) {
+    return this.updateComment({ taskId }, commentId, input, actor, 'task', taskId);
+  }
+
+  async updateSubtaskComment(
+    taskId: string,
+    subtaskId: string,
+    commentId: string,
+    input: CommentDto,
+    actor: AuthenticatedUser,
+  ) {
+    await this.assertSubtask(taskId, subtaskId);
+    return this.updateComment({ subtaskId }, commentId, input, actor, 'subtask', subtaskId, {
+      taskId,
+    });
+  }
+
+  async removeTaskComment(taskId: string, commentId: string, actor: AuthenticatedUser) {
+    return this.removeComment({ taskId }, commentId, actor, 'task', taskId);
+  }
+
+  async removeSubtaskComment(
+    taskId: string,
+    subtaskId: string,
+    commentId: string,
+    actor: AuthenticatedUser,
+  ) {
+    await this.assertSubtask(taskId, subtaskId);
+    return this.removeComment({ subtaskId }, commentId, actor, 'subtask', subtaskId, { taskId });
+  }
+
+  private async createComment(
+    owner: { taskId?: string; subtaskId?: string },
+    input: CommentDto,
+    actorId: string,
+    entityType: 'task' | 'subtask',
+    entityId: string,
+    details: object = {},
+  ) {
+    const body = input.body.trim();
+    if (!body) throw new BadRequestException('Comment cannot be empty.');
+    return this.prisma.$transaction(async (transaction) => {
+      const comment = await transaction.workItemComment.create({
+        data: { ...owner, authorId: actorId, body },
+        include: { author: { select: userSummary } },
+      });
+      await this.event(
+        transaction,
+        `${entityType}.comment_created`,
+        entityType,
+        entityId,
+        actorId,
+        {
+          commentId: comment.id,
+          ...details,
+        },
+      );
+      return comment;
+    });
+  }
+
+  private async updateComment(
+    owner: { taskId?: string; subtaskId?: string },
+    commentId: string,
+    input: CommentDto,
+    actor: AuthenticatedUser,
+    entityType: 'task' | 'subtask',
+    entityId: string,
+    details: object = {},
+  ) {
+    const body = input.body.trim();
+    if (!body) throw new BadRequestException('Comment cannot be empty.');
+    const comment = await this.prisma.workItemComment.findFirst({
+      where: { id: commentId, ...owner },
+    });
+    if (!comment) throw new NotFoundException('Comment not found.');
+    if (comment.authorId !== actor.id && actor.role !== UserRole.ADMIN)
+      throw new ForbiddenException('You can only edit your own comments.');
+    return this.prisma.$transaction(async (transaction) => {
+      const updated = await transaction.workItemComment.update({
+        where: { id: commentId },
+        data: { body },
+        include: { author: { select: userSummary } },
+      });
+      await this.event(
+        transaction,
+        `${entityType}.comment_updated`,
+        entityType,
+        entityId,
+        actor.id,
+        {
+          commentId,
+          ...details,
+        },
+      );
+      return updated;
+    });
+  }
+
+  private async removeComment(
+    owner: { taskId?: string; subtaskId?: string },
+    commentId: string,
+    actor: AuthenticatedUser,
+    entityType: 'task' | 'subtask',
+    entityId: string,
+    details: object = {},
+  ) {
+    const comment = await this.prisma.workItemComment.findFirst({
+      where: { id: commentId, ...owner },
+    });
+    if (!comment) throw new NotFoundException('Comment not found.');
+    if (comment.authorId !== actor.id && actor.role !== UserRole.ADMIN)
+      throw new ForbiddenException('You can only delete your own comments.');
+    await this.prisma.$transaction(async (transaction) => {
+      await transaction.workItemComment.delete({ where: { id: commentId } });
+      await this.event(
+        transaction,
+        `${entityType}.comment_deleted`,
+        entityType,
+        entityId,
+        actor.id,
+        {
+          commentId,
+          ...details,
+        },
+      );
+    });
+  }
+
   private filters(query: TaskQueryDto): Prisma.TaskWhereInput {
     return {
       ...(query.workspaceId ? { workspaceId: query.workspaceId } : {}),
@@ -758,6 +929,11 @@ export class TasksService {
   private async assertTask(id: string) {
     if (!(await this.prisma.task.findUnique({ where: { id }, select: { id: true } })))
       throw new NotFoundException('Task not found.');
+  }
+
+  private async assertSubtask(taskId: string, id: string) {
+    if (!(await this.prisma.subtask.findFirst({ where: { id, taskId }, select: { id: true } })))
+      throw new NotFoundException('Subtask not found.');
   }
 
   private async assertWorkspaceEstimate(estimate?: EstimateDto | null, workspaceId?: string) {

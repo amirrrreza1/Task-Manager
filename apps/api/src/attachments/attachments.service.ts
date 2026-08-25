@@ -12,8 +12,6 @@ import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import { LocalFileStorage } from '../infrastructure/storage/local-file-storage.service';
 import { NotificationsService } from '../notifications/notifications.service';
 
-import { UpdateAttachmentDto } from './dto/update-attachment.dto';
-
 interface UploadedFile {
   path: string;
   originalname: string;
@@ -40,22 +38,12 @@ export class AttachmentsService {
     this.maximumBytes = config.get<number>('MAX_UPLOAD_SIZE_MB', 25) * 1024 * 1024;
   }
 
-  uploadToTask(
-    taskId: string,
-    file: UploadedFile | undefined,
-    actorId: string,
-    comment?: string | null,
-  ) {
-    return this.upload(AttachmentOwnerType.TASK, taskId, file, actorId, comment);
+  uploadToTask(taskId: string, file: UploadedFile | undefined, actorId: string) {
+    return this.upload(AttachmentOwnerType.TASK, taskId, file, actorId);
   }
 
-  uploadToSubtask(
-    subtaskId: string,
-    file: UploadedFile | undefined,
-    actorId: string,
-    comment?: string | null,
-  ) {
-    return this.upload(AttachmentOwnerType.SUBTASK, subtaskId, file, actorId, comment);
+  uploadToSubtask(subtaskId: string, file: UploadedFile | undefined, actorId: string) {
+    return this.upload(AttachmentOwnerType.SUBTASK, subtaskId, file, actorId);
   }
 
   async get(id: string) {
@@ -65,48 +53,6 @@ export class AttachmentsService {
     });
     if (!attachment) throw new NotFoundException('Attachment not found.');
     return attachment;
-  }
-
-  async update(id: string, input: UpdateAttachmentDto, actorId: string) {
-    const attachment = await this.prisma.attachment.findUnique({
-      where: { id },
-      include: attachmentInclude,
-    });
-    if (!attachment) throw new NotFoundException('Attachment not found.');
-
-    const comment =
-      input.comment !== undefined
-        ? input.comment && input.comment.trim().length > 0
-          ? input.comment.trim()
-          : null
-        : attachment.comment;
-
-    const updated = await this.prisma.$transaction(async (transaction) => {
-      const res = await transaction.attachment.update({
-        where: { id },
-        data: { comment },
-        include: attachmentInclude,
-      });
-      await transaction.activityEvent.create({
-        data: {
-          eventType: 'attachment.updated',
-          entityType: 'attachment',
-          entityId: id,
-          actorId,
-          payload: {
-            version: 1,
-            ownerType: attachment.ownerType,
-            taskId: attachment.taskId,
-            subtaskId: attachment.subtaskId,
-            originalName: attachment.originalName,
-            comment,
-          },
-        },
-      });
-      return res;
-    });
-
-    return this.serialize(updated);
   }
 
   async remove(id: string, actorId: string) {
@@ -151,10 +97,8 @@ export class AttachmentsService {
     ownerId: string,
     file: UploadedFile | undefined,
     actorId: string,
-    rawComment?: string | null,
   ) {
     if (!file) throw new BadRequestException('Choose a file to upload.');
-    const comment = rawComment && rawComment.trim().length > 0 ? rawComment.trim() : null;
     try {
       if (file.size < 1) throw new BadRequestException('Empty files cannot be attached.');
       if (file.size > this.maximumBytes)
@@ -188,7 +132,6 @@ export class AttachmentsService {
               mimeType: (file.mimetype || 'application/octet-stream').slice(0, 127),
               sizeBytes: file.size,
               checksum: stored.checksum,
-              comment,
             },
             include: attachmentInclude,
           });
@@ -205,7 +148,6 @@ export class AttachmentsService {
                 originalName,
                 sizeBytes: file.size,
                 checksum: stored.checksum,
-                comment,
               },
             },
           });
@@ -222,17 +164,13 @@ export class AttachmentsService {
               });
               if (task) {
                 const recipients = [...task.assignees.map((a) => a.userId), task.createdById];
-                const commentSuffix = comment ? ` with comment: "${comment}"` : '';
                 await this.notifications.dispatch({
                   recipientUserIds: recipients,
                   actorId,
                   type: 'attachment.added',
                   title: `📎 New Attachment on "${task.title}"`,
-                  message: `A new file "${originalName}" was attached to "${task.title}"${commentSuffix}.`,
-                  lines: [
-                    `New attachment "${originalName}" uploaded to task "${task.title}".`,
-                    ...(comment ? [`Comment: ${comment}`] : []),
-                  ],
+                  message: `A new file "${originalName}" was attached to "${task.title}".`,
+                  lines: [`New attachment "${originalName}" uploaded to task "${task.title}".`],
                   link: `/tasks/${task.id}`,
                   actionLabel: 'View Task',
                 });
@@ -248,16 +186,14 @@ export class AttachmentsService {
                   ...subtask.task.assignees.map((a) => a.userId),
                   subtask.task.createdById,
                 ];
-                const commentSuffix = comment ? ` with comment: "${comment}"` : '';
                 await this.notifications.dispatch({
                   recipientUserIds: recipients,
                   actorId,
                   type: 'attachment.added',
                   title: `📎 New Attachment on "${subtask.title}"`,
-                  message: `A new file "${originalName}" was attached to subtask "${subtask.title}"${commentSuffix}.`,
+                  message: `A new file "${originalName}" was attached to subtask "${subtask.title}".`,
                   lines: [
                     `New attachment "${originalName}" uploaded to subtask "${subtask.title}" on task "${subtask.task.title}".`,
-                    ...(comment ? [`Comment: ${comment}`] : []),
                   ],
                   link: `/tasks/${subtask.taskId}`,
                   actionLabel: 'View Task',

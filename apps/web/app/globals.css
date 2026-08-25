@@ -865,7 +865,13 @@ label:not([data-slot='field-label']) small {
 
 .comment-form {
   display: grid;
+  padding: 0 20px;
   gap: 10px;
+}
+.comment-form textarea {
+  /* Comments read as a continuous thread, so the composer uses a quieter, tighter shape. */
+  border-radius: 4px;
+  resize: vertical;
 }
 .comment-form > div {
   display: flex;
@@ -2528,7 +2534,7 @@ input[type='color'] {
   display: flex;
   flex-direction: column;
   padding: 8px 12px;
-  border-radius: 8px;
+  border-radius: 0;
   border: 1px solid var(--border);
   background: var(--surface);
   gap: 6px;
@@ -2679,6 +2685,36 @@ input[type='color'] {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+.task-heading-facts {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+  flex-wrap: wrap;
+}
+.compact-subtask-list {
+  border-top: 1px solid var(--border);
+}
+.subtask-title-link {
+  display: block;
+  padding: 13px 16px;
+  color: var(--foreground);
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+.subtask-title-link + .subtask-title-link {
+  border-top: 1px solid var(--border);
+}
+.subtask-title-link:hover {
+  background: var(--surface-2);
+  color: var(--accent);
+}
+.subtask-completion-control {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 .task-sidebar {
   position: sticky;
@@ -3827,6 +3863,12 @@ label:not([data-slot='field-label']) {
   border-radius: var(--radius-xl);
   background: var(--background);
   box-shadow: var(--shadow-2xs);
+}
+
+.comment-form textarea,
+.comment-form textarea:focus {
+  border: 0;
+  box-shadow: none;
 }
 
 .task-card:hover,

@@ -13,6 +13,7 @@ import {
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { CommentDto } from './dto/comment.dto';
 import { CreateSubtaskDto } from './dto/create-subtask.dto';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { MoveSubtaskDto } from './dto/move-subtask.dto';
@@ -37,6 +38,12 @@ export class TasksController {
   @Get(':id') get(@Param('id', ParseUUIDPipe) id: string) {
     return this.tasks.get(id);
   }
+  @Get(':taskId/subtasks/:id') getSubtask(
+    @Param('taskId', ParseUUIDPipe) taskId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.tasks.getSubtask(taskId, id);
+  }
   @Patch(':id') update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() input: UpdateTaskDto,
@@ -56,6 +63,29 @@ export class TasksController {
     @CurrentUser() actor: AuthenticatedUser,
   ) {
     return this.tasks.remove(id, actor.id);
+  }
+
+  @Post(':id/comments') commentOnTask(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() input: CommentDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.tasks.commentOnTask(id, input, actor.id);
+  }
+  @Patch(':id/comments/:commentId') updateTaskComment(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('commentId', ParseUUIDPipe) commentId: string,
+    @Body() input: CommentDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.tasks.updateTaskComment(id, commentId, input, actor);
+  }
+  @Delete(':id/comments/:commentId') @HttpCode(204) removeTaskComment(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('commentId', ParseUUIDPipe) commentId: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.tasks.removeTaskComment(id, commentId, actor);
   }
 
   @Post(':taskId/subtasks') createSubtask(
@@ -94,5 +124,31 @@ export class TasksController {
     @CurrentUser() actor: AuthenticatedUser,
   ) {
     return this.tasks.removeSubtask(taskId, id, actor.id);
+  }
+
+  @Post(':taskId/subtasks/:id/comments') commentOnSubtask(
+    @Param('taskId', ParseUUIDPipe) taskId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() input: CommentDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.tasks.commentOnSubtask(taskId, id, input, actor.id);
+  }
+  @Patch(':taskId/subtasks/:id/comments/:commentId') updateSubtaskComment(
+    @Param('taskId', ParseUUIDPipe) taskId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('commentId', ParseUUIDPipe) commentId: string,
+    @Body() input: CommentDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.tasks.updateSubtaskComment(taskId, id, commentId, input, actor);
+  }
+  @Delete(':taskId/subtasks/:id/comments/:commentId') @HttpCode(204) removeSubtaskComment(
+    @Param('taskId', ParseUUIDPipe) taskId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('commentId', ParseUUIDPipe) commentId: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.tasks.removeSubtaskComment(taskId, id, commentId, actor);
   }
 }
