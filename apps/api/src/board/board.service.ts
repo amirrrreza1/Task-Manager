@@ -7,24 +7,30 @@ import {
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import type { AuthenticatedUser } from '../auth/auth.types';
+import { BoardEventsService } from './board-events.service';
 import type { BoardQueryDto } from './dto/board-query.dto';
 import type { CreateColumnDto } from './dto/create-column.dto';
 import type { ReorderColumnsDto } from './dto/reorder-columns.dto';
 import type { UpdateColumnDto } from './dto/update-column.dto';
 
 const taskCardInclude = {
-  project: {
-    select: {
-      id: true,
-      name: true,
-      key: true,
-      color: true,
-      icon: true,
-      seniors: {
-        orderBy: { assignedAt: 'asc' },
-        include: {
-          user: {
-            select: { id: true, displayName: true, color: true, hasAvatar: true, isActive: true },
+  projects: {
+    orderBy: { assignedAt: 'asc' },
+    include: {
+      project: {
+        select: {
+          id: true,
+          name: true,
+          key: true,
+          color: true,
+          icon: true,
+          seniors: {
+            orderBy: { assignedAt: 'asc' },
+            include: {
+              user: {
+                select: { id: true, displayName: true, color: true, hasAvatar: true, isActive: true },
+              },
+            },
           },
         },
       },
@@ -65,7 +71,10 @@ const taskCardInclude = {
 
 @Injectable()
 export class BoardService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly events?: BoardEventsService,
+  ) {}
 
   private async resolveWorkspaceId(workspaceId?: string): Promise<string> {
     if (workspaceId) {
@@ -102,7 +111,7 @@ export class BoardService {
 
     const taskWhere: Prisma.TaskWhereInput = {
       workspaceId,
-      ...(query.projectId ? { projectId: query.projectId } : {}),
+      ...(query.projectId ? { projects: { some: { projectId: query.projectId } } } : {}),
       ...(query.search?.trim()
         ? {
             OR: [
@@ -121,7 +130,7 @@ export class BoardService {
     const subtaskWhere: Prisma.SubtaskWhereInput = {
       task: {
         workspaceId,
-        ...(query.projectId ? { projectId: query.projectId } : {}),
+        ...(query.projectId ? { projects: { some: { projectId: query.projectId } } } : {}),
       },
       ...(query.search?.trim()
         ? {
@@ -137,7 +146,7 @@ export class BoardService {
             task: {
               sprintId: query.sprintId,
               workspaceId,
-              ...(query.projectId ? { projectId: query.projectId } : {}),
+              ...(query.projectId ? { projects: { some: { projectId: query.projectId } } } : {}),
             },
           }
         : {}),
@@ -229,7 +238,7 @@ export class BoardService {
     if (!name) throw new BadRequestException('Column name cannot be empty.');
     const workspaceId = await this.resolveWorkspaceId(input.workspaceId);
 
-    return this.prisma.$transaction(async (transaction) => {
+    const result = await this.prisma.$transaction(async (transaction) => {
       const columns = await transaction.boardColumn.findMany({
         where: { workspaceId },
         orderBy: { position: 'asc' },
@@ -258,6 +267,10 @@ export class BoardService {
       });
       return transaction.boardColumn.findUniqueOrThrow({ where: { id: column.id } });
     });
+    this.events?.emitBoardUpdate(workspaceId, 'column.created', result.id, actor.id, {
+      name: result.name,
+    });
+    return result;
   }
 
   async update(id: string, input: UpdateColumnDto, actor: AuthenticatedUser) {
@@ -270,7 +283,7 @@ export class BoardService {
       throw new BadRequestException('The backlog column is managed automatically.');
     if (input.name !== undefined && !input.name.trim())
       throw new BadRequestException('Column name cannot be empty.');
-    return this.prisma.$transaction(async (transaction) => {
+    const updated = await this.prisma.$transaction(async (transaction) => {
       const column = await transaction.boardColumn.update({
         where: { id },
         data: {
@@ -284,6 +297,8 @@ export class BoardService {
       });
       return column;
     });
+    this.events?.emitBoardUpdate(existing.workspaceId, 'column.updated', id, actor.id);
+    return updated;
   }
 
   async reorder(input: ReorderColumnsDto, actor: AuthenticatedUser) {
@@ -291,13 +306,13 @@ export class BoardService {
       throw new BadRequestException('Column IDs must be unique.');
     if (input.columnIds.length === 0) throw new BadRequestException('Column IDs cannot be empty.');
 
-    return this.prisma.$transaction(async (transaction) => {
-      const firstColumn = await transaction.boardColumn.findUnique({
-        where: { id: input.columnIds[0] },
-      });
-      if (!firstColumn) throw new NotFoundException('Board column not found.');
-      const workspaceId = firstColumn.workspaceId;
+    const firstColumn = await this.prisma.boardColumn.findUnique({
+      where: { id: input.columnIds[0] },
+    });
+    if (!firstColumn) throw new NotFoundException('Board column not found.');
+    const workspaceId = firstColumn.workspaceId;
 
+    const reordered = await this.prisma.$transaction(async (transaction) => {
       const columns = await transaction.boardColumn.findMany({
         where: { workspaceId },
         orderBy: { position: 'asc' },
@@ -335,16 +350,20 @@ export class BoardService {
         orderBy: { position: 'asc' },
       });
     });
+    this.events?.emitBoardUpdate(workspaceId, 'column.reordered', undefined, actor.id, {
+      columnIds: input.columnIds,
+    });
+    return reordered;
   }
 
   async remove(id: string, moveTasksTo: string | undefined, actor: AuthenticatedUser) {
-    return this.prisma.$transaction(async (transaction) => {
-      const target = await transaction.boardColumn.findUnique({ where: { id } });
-      if (!target) throw new NotFoundException('Board column not found.');
-      if (target.isTodo || target.isDone)
-        throw new BadRequestException('The To Do and Done columns cannot be deleted.');
-      if (target.isBacklog) throw new BadRequestException('The backlog column cannot be deleted.');
+    const target = await this.prisma.boardColumn.findUnique({ where: { id } });
+    if (!target) throw new NotFoundException('Board column not found.');
+    if (target.isTodo || target.isDone)
+      throw new BadRequestException('The To Do and Done columns cannot be deleted.');
+    if (target.isBacklog) throw new BadRequestException('The backlog column cannot be deleted.');
 
+    await this.prisma.$transaction(async (transaction) => {
       const columns = await transaction.boardColumn.findMany({
         where: { workspaceId: target.workspaceId },
         orderBy: { position: 'asc' },
@@ -393,6 +412,7 @@ export class BoardService {
         workspaceId: target.workspaceId,
       });
     });
+    this.events?.emitBoardUpdate(target.workspaceId, 'column.deleted', id, actor.id);
   }
 
   private async setColumnOrder(transaction: Prisma.TransactionClient, columnIds: string[]) {

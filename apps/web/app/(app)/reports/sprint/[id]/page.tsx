@@ -250,12 +250,17 @@ export default function SprintReportPage({ params }: { params: Promise<{ id: str
                 <span>Started</span>
               </div>
             )}
-            {report.sprint.endsAt && (
+            {report.sprint.completedAt ? (
+              <div className="report-stat">
+                <strong>{formatDate(report.sprint.completedAt)}</strong>
+                <span>Completed</span>
+              </div>
+            ) : report.sprint.endsAt ? (
               <div className="report-stat">
                 <strong>{formatDate(report.sprint.endsAt)}</strong>
                 <span>Ended</span>
               </div>
-            )}
+            ) : null}
           </section>
 
           {/* Per-member contributions */}

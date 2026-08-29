@@ -97,7 +97,7 @@ model Project {
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
   workspace   Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  tasks       Task[]
+  tasks       TaskProject[]
   seniors     ProjectSenior[]
 
   @@unique([workspaceId, name])
@@ -205,7 +205,6 @@ model SprintComment {
 model Task {
   id              String               @id @default(uuid()) @db.Uuid
   workspaceId     String               @default("00000000-0000-0000-0000-000000000001") @db.Uuid
-  projectId       String?              @db.Uuid
   title           String               @db.VarChar(240)
   description     String?              @db.Text
   priority        TaskPriority         @default(MEDIUM)
@@ -218,7 +217,7 @@ model Task {
   createdAt       DateTime             @default(now())
   updatedAt       DateTime             @updatedAt
   workspace       Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  project         Project?             @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  projects        TaskProject[]
   column          BoardColumn          @relation(fields: [columnId], references: [id], onDelete: Restrict)
   sprint          Sprint?              @relation(fields: [sprintId], references: [id], onDelete: SetNull)
   createdBy       User                 @relation("TaskCreator", fields: [createdById], references: [id], onDelete: Restrict)
@@ -229,11 +228,21 @@ model Task {
   sprintSnapshots SprintTaskSnapshot[]
 
   @@index([workspaceId, columnId, position])
-  @@index([workspaceId, projectId])
   @@index([workspaceId, priority])
   @@index([columnId, position])
   @@index([sprintId])
   @@index([updatedAt])
+}
+
+model TaskProject {
+  taskId     String   @db.Uuid
+  projectId  String   @db.Uuid
+  assignedAt DateTime @default(now())
+  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, projectId])
+  @@index([projectId])
 }
 
 model TaskAssignment {

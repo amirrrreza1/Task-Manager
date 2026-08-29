@@ -145,6 +145,20 @@ export interface BoardColumn {
   tasks?: TaskCard[];
 }
 
+export interface TaskProjectItem {
+  taskId?: string;
+  projectId?: string;
+  assignedAt?: string;
+  project: {
+    id: string;
+    name: string;
+    key: string | null;
+    color: string | null;
+    icon: string | null;
+    seniors?: ProjectSenior[];
+  };
+}
+
 export interface TaskCard {
   id: string;
   workspaceId?: string;
@@ -157,6 +171,7 @@ export interface TaskCard {
     icon: string | null;
     seniors?: ProjectSenior[];
   } | null;
+  projects?: TaskProjectItem[];
   title: string;
   description: string | null;
   priority: TaskPriority;

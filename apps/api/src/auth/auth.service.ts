@@ -19,6 +19,8 @@ const publicUserSelect = {
   isBootstrapAdmin: true,
 } satisfies Prisma.UserSelect;
 
+const REFRESH_GRACE_PERIOD_MS = 30_000;
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -42,7 +44,11 @@ export class AuthService {
     return this.createSession(user);
   }
 
-  async refresh(rawToken: string | undefined) {
+  async refresh(rawToken: string | undefined): Promise<{
+    accessToken: string;
+    refreshToken?: string;
+    user: AuthenticatedUser;
+  }> {
     if (!rawToken) throw new UnauthorizedException('A refresh session is required.');
     const tokenHash = this.hashToken(rawToken);
     const session = await this.prisma.refreshSession.findUnique({
@@ -53,6 +59,27 @@ export class AuthService {
     if (!session) throw new UnauthorizedException('The refresh session is invalid.');
 
     if (session.revokedAt) {
+      const timeSinceRevocation = Date.now() - session.revokedAt.getTime();
+      if (timeSinceRevocation <= REFRESH_GRACE_PERIOD_MS) {
+        const activeSession = await this.prisma.refreshSession.findFirst({
+          where: {
+            familyId: session.familyId,
+            revokedAt: null,
+            expiresAt: { gt: new Date() },
+          },
+          orderBy: { createdAt: 'desc' },
+          include: { user: true },
+        });
+
+        if (activeSession && activeSession.user.isActive) {
+          return {
+            accessToken: await this.signAccessToken(activeSession.user),
+            refreshToken: undefined,
+            user: this.toPublicUser(activeSession.user),
+          };
+        }
+      }
+
       await this.prisma.refreshSession.updateMany({
         where: { familyId: session.familyId, revokedAt: null },
         data: { revokedAt: new Date() },
@@ -85,6 +112,24 @@ export class AuthService {
     });
 
     if (!updated) {
+      const activeSession = await this.prisma.refreshSession.findFirst({
+        where: {
+          familyId: session.familyId,
+          revokedAt: null,
+          expiresAt: { gt: new Date() },
+        },
+        orderBy: { createdAt: 'desc' },
+        include: { user: true },
+      });
+
+      if (activeSession && activeSession.user.isActive) {
+        return {
+          accessToken: await this.signAccessToken(activeSession.user),
+          refreshToken: undefined,
+          user: this.toPublicUser(activeSession.user),
+        };
+      }
+
       await this.revokeFamily(session.familyId);
       throw new UnauthorizedException('The refresh session has already been used.');
     }

@@ -8,7 +8,6 @@ import {
   Select,
   Textarea,
 } from '../../../../components/design-system';
-import { CalendarDateInput } from '../../../../components/calendar-date-input';
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -36,12 +35,9 @@ import type {
   SprintSummary,
 } from '../../../../lib/types';
 import { isSprintWorkSelectionLocked } from '../../../../lib/sprint-work';
-import { needsSprintFinishConfirmation } from '../../../../lib/sprint-finish';
 
 const date = (value: string | null, withTime = false) =>
   withTime ? formatDateTime(value) : formatDate(value);
-const localInput = (value: string | null) =>
-  value ? new Date(value).toISOString().slice(0, 10) : '';
 
 export default function SprintDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -49,10 +45,9 @@ export default function SprintDetailPage() {
   const toast = useToast();
   const [sprint, setSprint] = useState<SprintDetail | null>(null);
   const [planned, setPlanned] = useState<SprintSummary[]>([]);
+  const [activeSprint, setActiveSprint] = useState<SprintSummary | null>(null);
   const [comment, setComment] = useState('');
   const [editingComment, setEditingComment] = useState<SprintComment | null>(null);
-  const [startAt, setStartAt] = useState('');
-  const [endAt, setEndAt] = useState('');
   const [carryIds, setCarryIds] = useState<string[]>([]);
   const [carrySubtaskIds, setCarrySubtaskIds] = useState<string[]>([]);
   const [targetSprintId, setTargetSprintId] = useState('');
@@ -75,14 +70,15 @@ export default function SprintDetailPage() {
   const load = useCallback(async () => {
     setLoadFailed(false);
     try {
-      const [detail, plannedResponse] = await Promise.all([
+      const [detail, plannedResponse, activeResponse] = await Promise.all([
         request<SprintDetail>(`/sprints/${id}`),
         request<Paginated<SprintSummary>>('/sprints?status=PLANNED'),
+        request<Paginated<SprintSummary>>('/sprints?status=ACTIVE'),
       ]);
       setSprint(detail);
       setPlanned(plannedResponse.items.filter((item) => item.id !== id));
-      setStartAt(localInput(detail.startsAt));
-      setEndAt(localInput(detail.endsAt));
+      const active = activeResponse.items.find((item) => item.id !== id) ?? null;
+      setActiveSprint(active);
       setLoadFailed(false);
     } catch (caught) {
       setLoadFailed(true);
@@ -147,19 +143,11 @@ export default function SprintDetailPage() {
     }
   }
 
-  function start(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    void mutation(`/sprints/${id}/start`, 'POST', {
-      ...(startAt ? { startsAt: new Date(startAt).toISOString() } : {}),
-      ...(endAt ? { endsAt: new Date(endAt).toISOString() } : {}),
-    });
+  function startSprint() {
+    void mutation(`/sprints/${id}/start`, 'POST');
   }
   function finishSprint() {
-    if (needsSprintFinishConfirmation(sprint?.endsAt ?? null, new Date(), formatDate)) {
-      setFinishConfirmationOpen(true);
-      return;
-    }
-    void mutation(`/sprints/${id}/finish`);
+    setFinishConfirmationOpen(true);
   }
   function confirmFinishSprint() {
     setFinishConfirmationOpen(false);
@@ -288,6 +276,17 @@ export default function SprintDetailPage() {
             Add tasks
           </Button>
         ) : null}
+        {admin && sprint.status === 'PLANNED' ? (
+          <Button
+            variant="primary"
+            disabled={busy || Boolean(activeSprint)}
+            onClick={startSprint}
+            type="button"
+            title={activeSprint ? `Sprint "${activeSprint.name}" is currently active` : undefined}
+          >
+            Start sprint
+          </Button>
+        ) : null}
         {admin && sprint.status === 'ACTIVE' ? (
           <Button variant="primary" disabled={busy} onClick={finishSprint} type="button">
             Finish sprint
@@ -303,23 +302,13 @@ export default function SprintDetailPage() {
           </strong>
         </div>
         <div>
-          <span>Schedule</span>
-          <strong
-            className="sprint-schedule-dates"
-            title={
-              sprint.startsAt || sprint.endsAt
-                ? `${date(sprint.startsAt)} — ${date(sprint.endsAt)}`
-                : 'Not scheduled'
-            }
-          >
-            {sprint.startsAt || sprint.endsAt ? (
-              <>
-                <span>{date(sprint.startsAt)}</span>
-                <span>{date(sprint.endsAt)}</span>
-              </>
-            ) : (
-              <span>Not scheduled</span>
-            )}
+          <span>Status</span>
+          <strong>
+            {sprint.status === 'ACTIVE'
+              ? `Active · Started ${date(sprint.startsAt)}`
+              : sprint.status === 'COMPLETED'
+                ? `Completed ${date(sprint.completedAt || sprint.updatedAt)}`
+                : 'Planned · Not started'}
           </strong>
         </div>
         <div>
@@ -342,32 +331,28 @@ export default function SprintDetailPage() {
         </div>
       </section>
       {admin && sprint.status === 'PLANNED' ? (
-        <form className="sprint-form sprint-start" onSubmit={start}>
+        <div className="sprint-panel sprint-start">
           <div>
             <h2>Start this sprint</h2>
+            {activeSprint ? (
+              <p className="muted" style={{ color: 'var(--color-warning, #f59e0b)' }}>
+                Cannot start: Sprint <strong>&quot;{activeSprint.name}&quot;</strong> is currently active. Finish it before starting this sprint.
+              </p>
+            ) : (
+              <p className="muted">
+                Starting this sprint will activate it and move its planned work to your active workflow.
+              </p>
+            )}
           </div>
-          <label>
-            Start date
-            <CalendarDateInput
-              aria-label="Sprint start date"
-              hidePastYears
-              onChange={(event) => setStartAt(event.target.value)}
-              value={startAt}
-            />
-          </label>
-          <label>
-            Target end date
-            <CalendarDateInput
-              aria-label="Sprint target end date"
-              hidePastYears
-              onChange={(event) => setEndAt(event.target.value)}
-              value={endAt}
-            />
-          </label>
-          <Button variant="primary" disabled={busy} type="submit">
+          <Button
+            variant="primary"
+            disabled={busy || Boolean(activeSprint)}
+            onClick={startSprint}
+            type="button"
+          >
             Start sprint
           </Button>
-        </form>
+        </div>
       ) : null}
       <section
         className="sprint-content"
@@ -675,25 +660,31 @@ export default function SprintDetailPage() {
         >
           <header>
             <p className="section-label">Finish sprint</p>
-            <h2 id="finish-sprint-title">Finish this sprint?</h2>
+            <h2 id="finish-sprint-title">Finish {sprint.name}?</h2>
           </header>
-          <p>
-            This sprint is scheduled to end on {date(sprint.endsAt)}. Are you sure you want to
-            finish it now?
-          </p>
-          <footer>
-            <Button
-              variant="ghost"
-              disabled={busy}
-              onClick={() => setFinishConfirmationOpen(false)}
-              type="button"
-            >
-              Cancel
-            </Button>
-            <Button variant="primary" disabled={busy} onClick={confirmFinishSprint} type="button">
-              Finish sprint
-            </Button>
-          </footer>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              confirmFinishSprint();
+            }}
+          >
+            <p>
+              Are you sure you want to finish this sprint? A snapshot of completed work will be saved, and incomplete work can be resolved.
+            </p>
+            <footer>
+              <Button
+                variant="ghost"
+                disabled={busy}
+                onClick={() => setFinishConfirmationOpen(false)}
+                type="button"
+              >
+                Cancel
+              </Button>
+              <Button variant="primary" disabled={busy} type="submit">
+                Finish sprint
+              </Button>
+            </footer>
+          </form>
         </Modal>
       ) : null}
       {plannerOpen ? (

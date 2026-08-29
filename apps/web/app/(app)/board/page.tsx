@@ -49,6 +49,7 @@ import type {
 } from '../../../lib/types';
 import { workflowBoard } from '../../../lib/board-columns';
 import { taskDropIndex } from '../../../lib/board-dnd';
+import { useBoardSocket } from '../../../lib/use-board-socket';
 
 type ActiveDrag =
   | { type: 'task'; task: TaskCard }
@@ -151,11 +152,25 @@ export default function BoardPage() {
   const [filters, setFilters] = useState<Filters>(emptyFilters);
   const [loadFailed, setLoadFailed] = useState(false);
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
   const [activeDrag, setActiveDrag] = useState<ActiveDrag | null>(null);
+  const activeDragRef = useRef<ActiveDrag | null>(null);
+  const pendingReloadRef = useRef(false);
   const [taskDropPreview, setTaskDropPreview] = useState<TaskDropPreview | null>(null);
   const taskDropPreviewRef = useRef<TaskDropPreview | null>(null);
   const dragOriginBoard = useRef<BoardResponse | null>(null);
   const suppressClickRef = useRef(false);
+
+  function updateBusy(next: boolean) {
+    busyRef.current = next;
+    setBusy(next);
+  }
+
+  function updateActiveDrag(next: ActiveDrag | null) {
+    activeDragRef.current = next;
+    setActiveDrag(next);
+  }
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -253,6 +268,23 @@ export default function BoardPage() {
     }
   }, [filters, request, user?.id, currentWorkspace?.id, toast]);
 
+  const flushPendingReload = useCallback(() => {
+    if (pendingReloadRef.current && !activeDragRef.current && !busyRef.current) {
+      pendingReloadRef.current = false;
+      void load();
+    }
+  }, [load]);
+
+  const handleBoardUpdate = useCallback(() => {
+    if (activeDragRef.current || busyRef.current) {
+      pendingReloadRef.current = true;
+      return;
+    }
+    void load();
+  }, [load]);
+
+  const { isConnected } = useBoardSocket(currentWorkspace?.id, handleBoardUpdate);
+
   useEffect(() => {
     void load();
   }, [load]);
@@ -284,7 +316,7 @@ export default function BoardPage() {
         };
       }),
     });
-    setBusy(true);
+    updateBusy(true);
     try {
       await request(`/tasks/${task.id}/move`, {
         method: 'POST',
@@ -300,8 +332,9 @@ export default function BoardPage() {
       setBoard(previousBoard);
       toast.fromError(caught, 'Could not move the task.');
     } finally {
-      setBusy(false);
+      updateBusy(false);
       dragOriginBoard.current = null;
+      flushPendingReload();
     }
   }
 
@@ -309,7 +342,7 @@ export default function BoardPage() {
     if (!board || busy || subtask.columnId === targetColumnId) return;
     const previousBoard = dragOriginBoard.current ?? board;
     setBoard(placeSubtaskOnColumn(board, subtask.id, targetColumnId));
-    setBusy(true);
+    updateBusy(true);
     try {
       await request(`/tasks/${taskId}/subtasks/${subtask.id}/move`, {
         method: 'POST',
@@ -323,8 +356,9 @@ export default function BoardPage() {
       setBoard(previousBoard);
       toast.fromError(caught, 'Could not move the subtask.');
     } finally {
-      setBusy(false);
+      updateBusy(false);
       dragOriginBoard.current = null;
+      flushPendingReload();
     }
   }
 
@@ -406,7 +440,7 @@ export default function BoardPage() {
       const taskId = activeId.replace(/^task:/, '');
       const location = findTaskLocation(taskId);
       if (location) {
-        setActiveDrag({ type: 'task', task: location.task });
+        updateActiveDrag({ type: 'task', task: location.task });
         setBoard({
           ...board,
           columns: board.columns.map((column) => ({
@@ -423,7 +457,7 @@ export default function BoardPage() {
         for (const task of column.tasks) {
           const nested = task.subtasks.find((item) => item.id === subtaskId);
           if (nested) {
-            setActiveDrag({
+            updateActiveDrag({
               type: 'subtask',
               subtask: nested,
               taskId: task.id,
@@ -435,7 +469,7 @@ export default function BoardPage() {
         }
         const standalone = column.subtasks.find((item) => item.id === subtaskId);
         if (standalone) {
-          setActiveDrag({
+          updateActiveDrag({
             type: 'subtask',
             subtask: standalone,
             taskId: standalone.taskId,
@@ -493,24 +527,27 @@ export default function BoardPage() {
   function cancelBoardDrag() {
     if (dragOriginBoard.current) setBoard(dragOriginBoard.current);
     dragOriginBoard.current = null;
-    setActiveDrag(null);
+    updateActiveDrag(null);
     updateTaskDropPreview(null);
+    flushPendingReload();
   }
 
   function finishBoardDrag(event: DragEndEvent) {
     const origin = dragOriginBoard.current;
     const active = activeDrag;
     const taskPreview = taskDropPreviewRef.current;
-    setActiveDrag(null);
+    updateActiveDrag(null);
     updateTaskDropPreview(null);
 
     if (!board || busy) {
       dragOriginBoard.current = null;
+      flushPendingReload();
       return;
     }
     if (!event.over) {
       if (origin) setBoard(origin);
       dragOriginBoard.current = null;
+      flushPendingReload();
       return;
     }
 
@@ -532,6 +569,7 @@ export default function BoardPage() {
             );
           } else {
             dragOriginBoard.current = null;
+            flushPendingReload();
           }
           return;
         }
@@ -556,17 +594,20 @@ export default function BoardPage() {
         return;
       }
       dragOriginBoard.current = null;
+      flushPendingReload();
       return;
     }
 
     const taskId = String(event.active.id).replace(/^task:/, '');
     if (!origin) {
       dragOriginBoard.current = null;
+      flushPendingReload();
       return;
     }
     const previous = findTaskLocation(taskId, origin);
     if (!previous) {
       dragOriginBoard.current = null;
+      flushPendingReload();
       return;
     }
 
@@ -576,12 +617,14 @@ export default function BoardPage() {
     if (targetColumnIndex < 0) {
       setBoard(origin);
       dragOriginBoard.current = null;
+      flushPendingReload();
       return;
     }
 
     if (targetColumnIndex === previous.columnIndex && taskPreview?.index === previous.taskIndex) {
       setBoard(origin);
       dragOriginBoard.current = null;
+      flushPendingReload();
       return;
     }
     void moveTask(previous.task, targetColumnIndex, taskPreview?.index ?? 0);
@@ -599,7 +642,7 @@ export default function BoardPage() {
         ),
       })),
     });
-    setBusy(true);
+    updateBusy(true);
     try {
       await request(`/tasks/${task.id}/subtasks/reorder`, {
         method: 'POST',
@@ -610,13 +653,26 @@ export default function BoardPage() {
       setBoard(previousBoard);
       toast.fromError(caught, 'Could not reorder subtasks.');
     } finally {
-      setBusy(false);
+      updateBusy(false);
+      flushPendingReload();
     }
   }
 
   return (
     <div className="page-stack board-page">
       <HeaderActions>
+        <div
+          className={`board-live-badge ${isConnected ? 'is-connected' : 'is-disconnected'}`}
+          title={
+            isConnected
+              ? 'Real-time board synchronization is connected'
+              : 'Connecting to real-time synchronization...'
+          }
+          aria-label={isConnected ? 'Live sync connected' : 'Connecting to live sync'}
+        >
+          <span className="live-dot" />
+          <span>{isConnected ? 'Live' : 'Connecting'}</span>
+        </div>
         {user?.role === 'ADMIN' ? (
           <Button nativeButton={false} variant="outline" render={<Link href="/settings/board" />}>
             Configure board
@@ -919,7 +975,24 @@ function TaskCardContent({
       >
         <div className="task-card-header">
           <div className="task-title-group">
-            {task.project && (
+            {task.projects && task.projects.length > 0 ? (
+              <div className="task-project-pills">
+                {task.projects.map(({ project }) => (
+                  <span
+                    key={project.id}
+                    className="task-project-pill"
+                    style={{
+                      backgroundColor: `${project.color || '#2563EB'}20`,
+                      color: project.color || '#2563EB',
+                      borderColor: `${project.color || '#2563EB'}40`,
+                    }}
+                  >
+                    <ProjectIcon className="project-badge-icon" name={project.icon} />
+                    {project.key ? project.key : project.name}
+                  </span>
+                ))}
+              </div>
+            ) : task.project ? (
               <span
                 className="task-project-pill"
                 style={{
@@ -931,8 +1004,8 @@ function TaskCardContent({
                 <ProjectIcon className="project-badge-icon" name={task.project.icon} />
                 {task.project.key ? task.project.key : task.project.name}
               </span>
-            )}
-            <h2>{task.title}</h2>
+            ) : null}
+            <h2 title={task.title}>{task.title}</h2>
           </div>
           <div
             className="card-assignees"
@@ -974,7 +1047,12 @@ function TaskCardContent({
             )}
           </div>
         </div>
-        <p className={task.description ? undefined : 'is-empty'}>{task.description || '\u00A0'}</p>
+        <p
+          className={task.description ? undefined : 'is-empty'}
+          title={task.description || undefined}
+        >
+          {task.description || '\u00A0'}
+        </p>
         <div className="task-card-facts">
           <PriorityBadge priority={task.priority} />
           {task.estimateValue ? (
@@ -1056,7 +1134,7 @@ function SortableTaskShell({
       ref={setNodeRef}
       className={`task-card task-card--draggable sortable-task-shell ${isDragging ? 'is-dragging' : ''}`}
       data-board-task-id={id}
-      title={disabled ? undefined : `Drag ${title}`}
+      title={disabled ? undefined : title}
       aria-label={
         disabled
           ? undefined
@@ -1099,7 +1177,7 @@ function SortableBoardSubtaskCard({
         transform: CSS.Transform.toString(transform),
         transition: transition ?? 'transform 200ms cubic-bezier(0.25, 1, 0.5, 1)',
       }}
-      title={disabled ? undefined : `Drag ${title}`}
+      title={disabled ? undefined : title}
       aria-label={
         disabled
           ? undefined
@@ -1144,8 +1222,11 @@ function BoardSubtaskCard({
       <span className="board-subtask-marker" aria-hidden="true" />
       <div className="board-subtask-copy">
         <small>{standalone ? `Subtask of ${parentTask.title}` : 'Subtask'}</small>
-        <strong>{title}</strong>
-        <p className={subtask.description ? undefined : 'is-empty'}>
+        <strong title={title}>{title}</strong>
+        <p
+          className={subtask.description ? undefined : 'is-empty'}
+          title={subtask.description || undefined}
+        >
           {subtask.description || '\u00A0'}
         </p>
         <div className="task-card-facts">

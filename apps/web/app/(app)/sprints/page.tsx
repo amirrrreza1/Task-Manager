@@ -122,7 +122,11 @@ export default function SprintsPage() {
             </div>
             <div className="sprint-row-meta">
               <span>
-                {formatDate(sprint.startsAt)} — {formatDate(sprint.endsAt)}
+                {sprint.status === 'ACTIVE' && sprint.startsAt
+                  ? `Started ${formatDate(sprint.startsAt)}`
+                  : sprint.status === 'COMPLETED' && sprint.startsAt
+                    ? `Started ${formatDate(sprint.startsAt)}`
+                    : 'Planned'}
               </span>
               <span>
                 {sprint.status === 'COMPLETED'

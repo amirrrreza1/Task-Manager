@@ -10,17 +10,20 @@ describe('TasksService Review State and Project Seniors Notification', () => {
     const mockTask = {
       id: 'task-1',
       workspaceId: 'ws-1',
-      projectId: 'proj-1',
       title: 'Implement Payment Gateway',
       columnId: 'col-todo',
       createdById: 'user-creator',
       updatedAt: new Date('2026-08-24T10:00:00Z'),
       assignees: [{ userId: 'user-assignee' }],
-      project: {
-        id: 'proj-1',
-        name: 'Billing System',
-        seniors: [{ userId: 'user-senior-1' }, { userId: 'user-senior-2' }],
-      },
+      projects: [
+        {
+          project: {
+            id: 'proj-1',
+            name: 'Billing System',
+            seniors: [{ userId: 'user-senior-1' }, { userId: 'user-senior-2' }],
+          },
+        },
+      ],
     };
 
     const reviewColumn = {
@@ -102,23 +105,115 @@ describe('TasksService Review State and Project Seniors Notification', () => {
     assert.ok(notif.recipientUserIds.includes('user-senior-2'));
   });
 
+  it('notifies seniors from multiple assigned projects when task enters review column', async () => {
+    const dispatchedNotifications = [];
+
+    const mockTask = {
+      id: 'task-multi',
+      workspaceId: 'ws-1',
+      title: 'Full Stack Integration',
+      columnId: 'col-todo',
+      createdById: 'user-creator',
+      updatedAt: new Date('2026-08-24T10:00:00Z'),
+      assignees: [{ userId: 'user-assignee' }],
+      projects: [
+        {
+          project: {
+            id: 'proj-1',
+            name: 'Frontend Web',
+            seniors: [{ userId: 'user-senior-web' }],
+          },
+        },
+        {
+          project: {
+            id: 'proj-2',
+            name: 'Backend API',
+            seniors: [{ userId: 'user-senior-api' }],
+          },
+        },
+      ],
+    };
+
+    const reviewColumn = {
+      id: 'col-review',
+      workspaceId: 'ws-1',
+      name: 'In Review',
+      isReview: true,
+      isDone: false,
+    };
+
+    const transaction = {
+      task: {
+        findMany: async () => [],
+        update: async ({ data }) => ({
+          ...mockTask,
+          columnId: data.columnId,
+          position: data.position,
+          assignees: [],
+          subtasks: [],
+          _count: { attachments: 0 },
+        }),
+      },
+      subtask: {
+        updateMany: async () => ({ count: 0 }),
+      },
+      activityEvent: {
+        create: async () => {},
+      },
+    };
+
+    const mockPrisma = {
+      task: {
+        findUnique: async () => mockTask,
+      },
+      boardColumn: {
+        findUnique: async ({ where }) => (where.id === 'col-review' ? reviewColumn : null),
+      },
+      $transaction: async (callback) => callback(transaction),
+    };
+
+    const service = new TasksService(mockPrisma, {}, {
+      dispatch: async (dto) => {
+        dispatchedNotifications.push(dto);
+      },
+    });
+
+    await service.move(
+      'task-multi',
+      {
+        columnId: 'col-review',
+        expectedUpdatedAt: '2026-08-24T10:00:00.000Z',
+      },
+      'user-assignee',
+    );
+
+    assert.equal(dispatchedNotifications.length, 1);
+    const notif = dispatchedNotifications[0];
+    assert.ok(notif.recipientUserIds.includes('user-senior-web'));
+    assert.ok(notif.recipientUserIds.includes('user-senior-api'));
+    assert.ok(notif.lines.some((l) => l.includes('Frontend Web, Backend API')));
+  });
+
   it('recognizes column with name "Review" as review state even if isReview is false in db', async () => {
     const dispatchedNotifications = [];
 
     const mockTask = {
       id: 'task-2',
       workspaceId: 'ws-1',
-      projectId: 'proj-1',
       title: 'Fix Navigation Bug',
       columnId: 'col-progress',
       createdById: 'user-creator',
       updatedAt: new Date('2026-08-24T10:00:00Z'),
       assignees: [],
-      project: {
-        id: 'proj-1',
-        name: 'Mobile App',
-        seniors: [{ userId: 'user-senior-lead' }],
-      },
+      projects: [
+        {
+          project: {
+            id: 'proj-1',
+            name: 'Mobile App',
+            seniors: [{ userId: 'user-senior-lead' }],
+          },
+        },
+      ],
     };
 
     const reviewColumn = {
@@ -183,3 +278,4 @@ describe('TasksService Review State and Project Seniors Notification', () => {
     assert.ok(notif.recipientUserIds.includes('user-senior-lead'));
   });
 });
+

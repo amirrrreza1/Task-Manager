@@ -26,6 +26,7 @@ import {
 import { pickBacklogColumnId, pickTodoColumnId } from '../tasks/task-work';
 
 import { NotificationsService } from '../notifications/notifications.service';
+import { BoardEventsService } from '../board/board-events.service';
 
 const authorSelect = {
   id: true,
@@ -57,6 +58,7 @@ export class SprintsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    private readonly events?: BoardEventsService,
   ) {}
 
   private async resolveWorkspaceId(workspaceId?: string): Promise<string> {
@@ -205,7 +207,7 @@ export class SprintsService {
   }
 
   async assignTasks(id: string, input: AssignSprintTasksDto, actorId: string) {
-    return this.prisma.$transaction(async (transaction) => {
+    const result = await this.prisma.$transaction(async (transaction) => {
       const target = await transaction.sprint.findUnique({
         where: { id },
         select: { status: true, workspaceId: true },
@@ -258,12 +260,16 @@ export class SprintsService {
       await this.event(transaction, 'sprint.tasks_assigned', id, actorId, {
         taskIds: input.taskIds,
       });
-      return { assigned: input.taskIds.length };
+      return { assigned: input.taskIds.length, workspaceId: target.workspaceId };
     });
+    this.events?.emitBoardUpdate(result.workspaceId, 'sprint.tasks_assigned', id, actorId, {
+      taskIds: input.taskIds,
+    });
+    return { assigned: result.assigned };
   }
 
   async assignSubtasks(id: string, input: AssignSprintSubtasksDto, actorId: string) {
-    return this.prisma.$transaction(async (transaction) => {
+    const result = await this.prisma.$transaction(async (transaction) => {
       const target = await transaction.sprint.findUnique({
         where: { id },
         select: { status: true, workspaceId: true },
@@ -299,8 +305,12 @@ export class SprintsService {
       await this.event(transaction, 'sprint.subtasks_assigned', id, actorId, {
         subtaskIds: input.subtaskIds,
       });
-      return { assigned: input.subtaskIds.length };
+      return { assigned: input.subtaskIds.length, workspaceId: target.workspaceId };
     });
+    this.events?.emitBoardUpdate(result.workspaceId, 'sprint.subtasks_assigned', id, actorId, {
+      subtaskIds: input.subtaskIds,
+    });
+    return { assigned: result.assigned };
   }
 
   async create(input: CreateSprintDto, actorId: string) {
@@ -337,41 +347,39 @@ export class SprintsService {
     });
   }
 
-  async start(id: string, input: StartSprintDto, actorId: string) {
-    const startsAt = input.startsAt ? this.date(input.startsAt, 'start date') : new Date();
+  async start(id: string, _input: StartSprintDto, actorId: string) {
+    const startsAt = new Date();
     const result = await this.prisma.$transaction(async (transaction) => {
       const sprint = await transaction.sprint.findUnique({ where: { id } });
       if (!sprint) throw new NotFoundException('Sprint not found.');
       if (sprint.status !== SprintStatus.PLANNED)
         throw new ConflictException('Only planned sprints can be started.');
-      const workspace = await transaction.workspace.findUnique({
-        where: { id: sprint.workspaceId },
-      });
-      const durationDays = workspace?.sprintDurationDays ?? 14;
-      const endsAt = input.endsAt
-        ? this.date(input.endsAt, 'end date')
-        : new Date(startsAt.getTime() + durationDays * 86_400_000);
-      if (endsAt <= startsAt)
-        throw new BadRequestException('The sprint end date must be after start.');
       const active = await transaction.sprint.findFirst({
         where: { workspaceId: sprint.workspaceId, status: SprintStatus.ACTIVE },
-        select: { id: true },
+        select: { id: true, name: true },
       });
       if (active)
         throw new ConflictException(
-          'Finish the active sprint in this workspace before starting another.',
+          `Cannot start sprint: Sprint "${active.name}" is currently active. Finish it before starting another sprint.`,
         );
       const updated = await transaction.sprint.update({
         where: { id },
-        data: { status: SprintStatus.ACTIVE, startsAt, endsAt },
+        data: { status: SprintStatus.ACTIVE, startsAt, endsAt: null },
       });
       await this.event(transaction, 'sprint.started', id, actorId, {
         startsAt,
-        endsAt,
         workspaceId: sprint.workspaceId,
       });
-      return { updated, sprintName: sprint.name, goal: sprint.goal, startsAt, endsAt };
+      return {
+        updated,
+        workspaceId: sprint.workspaceId,
+        sprintName: sprint.name,
+        goal: sprint.goal,
+        startsAt,
+      };
     });
+
+    this.events?.emitBoardUpdate(result.workspaceId, 'sprint.started', id, actorId);
 
     void (async () => {
       try {
@@ -388,7 +396,6 @@ export class SprintsService {
           lines: [
             `Sprint "${result.sprintName}" has started.`,
             result.goal ? `Goal: ${result.goal}` : '',
-            `Timeline: ${result.startsAt.toISOString().slice(0, 10)} to ${result.endsAt.toISOString().slice(0, 10)}`,
           ].filter(Boolean),
           link: `/sprints/${id}`,
           actionLabel: 'View Sprint',
@@ -531,12 +538,15 @@ export class SprintsService {
       });
       return {
         updated,
+        workspaceId: sprint.workspaceId,
         sprintName: sprint.name,
         totalTasks: sprint.tasks.length,
         completedTasks: completedTasksCount,
         remainingTasks: sprint.tasks.length - completedTasksCount,
       };
     });
+
+    this.events?.emitBoardUpdate(result.workspaceId, 'sprint.finished', id, actorId);
 
     void (async () => {
       try {
@@ -572,7 +582,7 @@ export class SprintsService {
     this.assertWorkSelected(taskIds, subtaskIds);
     if (id === input.targetSprintId)
       throw new BadRequestException('Choose a different planned sprint for carry-over.');
-    return this.prisma.$transaction(async (transaction) => {
+    const result = await this.prisma.$transaction(async (transaction) => {
       const [source, target] = await Promise.all([
         transaction.sprint.findUnique({
           where: { id },
@@ -663,19 +673,27 @@ export class SprintsService {
         targetSprintId: input.targetSprintId,
       });
       return {
+        workspaceId: target.workspaceId,
         moved: tasks.length + standaloneSubtaskIds.length,
         movedTasks: tasks.length,
         movedSubtasks: standaloneSubtaskIds.length,
         targetSprintId: input.targetSprintId,
       };
     });
+    this.events?.emitBoardUpdate(result.workspaceId, 'sprint.work_carried_over', id, actorId);
+    return {
+      moved: result.moved,
+      movedTasks: result.movedTasks,
+      movedSubtasks: result.movedSubtasks,
+      targetSprintId: result.targetSprintId,
+    };
   }
 
   async moveToBacklog(id: string, input: ResolveSprintWorkDto, actorId: string) {
     const taskIds = input.taskIds ?? [];
     const subtaskIds = input.subtaskIds ?? [];
     this.assertWorkSelected(taskIds, subtaskIds);
-    return this.prisma.$transaction(async (transaction) => {
+    const result = await this.prisma.$transaction(async (transaction) => {
       const source = await transaction.sprint.findUnique({
         where: { id },
         select: { status: true, workspaceId: true },
@@ -766,11 +784,18 @@ export class SprintsService {
         subtaskIds: standaloneSubtaskIds,
       });
       return {
+        workspaceId: source.workspaceId,
         moved: tasks.length + standaloneSubtaskIds.length,
         movedTasks: tasks.length,
         movedSubtasks: standaloneSubtaskIds.length,
       };
     });
+    this.events?.emitBoardUpdate(result.workspaceId, 'sprint.work_moved_to_backlog', id, actorId);
+    return {
+      moved: result.moved,
+      movedTasks: result.movedTasks,
+      movedSubtasks: result.movedSubtasks,
+    };
   }
 
   async comments(id: string, query: SprintQueryDto) {

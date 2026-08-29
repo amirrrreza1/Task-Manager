@@ -43,13 +43,13 @@ class EnvironmentVariables {
 
   @IsString()
   @IsNotEmpty()
-  JWT_EXPIRES_IN = '15m';
+  JWT_EXPIRES_IN = '1d';
 
   @IsInt()
   @Min(1)
-  @Max(30)
+  @Max(365)
   @Type(() => Number)
-  REFRESH_TOKEN_DAYS = 7;
+  REFRESH_TOKEN_DAYS = 30;
 
   @IsInt()
   @Min(1)

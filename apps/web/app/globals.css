@@ -20,7 +20,7 @@
   --danger: var(--error-emphasis);
   --warning: var(--warning-emphasis);
   --success: var(--success-emphasis);
-  --board-task-card-height: 148px;
+  --board-task-card-height: 156px;
 }
 
 * {
@@ -772,8 +772,11 @@ label:not([data-slot='field-label']) small {
   white-space: nowrap;
 }
 .sprint-start {
+  display: flex;
   align-items: center;
-  grid-template-columns: 1.3fr 1fr 1fr auto;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 .sprint-start h2 {
   margin-bottom: 5px;
@@ -1723,15 +1726,18 @@ label.check-field {
   height: var(--board-task-card-height);
   box-sizing: border-box;
   align-content: start;
-  grid-template-rows: auto 2.34em auto;
+  grid-template-rows: auto 3em auto;
   gap: 8px;
   padding: 14px;
+  min-width: 0;
+  overflow: hidden;
 }
 .task-card-header {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
   align-items: start;
+  min-width: 0;
 }
 .task-card h2 {
   display: -webkit-box;
@@ -1740,18 +1746,26 @@ label.check-field {
   font-size: 0.98rem;
   line-height: 1.35;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 1;
+  text-overflow: ellipsis;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  max-width: 100%;
 }
 .task-card-main > p {
   display: -webkit-box;
   overflow: hidden;
   margin: 0;
-  min-height: 2.34em;
+  min-height: 3em;
+  max-height: 3em;
   color: var(--muted);
   font-size: 0.78rem;
   line-height: 1.5;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+  text-overflow: ellipsis;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 .task-card-main > p.is-empty {
   visibility: hidden;
@@ -1987,6 +2001,9 @@ label.check-field {
   line-height: 1.35;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 1;
+  text-overflow: ellipsis;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 .board-subtask-card.completed .board-subtask-copy strong {
   color: var(--muted);
@@ -1997,11 +2014,15 @@ label.check-field {
   overflow: hidden;
   margin: 0;
   min-height: 2.8em;
+  max-height: 2.8em;
   color: var(--muted);
   font-size: 0.7rem;
   line-height: 1.4;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+  text-overflow: ellipsis;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 .board-subtask-copy p.is-empty {
   visibility: hidden;
@@ -4646,7 +4667,35 @@ label:not([data-slot='field-label']) {
   border-radius: 4px;
   border: 1px solid transparent;
   line-height: 1.2;
-  margin-bottom: 0.25rem;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-project-pills {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.sidebar-projects {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.project-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 6px;
+  padding: 0.35rem 0.55rem;
+  transition: all 0.15s ease;
 }
 
 .project-card-seniors {
@@ -4813,6 +4862,8 @@ label:not([data-slot='field-label']) {
   flex-direction: column;
   align-items: flex-start;
   gap: 0.15rem;
+  min-width: 0;
+  width: 100%;
 }
 
 .project-task-count {
@@ -4916,3 +4967,72 @@ label:not([data-slot='field-label']) {
     0 0 0 2px var(--surface),
     0 0 0 4px var(--foreground);
 }
+
+.board-live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+  user-select: none;
+  transition: all 0.2s ease;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.board-live-badge .live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  transition: background-color 0.2s ease;
+}
+
+.board-live-badge.is-connected {
+  border-color: rgba(34, 197, 94, 0.3);
+  background: rgba(34, 197, 94, 0.08);
+  color: #16a34a;
+}
+
+.dark .board-live-badge.is-connected {
+  border-color: rgba(34, 197, 94, 0.4);
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+}
+
+.board-live-badge.is-connected .live-dot {
+  background-color: #22c55e;
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.25);
+  animation: pulse-live 2s infinite ease-in-out;
+}
+
+.board-live-badge.is-disconnected {
+  border-color: rgba(234, 179, 8, 0.3);
+  background: rgba(234, 179, 8, 0.08);
+  color: #ca8a04;
+}
+
+.dark .board-live-badge.is-disconnected {
+  border-color: rgba(234, 179, 8, 0.4);
+  background: rgba(234, 179, 8, 0.15);
+  color: #facc15;
+}
+
+.board-live-badge.is-disconnected .live-dot {
+  background-color: #eab308;
+}
+
+@keyframes pulse-live {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.25);
+    opacity: 0.75;
+  }
+}
+

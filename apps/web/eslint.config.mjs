@@ -8,10 +8,12 @@ export default tseslint.config(
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    files: ['**/*.{ts,tsx}'],
     languageOptions: {
       globals: { ...globals.browser, ...globals.node },
     },
+  },
+  {
+    files: ['**/*.{ts,tsx}'],
     plugins: {
       '@next/next': nextPlugin,
     },

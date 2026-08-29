@@ -47,7 +47,9 @@ export class AuthController {
   async refresh(@Req() request: Request, @Res({ passthrough: true }) response: Response) {
     this.assertAllowedOrigin(request);
     const session = await this.auth.refresh(this.readRefreshCookie(request));
-    this.setRefreshCookie(response, session.refreshToken);
+    if (session.refreshToken) {
+      this.setRefreshCookie(response, session.refreshToken);
+    }
     return { accessToken: session.accessToken, user: session.user };
   }
 

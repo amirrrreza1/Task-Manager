@@ -29,6 +29,7 @@ import type {
   TaskPriority,
 } from '../../../lib/types';
 import { backlogBoard, primaryBacklogColumn } from '../../../lib/board-columns';
+import { useBoardSocket } from '../../../lib/use-board-socket';
 
 function formatHours(value: number) {
   return `${value}h`;
@@ -49,7 +50,7 @@ export default function BacklogPage() {
   const [priority, setPriority] = useState<TaskPriority>(DEFAULT_TASK_PRIORITY);
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [sprintId, setSprintId] = useState('');
-  const [projectId, setProjectId] = useState('');
+  const [projectIds, setProjectIds] = useState<string[]>([]);
   const [projectFilter, setProjectFilter] = useState('');
   const [search, setSearch] = useState('');
   const [loadFailed, setLoadFailed] = useState(false);
@@ -60,7 +61,10 @@ export default function BacklogPage() {
     let items = backlogColumn?.tasks ?? [];
     if (projectFilter) {
       items = items.filter(
-        (task) => task.projectId === projectFilter || task.project?.id === projectFilter,
+        (task) =>
+          task.projectId === projectFilter ||
+          task.project?.id === projectFilter ||
+          task.projects?.some((p) => p.project.id === projectFilter),
       );
     }
     const term = search.trim().toLowerCase();
@@ -101,6 +105,14 @@ export default function BacklogPage() {
     }
   }, [request, currentWorkspace?.id, toast]);
 
+  const handleBoardUpdate = useCallback(() => {
+    if (!busy) {
+      void load();
+    }
+  }, [busy, load]);
+
+  const { isConnected } = useBoardSocket(currentWorkspace?.id, handleBoardUpdate);
+
   useEffect(() => {
     void load();
   }, [load]);
@@ -117,7 +129,7 @@ export default function BacklogPage() {
           ...(currentWorkspace?.id ? { workspaceId: currentWorkspace.id } : {}),
           ...(description.trim() ? { description } : {}),
           ...(sprintId ? { sprintId } : {}),
-          ...(projectId ? { projectId } : {}),
+          ...(projectIds.length > 0 ? { projectIds } : {}),
           assigneeIds,
           priority,
           ...(estimate
@@ -136,7 +148,7 @@ export default function BacklogPage() {
       setPriority(DEFAULT_TASK_PRIORITY);
       setAssigneeIds([]);
       setSprintId('');
-      setProjectId('');
+      setProjectIds([]);
       setCreateOpen(false);
       toast.success('Task created.');
       await load();
@@ -150,6 +162,18 @@ export default function BacklogPage() {
   return (
     <div className="page-stack backlog-page">
       <HeaderActions>
+        <div
+          className={`board-live-badge ${isConnected ? 'is-connected' : 'is-disconnected'}`}
+          title={
+            isConnected
+              ? 'Real-time synchronization is connected'
+              : 'Connecting to real-time synchronization...'
+          }
+          aria-label={isConnected ? 'Live sync connected' : 'Connecting to live sync'}
+        >
+          <span className="live-dot" />
+          <span>{isConnected ? 'Live' : 'Connecting'}</span>
+        </div>
         <Button
           variant="primary"
           type="button"
@@ -227,17 +251,41 @@ export default function BacklogPage() {
                 onChange={(event) => setTitle(event.target.value)}
               />
             </label>
-            <label>
-              Project <small>Optional</small>
-              <Select value={projectId} onChange={(event) => setProjectId(event.target.value)}>
-                <option value="">No project</option>
-                {projects.map((proj) => (
-                  <option value={proj.id} key={proj.id}>
-                    {proj.key ? `${proj.key}-${proj.name}` : proj.name}
-                  </option>
-                ))}
-              </Select>
-            </label>
+            <fieldset className="assignee-picker">
+              <legend>Projects</legend>
+              {projects.map((proj) => {
+                const isChecked = projectIds.includes(proj.id);
+                const color = proj.color || '#2563EB';
+                return (
+                  <label
+                    className="assignee-choice project-choice"
+                    key={proj.id}
+                    style={
+                      isChecked
+                        ? {
+                            backgroundColor: `${color}18`,
+                            borderColor: `${color}60`,
+                          }
+                        : undefined
+                    }
+                  >
+                    <Checkbox
+                      checked={isChecked}
+                      onChange={(event) =>
+                        setProjectIds(
+                          event.target.checked
+                            ? [...projectIds, proj.id]
+                            : projectIds.filter((id) => id !== proj.id),
+                        )
+                      }
+                    />
+                    <ProjectIcon className="project-badge-icon" name={proj.icon} />
+                    <span>{proj.key ? `${proj.key}-${proj.name}` : proj.name}</span>
+                  </label>
+                );
+              })}
+              {!projects.length ? <p className="muted">No projects in this workspace.</p> : null}
+            </fieldset>
             <label>
               Description <small>Optional, plain text or Markdown</small>
               <Textarea
@@ -326,7 +374,24 @@ function BacklogTaskRow({ task }: { task: TaskCard }) {
     <article className="backlog-task">
       <Link href={`/tasks/${task.id}`} className="backlog-task-main">
         <div className="task-title-group">
-          {task.project && (
+          {task.projects && task.projects.length > 0 ? (
+            <div className="task-project-pills">
+              {task.projects.map(({ project }) => (
+                <span
+                  key={project.id}
+                  className="task-project-pill"
+                  style={{
+                    backgroundColor: `${project.color || '#2563EB'}20`,
+                    color: project.color || '#2563EB',
+                    borderColor: `${project.color || '#2563EB'}40`,
+                  }}
+                >
+                  <ProjectIcon className="project-badge-icon" name={project.icon} />
+                  {project.key ? project.key : project.name}
+                </span>
+              ))}
+            </div>
+          ) : task.project ? (
             <span
               className="task-project-pill"
               style={{
@@ -338,7 +403,7 @@ function BacklogTaskRow({ task }: { task: TaskCard }) {
               <ProjectIcon className="project-badge-icon" name={task.project.icon} />
               {task.project.key ? task.project.key : task.project.name}
             </span>
-          )}
+          ) : null}
           <h2>{task.title}</h2>
         </div>
         <p className={task.description ? undefined : 'is-empty'}>{task.description || '\u00A0'}</p>

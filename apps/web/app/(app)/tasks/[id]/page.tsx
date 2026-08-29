@@ -58,7 +58,7 @@ export default function TaskPage() {
   const [priority, setPriority] = useState<TaskPriority>(DEFAULT_TASK_PRIORITY);
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [sprintId, setSprintId] = useState('');
-  const [projectId, setProjectId] = useState('');
+  const [projectIds, setProjectIds] = useState<string[]>([]);
   const estimateUnit: EstimateUnit = settings?.estimateMode === 'POINTS' ? 'POINTS' : 'HOURS';
 
   const load = useCallback(async () => {
@@ -81,7 +81,10 @@ export default function TaskPage() {
       setPriority(nextTask.priority);
       setAssigneeIds(nextTask.assignees.map((item) => item.user.id));
       setSprintId(nextTask.sprintId ?? '');
-      setProjectId(nextTask.projectId ?? nextTask.project?.id ?? '');
+      const assignedProjectIds =
+        nextTask.projects?.map((p) => p.project.id) ??
+        (nextTask.projectId ? [nextTask.projectId] : []);
+      setProjectIds(assignedProjectIds);
       const workspace = nextTask.workspaceId ? `?workspaceId=${nextTask.workspaceId}` : '';
       setProjects(await request<Project[]>(`/projects${workspace}`));
     } catch (caught) {
@@ -105,7 +108,7 @@ export default function TaskPage() {
           description: description || null,
           assigneeIds,
           sprintId: sprintId || null,
-          projectId: projectId || null,
+          projectIds,
           priority,
           estimate: estimate ? { value: Number(estimate), unit: estimateUnit } : null,
         }),
@@ -263,7 +266,24 @@ export default function TaskPage() {
               <span style={{ background: task.column.color }} />
               {task.column.name}
             </span>
-            {task.project ? (
+            {task.projects && task.projects.length > 0 ? (
+              <div className="task-project-pills">
+                {task.projects.map(({ project }) => (
+                  <span
+                    key={project.id}
+                    className="task-project-pill"
+                    style={{
+                      backgroundColor: `${project.color || '#2563EB'}20`,
+                      color: project.color || '#2563EB',
+                      borderColor: `${project.color || '#2563EB'}40`,
+                    }}
+                  >
+                    <ProjectIcon className="project-badge-icon" name={project.icon} />
+                    {project.key ? `${project.key}-${project.name}` : project.name}
+                  </span>
+                ))}
+              </div>
+            ) : task.project ? (
               <span
                 className="task-project-pill"
                 style={{
@@ -400,6 +420,41 @@ export default function TaskPage() {
             </p>
           </section>
           <section>
+            <h2>Projects</h2>
+            {task.projects && task.projects.length > 0 ? (
+              <div className="sidebar-projects">
+                {task.projects.map(({ project }) => (
+                  <span
+                    key={project.id}
+                    className="task-project-pill"
+                    style={{
+                      backgroundColor: `${project.color || '#2563EB'}20`,
+                      color: project.color || '#2563EB',
+                      borderColor: `${project.color || '#2563EB'}40`,
+                    }}
+                  >
+                    <ProjectIcon className="project-badge-icon" name={project.icon} />
+                    {project.key ? `${project.key}-${project.name}` : project.name}
+                  </span>
+                ))}
+              </div>
+            ) : task.project ? (
+              <span
+                className="task-project-pill"
+                style={{
+                  backgroundColor: `${task.project.color || '#2563EB'}20`,
+                  color: task.project.color || '#2563EB',
+                  borderColor: `${task.project.color || '#2563EB'}40`,
+                }}
+              >
+                <ProjectIcon className="project-badge-icon" name={task.project.icon} />
+                {task.project.key ? `${task.project.key}-${task.project.name}` : task.project.name}
+              </span>
+            ) : (
+              <p>No project</p>
+            )}
+          </section>
+          <section>
             <h2>Priority</h2>
             <PriorityBadge priority={task.priority} />
           </section>
@@ -445,7 +500,7 @@ export default function TaskPage() {
           estimate={estimate}
           priority={priority}
           assigneeIds={assigneeIds}
-          projectId={projectId}
+          projectIds={projectIds}
           sprintId={sprintId}
           estimateUnit={estimateUnit}
           busy={busy}
@@ -456,7 +511,7 @@ export default function TaskPage() {
           setEstimate={setEstimate}
           setPriority={setPriority}
           setAssigneeIds={setAssigneeIds}
-          setProjectId={setProjectId}
+          setProjectIds={setProjectIds}
           setSprintId={setSprintId}
         />
       ) : null}
@@ -781,7 +836,7 @@ function TaskEditModal({
   estimate,
   priority,
   assigneeIds,
-  projectId,
+  projectIds,
   sprintId,
   estimateUnit,
   busy,
@@ -792,7 +847,7 @@ function TaskEditModal({
   setEstimate,
   setPriority,
   setAssigneeIds,
-  setProjectId,
+  setProjectIds,
   setSprintId,
 }: {
   task: TaskDetail;
@@ -804,7 +859,7 @@ function TaskEditModal({
   estimate: string;
   priority: TaskPriority;
   assigneeIds: string[];
-  projectId: string;
+  projectIds: string[];
   sprintId: string;
   estimateUnit: EstimateUnit;
   busy: boolean;
@@ -815,7 +870,7 @@ function TaskEditModal({
   setEstimate(value: string): void;
   setPriority(value: TaskPriority): void;
   setAssigneeIds(value: string[]): void;
-  setProjectId(value: string): void;
+  setProjectIds(value: string[]): void;
   setSprintId(value: string): void;
 }) {
   return (
@@ -838,17 +893,42 @@ function TaskEditModal({
             onChange={(event) => setTitle(event.target.value)}
           />
         </label>
-        <label>
-          Project
-          <Select value={projectId} onChange={(event) => setProjectId(event.target.value)}>
-            <option value="">No project</option>
-            {projects.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.key ? `${project.key}-${project.name}` : project.name}
-              </option>
-            ))}
-          </Select>
-        </label>
+        <fieldset className="assignee-picker">
+          <legend>Projects</legend>
+          {projects.map((project) => {
+            const isChecked = projectIds.includes(project.id);
+            const color = project.color || '#2563EB';
+            return (
+              <label
+                className="assignee-choice project-choice"
+                key={project.id}
+                style={
+                  isChecked
+                    ? {
+                        backgroundColor: `${color}18`,
+                        borderColor: `${color}60`,
+                      }
+                    : undefined
+                }
+              >
+                <input
+                  type="checkbox"
+                  checked={isChecked}
+                  onChange={(event) =>
+                    setProjectIds(
+                      event.target.checked
+                        ? [...projectIds, project.id]
+                        : projectIds.filter((id) => id !== project.id),
+                    )
+                  }
+                />
+                <ProjectIcon className="project-badge-icon" name={project.icon} />
+                <span>{project.key ? `${project.key}-${project.name}` : project.name}</span>
+              </label>
+            );
+          })}
+          {!projects.length ? <p className="muted">No projects in this workspace.</p> : null}
+        </fieldset>
         <label>
           Description
           <Textarea

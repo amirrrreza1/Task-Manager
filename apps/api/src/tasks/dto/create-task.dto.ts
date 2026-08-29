@@ -58,6 +58,12 @@ export class CreateTaskDto {
   projectId?: string | null;
 
   @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsUuidLike({ each: true, message: 'Each project ID must be a UUID' })
+  projectIds?: string[];
+
+  @IsOptional()
   @IsEnum(TaskPriority)
   priority?: TaskPriority;
 

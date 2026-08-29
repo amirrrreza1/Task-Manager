@@ -552,8 +552,13 @@ export default function ProjectsPage() {
             <p className="section-label">Delete Project</p>
             <h2 id="delete-project-title">Delete &ldquo;{deletingProject.name}&rdquo;?</h2>
           </header>
-          <div>
-            <p style={{ marginBottom: '1rem', color: 'var(--foreground-muted)' }}>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              void handleDelete();
+            }}
+          >
+            <p className="muted">
               Are you sure you want to delete this project? Tasks in this project will not be
               deleted; they will simply become unassigned to any project.
             </p>
@@ -562,21 +567,20 @@ export default function ProjectsPage() {
                 {error}
               </p>
             )}
-          </div>
-          <footer>
-            <Button type="button" variant="ghost" onClick={() => setDeletingProject(null)}>
-              Cancel
-            </Button>
-            <Button
-              disabled={saving}
-              type="button"
-              variant="primary"
-              className="button-danger-fill"
-              onClick={handleDelete}
-            >
-              {saving ? 'Deleting…' : 'Delete project'}
-            </Button>
-          </footer>
+            <footer>
+              <Button type="button" variant="ghost" onClick={() => setDeletingProject(null)}>
+                Cancel
+              </Button>
+              <Button
+                disabled={saving}
+                type="submit"
+                variant="primary"
+                className="button-danger-fill"
+              >
+                {saving ? 'Deleting…' : 'Delete project'}
+              </Button>
+            </footer>
+          </form>
         </Modal>
       )}
 
