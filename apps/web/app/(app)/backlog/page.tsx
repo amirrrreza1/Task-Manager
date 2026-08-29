@@ -56,6 +56,24 @@ export default function BacklogPage() {
   const [loadFailed, setLoadFailed] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const proj = params.get('projectId');
+    if (proj) setProjectFilter(proj);
+    const q = params.get('search');
+    if (q) setSearch(q);
+  }, []);
+
+  const updateFilters = (nextProject: string, nextSearch: string) => {
+    setProjectFilter(nextProject);
+    setSearch(nextSearch);
+    const params = new URLSearchParams();
+    if (nextProject) params.set('projectId', nextProject);
+    if (nextSearch.trim()) params.set('search', nextSearch.trim());
+    const query = params.toString();
+    window.history.replaceState(null, '', query ? `/backlog?${query}` : '/backlog');
+  };
+
   const backlogColumn = board ? primaryBacklogColumn(board) : null;
   const tasks = useMemo(() => {
     let items = backlogColumn?.tasks ?? [];
@@ -190,13 +208,16 @@ export default function BacklogPage() {
           <Input
             type="search"
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={(event) => updateFilters(projectFilter, event.target.value)}
             placeholder="Title or description"
           />
         </label>
         <label>
           <span>Project</span>
-          <Select value={projectFilter} onChange={(event) => setProjectFilter(event.target.value)}>
+          <Select
+            value={projectFilter}
+            onChange={(event) => updateFilters(event.target.value, search)}
+          >
             <option value="">All projects</option>
             {projects.map((proj) => (
               <option value={proj.id} key={proj.id}>

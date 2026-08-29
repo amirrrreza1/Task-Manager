@@ -18,6 +18,54 @@ import {
 } from '../lib/auth-tokens';
 import type { CurrentUser } from '../lib/types';
 
+const TOKEN_STORAGE_KEY = 'task_manager_auth_token';
+const USER_STORAGE_KEY = 'task_manager_auth_user';
+
+function getStoredToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const token = localStorage.getItem(TOKEN_STORAGE_KEY);
+    if (!token) return null;
+    if (isTokenExpiringSoon(token, 0)) {
+      localStorage.removeItem(TOKEN_STORAGE_KEY);
+      localStorage.removeItem(USER_STORAGE_KEY);
+      return null;
+    }
+    return token;
+  } catch {
+    return null;
+  }
+}
+
+function getStoredUser(): CurrentUser | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const userJson = localStorage.getItem(USER_STORAGE_KEY);
+    if (!userJson) return null;
+    return JSON.parse(userJson) as CurrentUser;
+  } catch {
+    return null;
+  }
+}
+
+function persistSession(token: string | null, user: CurrentUser | null) {
+  if (typeof window === 'undefined') return;
+  try {
+    if (token) {
+      localStorage.setItem(TOKEN_STORAGE_KEY, token);
+    } else {
+      localStorage.removeItem(TOKEN_STORAGE_KEY);
+    }
+    if (user) {
+      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
+    } else {
+      localStorage.removeItem(USER_STORAGE_KEY);
+    }
+  } catch {
+    // LocalStorage quota or security error fallback
+  }
+}
+
 interface SessionResponse {
   accessToken: string;
   user: CurrentUser;
@@ -37,9 +85,13 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<CurrentUser | null>(null);
-  const [loading, setLoading] = useState(true);
-  const tokenRef = useRef<string | null>(null);
+  const [user, setUser] = useState<CurrentUser | null>(() => getStoredUser());
+  const tokenRef = useRef<string | null>(getStoredToken());
+  const [loading, setLoading] = useState(() => {
+    const cachedToken = getStoredToken();
+    const cachedUser = getStoredUser();
+    return !(cachedToken && cachedUser);
+  });
   const refreshPromise = useRef<Promise<string | null> | null>(null);
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
@@ -73,12 +125,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (!response.ok) {
           // If the server explicitly rejected the refresh session (401 or 403),
-          // clear the session. For other HTTP errors (e.g. 500/502/503), do not nuke the session.
+          // check if we still have a valid (unexpired) access token before clearing user state.
           if (response.status === 401 || response.status === 403) {
-            clearRefreshTimer();
-            tokenRef.current = null;
-            setUser(null);
-            return null;
+            const currentToken = tokenRef.current;
+            if (!currentToken || isTokenExpiringSoon(currentToken, 0)) {
+              clearRefreshTimer();
+              tokenRef.current = null;
+              setUser(null);
+              persistSession(null, null);
+              return null;
+            }
+            // Keep existing valid access token if refresh was rejected but token is still active
+            return currentToken;
           }
           throw new ApiError(response.statusText ?? 'Refresh failed', response.status);
         }
@@ -86,16 +144,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const session = await parseApiResponse<SessionResponse>(response);
         tokenRef.current = session.accessToken;
         setUser(session.user);
+        persistSession(session.accessToken, session.user);
         scheduleTokenRefresh(session.accessToken);
         return session.accessToken;
       } catch (error) {
-        // If it was an explicit auth error, session is already cleared above.
-        // For temporary network/connection errors, preserve current user state so forms aren't lost.
         if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
-          clearRefreshTimer();
-          tokenRef.current = null;
-          setUser(null);
-          return null;
+          const currentToken = tokenRef.current;
+          if (!currentToken || isTokenExpiringSoon(currentToken, 0)) {
+            clearRefreshTimer();
+            tokenRef.current = null;
+            setUser(null);
+            persistSession(null, null);
+            return null;
+          }
+          return currentToken;
         }
         return tokenRef.current;
       } finally {
@@ -140,6 +202,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const session = await parseApiResponse<SessionResponse>(response);
       tokenRef.current = session.accessToken;
       setUser(session.user);
+      persistSession(session.accessToken, session.user);
       setLoading(false);
       scheduleTokenRefresh(session.accessToken);
     },
@@ -153,12 +216,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       tokenRef.current = null;
       setUser(null);
+      persistSession(null, null);
       router.replace('/login');
     }
   }, [clearRefreshTimer, router]);
 
   const updateUser = useCallback((patch: Partial<CurrentUser>) => {
-    setUser((current) => (current ? { ...current, ...patch } : current));
+    setUser((current) => {
+      const updated = current ? { ...current, ...patch } : current;
+      if (updated) {
+        persistSession(tokenRef.current, updated);
+      }
+      return updated;
+    });
   }, []);
 
   const request = useCallback(

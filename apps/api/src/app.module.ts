@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { TokenBucketThrottlerStorageService } from './infrastructure/throttler/token-bucket-throttler-storage.service';
 import { AuthModule } from './auth/auth.module';
 import { AccessTokenGuard } from './auth/guards/access-token.guard';
 import { RolesGuard } from './auth/guards/roles.guard';
@@ -30,7 +31,10 @@ import { ProjectsModule } from './projects/projects.module';
       envFilePath: resolveEnvFilePaths(),
       validate: validateEnvironment,
     }),
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
+    ThrottlerModule.forRoot({
+      storage: new TokenBucketThrottlerStorageService(),
+      throttlers: [{ ttl: 60_000, limit: 120 }],
+    }),
     PrismaModule,
     StorageModule,
     MailModule,

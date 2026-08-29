@@ -117,6 +117,7 @@ describe('AuthService refresh token rotation and grace period', () => {
     };
 
     let familyRevoked = false;
+    let newSessionCreated = false;
     const mockPrisma = {
       refreshSession: {
         findUnique: async () => recentlyRevokedSession,
@@ -126,6 +127,16 @@ describe('AuthService refresh token rotation and grace period', () => {
           return { count: 1 };
         },
       },
+      $transaction: async (callback) =>
+        callback({
+          refreshSession: {
+            updateMany: async () => ({ count: 1 }),
+            create: async ({ data }) => {
+              newSessionCreated = true;
+              return data;
+            },
+          },
+        }),
     };
 
     const authService = new AuthService(
@@ -137,9 +148,10 @@ describe('AuthService refresh token rotation and grace period', () => {
 
     const result = await authService.refresh('old-raw-token');
     assert.ok(result.accessToken);
-    assert.equal(result.refreshToken, undefined);
+    assert.ok(result.refreshToken);
     assert.equal(result.user.id, 'user-1');
     assert.equal(familyRevoked, false, 'Session family should NOT be revoked during grace period');
+    assert.equal(newSessionCreated, true, 'New refresh session should be created during grace period');
   });
 
   it('detects token reuse and revokes entire family when outside grace period', async () => {

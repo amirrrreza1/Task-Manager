@@ -72,9 +72,26 @@ export class AuthService {
         });
 
         if (activeSession && activeSession.user.isActive) {
+          const nextRawToken = this.newRefreshToken();
+          const now = new Date();
+          await this.prisma.$transaction(async (transaction) => {
+            await transaction.refreshSession.updateMany({
+              where: { id: activeSession.id, revokedAt: null },
+              data: { revokedAt: now },
+            });
+            await transaction.refreshSession.create({
+              data: {
+                tokenHash: this.hashToken(nextRawToken),
+                familyId: session.familyId,
+                userId: activeSession.userId,
+                expiresAt: this.refreshExpiry(),
+              },
+            });
+          });
+
           return {
             accessToken: await this.signAccessToken(activeSession.user),
-            refreshToken: undefined,
+            refreshToken: nextRawToken,
             user: this.toPublicUser(activeSession.user),
           };
         }
@@ -123,9 +140,26 @@ export class AuthService {
       });
 
       if (activeSession && activeSession.user.isActive) {
+        const nextRawToken = this.newRefreshToken();
+        const now = new Date();
+        await this.prisma.$transaction(async (transaction) => {
+          await transaction.refreshSession.updateMany({
+            where: { id: activeSession.id, revokedAt: null },
+            data: { revokedAt: now },
+          });
+          await transaction.refreshSession.create({
+            data: {
+              tokenHash: this.hashToken(nextRawToken),
+              familyId: session.familyId,
+              userId: activeSession.userId,
+              expiresAt: this.refreshExpiry(),
+            },
+          });
+        });
+
         return {
           accessToken: await this.signAccessToken(activeSession.user),
-          refreshToken: undefined,
+          refreshToken: nextRawToken,
           user: this.toPublicUser(activeSession.user),
         };
       }

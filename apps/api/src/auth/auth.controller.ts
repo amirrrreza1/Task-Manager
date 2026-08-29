@@ -87,17 +87,19 @@ export class AuthController {
       httpOnly: true,
       secure: this.config.get('NODE_ENV') === 'production',
       sameSite: 'lax',
-      path: '/api/v1/auth',
+      path: '/',
     };
   }
 
   private assertAllowedOrigin(request: Request) {
     const origin = request.headers.origin;
+    if (!origin) return;
     const allowed = this.config
       .getOrThrow<string>('CORS_ORIGIN')
       .split(',')
-      .map((value) => value.trim());
-    if (origin && !allowed.includes(origin)) {
+      .map((value) => value.trim().toLowerCase().replace(/\/$/, ''));
+    const normalized = origin.trim().toLowerCase().replace(/\/$/, '');
+    if (!allowed.includes(normalized) && !allowed.includes('*')) {
       throw new UnauthorizedException('The request origin is not allowed.');
     }
   }
