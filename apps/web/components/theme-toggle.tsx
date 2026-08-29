@@ -2,7 +2,7 @@
 
 import { MoonStars, SunHigh } from '@appica/icons-react';
 import { Button } from '@appica/ui-react/button';
-import { useTheme } from '@appica/ui-react/hooks/use-theme';
+import { useTheme } from './theme-provider';
 
 export function ThemeToggle({ label }: { label?: string }) {
   const { mounted, resolvedTheme, setTheme } = useTheme();

@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { ThemeProvider } from '@appica/ui-react/providers/theme-provider';
+import { ThemeProvider } from '../components/theme-provider';
 import type { ReactNode } from 'react';
 import { AuthProvider } from '../components/auth-provider';
 import { ToastProvider } from '../components/toast-provider';
