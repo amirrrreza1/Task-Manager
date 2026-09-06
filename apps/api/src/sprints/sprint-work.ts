@@ -59,5 +59,8 @@ export function sprintOutcomeTotals(
       estimates[item.estimateUnit] = (estimates[item.estimateUnit] ?? 0) + item.estimateValue;
     }
   }
+  for (const [unit, sum] of Object.entries(estimates)) {
+    estimates[unit] = Math.round(sum * 100) / 100;
+  }
   return { total: items.length, completed, incomplete: items.length - completed, estimates };
 }

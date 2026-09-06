@@ -9,6 +9,7 @@ import {
   Patch,
   Post,
   Put,
+  Query,
   Res,
   UploadedFile,
   UseInterceptors,
@@ -98,5 +99,15 @@ export class UsersController {
   @Delete(':id/avatar')
   removeAvatar(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: AuthenticatedUser) {
     return this.users.removeAvatar(id, actor);
+  }
+
+  @Delete(':id')
+  @Roles(UserRole.ADMIN)
+  remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('reassignToUserId') reassignToUserId: string | undefined,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.users.remove(id, actor, reassignToUserId);
   }
 }

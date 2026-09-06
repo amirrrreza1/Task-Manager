@@ -55,6 +55,7 @@ export default function SprintDetailPage() {
   const [creatingCarryTarget, setCreatingCarryTarget] = useState(false);
   const [plannerOpen, setPlannerOpen] = useState(false);
   const [finishConfirmationOpen, setFinishConfirmationOpen] = useState(false);
+  const [finishTargetSprintId, setFinishTargetSprintId] = useState('');
   const [availableTasks, setAvailableTasks] = useState<AvailableSprintTask[]>([]);
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
   const [selectedSubtaskIds, setSelectedSubtaskIds] = useState<string[]>([]);
@@ -147,11 +148,16 @@ export default function SprintDetailPage() {
     void mutation(`/sprints/${id}/start`, 'POST');
   }
   function finishSprint() {
+    setFinishTargetSprintId(planned[0]?.id ?? '');
     setFinishConfirmationOpen(true);
   }
   function confirmFinishSprint() {
     setFinishConfirmationOpen(false);
-    void mutation(`/sprints/${id}/finish`);
+    void mutation(
+      `/sprints/${id}/finish`,
+      'POST',
+      finishTargetSprintId ? { targetSprintId: finishTargetSprintId } : undefined,
+    );
   }
   function saveComment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -669,8 +675,32 @@ export default function SprintDetailPage() {
             }}
           >
             <p>
-              Are you sure you want to finish this sprint? A snapshot of completed work will be saved, and incomplete work can be resolved.
+              A snapshot of completed work will be saved. All incomplete tasks will automatically move
+              to the next sprint with their current statuses preserved.
             </p>
+            {sprint.tasks.some((t) => !t.column?.isDone) ? (
+              <div style={{ margin: '1rem 0' }}>
+                {planned.length ? (
+                  <label>
+                    Target next sprint
+                    <Select
+                      value={finishTargetSprintId}
+                      onChange={(event) => setFinishTargetSprintId(event.target.value)}
+                    >
+                      {planned.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.name}
+                        </option>
+                      ))}
+                    </Select>
+                  </label>
+                ) : (
+                  <p className="muted" style={{ fontSize: '0.9rem' }}>
+                    No planned sprint is currently created. The next sprint will automatically be created for you.
+                  </p>
+                )}
+              </div>
+            ) : null}
             <footer>
               <Button
                 variant="ghost"

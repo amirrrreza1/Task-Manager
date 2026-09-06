@@ -20,7 +20,8 @@ import { ResolveSprintWorkDto } from './dto/resolve-sprint-work.dto';
 import { AssignSprintTasksDto } from './dto/assign-sprint-tasks.dto';
 import { AssignSprintSubtasksDto } from './dto/assign-sprint-subtasks.dto';
 import { CommentDto } from './dto/comment.dto';
-import { CreateSprintDto } from './dto/create-sprint.dto';
+import type { CreateSprintDto } from './dto/create-sprint.dto';
+import { FinishSprintDto } from './dto/finish-sprint.dto';
 import { SprintQueryDto } from './dto/sprint-query.dto';
 import { StartSprintDto } from './dto/start-sprint.dto';
 import { UpdateSprintDto } from './dto/update-sprint.dto';
@@ -96,8 +97,12 @@ export class SprintsController {
 
   @Post(':id/finish')
   @Roles(UserRole.ADMIN)
-  finish(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: AuthenticatedUser) {
-    return this.sprints.finish(id, actor.id);
+  finish(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() input: FinishSprintDto = {},
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.sprints.finish(id, actor.id, input);
   }
 
   @Post(':id/move-to-backlog')

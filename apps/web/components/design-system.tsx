@@ -64,6 +64,7 @@ type SelectProps = Omit<ComponentProps<'select'>, 'children' | 'onChange' | 'siz
   children: ReactNode;
   onChange?: ChangeEventHandler<HTMLSelectElement>;
   placeholder?: string;
+  size?: 'sm' | 'md' | 'lg';
 };
 
 function collectSelectItems(children: ReactNode, items: Record<string, ReactNode> = {}) {
@@ -127,6 +128,7 @@ function Select({
   placeholder,
   value,
   defaultValue,
+  size,
   ...props
 }: SelectProps) {
   const resolvedValue = value === undefined ? undefined : String(value);
@@ -148,6 +150,7 @@ function Select({
         } as ChangeEvent<HTMLSelectElement>);
       }}
       value={resolvedValue}
+      size={size}
     >
       <SelectTrigger
         aria-describedby={props['aria-describedby']}

@@ -3,7 +3,15 @@
 import { Button, Checkbox, Input, Select } from '../../../components/design-system';
 
 import Link from 'next/link';
-import { Fragment, type PropsWithChildren, useCallback, useEffect, useRef, useState } from 'react';
+import {
+  Fragment,
+  type PropsWithChildren,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   closestCorners,
   type CollisionDetection,
@@ -37,6 +45,13 @@ import { useToast } from '../../../components/toast-provider';
 import { useWorkspace } from '../../../components/workspace-provider';
 import { HeaderActions } from '../../../components/header-actions';
 import { PriorityBadge, PrioritySelect } from '../../../components/priority-badge';
+import { TaskCardMenu } from '../../../components/task-card-menu';
+import { SubtaskCardMenu } from '../../../components/subtask-card-menu';
+import {
+  QuickEditAssigneeModal,
+  QuickEditDescriptionModal,
+  QuickEditTitleModal,
+} from '../../../components/quick-edit-field-modals';
 import { ProjectIcon } from '../../../lib/project-icons';
 import { isTaskPriority } from '../../../lib/priority';
 import type {
@@ -47,9 +62,15 @@ import type {
   TaskCard,
   TaskPriority,
 } from '../../../lib/types';
-import { workflowBoard } from '../../../lib/board-columns';
+import { placeSubtaskOnColumn, workflowBoard } from '../../../lib/board-columns';
 import { taskDropIndex } from '../../../lib/board-dnd';
 import { useBoardSocket } from '../../../lib/use-board-socket';
+import {
+  type BoardSortOption,
+  BOARD_SORT_OPTIONS,
+  applyBoardSort,
+  isValidBoardSortOption,
+} from '../../../lib/task-sort';
 
 type ActiveDrag =
   | { type: 'task'; task: TaskCard }
@@ -84,8 +105,10 @@ const boardCollisionDetection: CollisionDetection = (arguments_) => {
             collision.id !== arguments_.active.id && String(collision.id).startsWith('task:'),
         )
       : activeType === 'subtask'
-        ? (pointerCollisions.find((collision) => String(collision.id).startsWith('subtask:')) ??
-          pointerCollisions.find((collision) => String(collision.id).startsWith('task:')))
+        ? (pointerCollisions.find(
+            (collision) =>
+              collision.id !== arguments_.active.id && String(collision.id).startsWith('subtask:'),
+          ) ?? pointerCollisions.find((collision) => String(collision.id).startsWith('task:')))
         : pointerCollisions.find((collision) => !String(collision.id).startsWith('column:'));
   if (directWorkItem) return [directWorkItem];
 
@@ -114,7 +137,7 @@ const boardCollisionDetection: CollisionDetection = (arguments_) => {
   return closestCorners({
     ...arguments_,
     droppableContainers:
-      activeType === 'task'
+      activeType === 'task' || activeType === 'subtask'
         ? arguments_.droppableContainers.filter(
             (container) => container.id !== arguments_.active.id,
           )
@@ -130,6 +153,7 @@ interface Filters {
   mine: boolean;
   estimate: '' | 'true' | 'false';
   priority: TaskPriority | '';
+  sortBy: BoardSortOption;
 }
 
 const emptyFilters: Filters = {
@@ -140,6 +164,7 @@ const emptyFilters: Filters = {
   mine: false,
   estimate: '',
   priority: '',
+  sortBy: '',
 };
 
 export default function BoardPage() {
@@ -149,6 +174,13 @@ export default function BoardPage() {
   const [board, setBoard] = useState<BoardResponse | null>(null);
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [editingTitleItem, setEditingTitleItem] = useState<
+    { type: 'task'; item: TaskCard } | { type: 'subtask'; item: BoardSubtask } | null
+  >(null);
+  const [editingDescriptionItem, setEditingDescriptionItem] = useState<
+    { type: 'task'; item: TaskCard } | { type: 'subtask'; item: BoardSubtask } | null
+  >(null);
+  const [editingSubtaskAssignee, setEditingSubtaskAssignee] = useState<BoardSubtask | null>(null);
   const [filters, setFilters] = useState<Filters>(emptyFilters);
   const [loadFailed, setLoadFailed] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -160,6 +192,10 @@ export default function BoardPage() {
   const taskDropPreviewRef = useRef<TaskDropPreview | null>(null);
   const dragOriginBoard = useRef<BoardResponse | null>(null);
   const suppressClickRef = useRef(false);
+
+  const displayedBoard = useMemo(() => {
+    return applyBoardSort(board, filters.sortBy);
+  }, [board, filters.sortBy]);
 
   function updateBusy(next: boolean) {
     busyRef.current = next;
@@ -201,6 +237,7 @@ export default function BoardPage() {
     const mine = params.get('mine') === 'true';
     const estimated = params.get('hasEstimate');
     const priority = params.get('priority') ?? '';
+    const sortBy = params.get('sortBy') ?? params.get('sort') ?? '';
     setFilters({
       search: params.get('search') ?? '',
       assigneeId: mine ? '' : (params.get('assigneeId') ?? ''),
@@ -209,6 +246,7 @@ export default function BoardPage() {
       mine,
       estimate: estimated === 'true' || estimated === 'false' ? estimated : '',
       priority: isTaskPriority(priority) ? priority : '',
+      sortBy: isValidBoardSortOption(sortBy) ? sortBy : '',
     });
   }, []);
 
@@ -246,6 +284,9 @@ export default function BoardPage() {
     if (filters.priority) {
       browserParams.set('priority', filters.priority);
       apiParams.set('priority', filters.priority);
+    }
+    if (filters.sortBy) {
+      browserParams.set('sortBy', filters.sortBy);
     }
     const browserQuery = browserParams.toString();
     const apiQuery = apiParams.toString();
@@ -305,7 +346,14 @@ export default function BoardPage() {
             ...column,
             tasks: [
               ...candidates.slice(0, safeIndex),
-              { ...task, columnId: targetColumn.id },
+              {
+                ...task,
+                columnId: targetColumn.id,
+                subtasks: (task.subtasks ?? []).map((subtask) => ({
+                  ...subtask,
+                  columnId: targetColumn.id,
+                })),
+              },
               ...candidates.slice(safeIndex),
             ],
           };
@@ -338,19 +386,45 @@ export default function BoardPage() {
     }
   }
 
-  async function moveSubtask(taskId: string, subtask: BoardSubtask, targetColumnId: string) {
-    if (!board || busy || subtask.columnId === targetColumnId) return;
+  async function moveSubtask(
+    taskId: string,
+    subtask: BoardSubtask,
+    targetColumnId: string,
+    reordered?: BoardSubtask[],
+  ) {
+    if (!board || busy || (subtask.columnId === targetColumnId && !reordered)) return;
     const previousBoard = dragOriginBoard.current ?? board;
-    setBoard(placeSubtaskOnColumn(board, subtask.id, targetColumnId));
+    const nextBoard = placeSubtaskOnColumn(board, subtask.id, targetColumnId);
+    if (reordered) {
+      setBoard({
+        ...nextBoard,
+        columns: nextBoard.columns.map((column) => ({
+          ...column,
+          tasks: column.tasks.map((task) =>
+            task.id === taskId ? { ...task, subtasks: reordered } : task,
+          ),
+        })),
+      });
+    } else {
+      setBoard(nextBoard);
+    }
     updateBusy(true);
     try {
-      await request(`/tasks/${taskId}/subtasks/${subtask.id}/move`, {
-        method: 'POST',
-        body: JSON.stringify({
-          columnId: targetColumnId,
-          expectedUpdatedAt: subtask.updatedAt,
-        }),
-      });
+      if (subtask.columnId !== targetColumnId) {
+        await request(`/tasks/${taskId}/subtasks/${subtask.id}/move`, {
+          method: 'POST',
+          body: JSON.stringify({
+            columnId: targetColumnId,
+            expectedUpdatedAt: subtask.updatedAt,
+          }),
+        });
+      }
+      if (reordered && reordered.length > 1) {
+        await request(`/tasks/${taskId}/subtasks/reorder`, {
+          method: 'POST',
+          body: JSON.stringify({ subtaskIds: reordered.map((item) => item.id) }),
+        });
+      }
       await load();
     } catch (caught) {
       setBoard(previousBoard);
@@ -363,8 +437,9 @@ export default function BoardPage() {
   }
 
   function findBoardSubtask(subtaskId: string) {
-    if (!board) return null;
-    for (const [columnIndex, column] of board.columns.entries()) {
+    const current = displayedBoard ?? board;
+    if (!current) return null;
+    for (const [columnIndex, column] of current.columns.entries()) {
       for (const task of column.tasks) {
         const nested = task.subtasks.find((item) => item.id === subtaskId);
         if (nested) return { subtask: nested, taskId: task.id, columnIndex };
@@ -375,7 +450,8 @@ export default function BoardPage() {
     return null;
   }
 
-  function findTaskLocation(taskId: string, source: BoardResponse = board!) {
+  function findTaskLocation(taskId: string, source: BoardResponse = (displayedBoard ?? board)!) {
+    if (!source) return null;
     for (const [columnIndex, column] of source.columns.entries()) {
       const taskIndex = column.tasks.findIndex((item) => item.id === taskId);
       if (taskIndex >= 0) return { columnIndex, taskIndex, task: column.tasks[taskIndex] };
@@ -384,13 +460,18 @@ export default function BoardPage() {
   }
 
   function resolveColumnIndex(overId: string) {
-    if (!board) return -1;
+    const currentBoard = displayedBoard ?? board;
+    if (!currentBoard) return -1;
     if (overId.startsWith('column:')) {
-      return board.columns.findIndex((column) => column.id === overId.replace(/^column:/, ''));
+      return currentBoard.columns.findIndex(
+        (column) => column.id === overId.replace(/^column:/, ''),
+      );
     }
     if (overId.startsWith('task:')) {
       const taskId = overId.replace(/^task:/, '');
-      return board.columns.findIndex((column) => column.tasks.some((item) => item.id === taskId));
+      return currentBoard.columns.findIndex((column) =>
+        column.tasks.some((item) => item.id === taskId),
+      );
     }
     if (overId.startsWith('subtask:')) {
       const found = findBoardSubtask(overId.replace(/^subtask:/, ''));
@@ -434,11 +515,11 @@ export default function BoardPage() {
     if (!board || busy) return;
     armClickSuppression();
     updateTaskDropPreview(null);
-    dragOriginBoard.current = board;
+    dragOriginBoard.current = displayedBoard ?? board;
     const activeId = String(event.active.id);
     if (activeId.startsWith('task:')) {
       const taskId = activeId.replace(/^task:/, '');
-      const location = findTaskLocation(taskId);
+      const location = findTaskLocation(taskId, displayedBoard ?? board);
       if (location) {
         updateActiveDrag({ type: 'task', task: location.task });
         setBoard({
@@ -453,7 +534,8 @@ export default function BoardPage() {
     }
     if (activeId.startsWith('subtask:')) {
       const subtaskId = activeId.replace(/^subtask:/, '');
-      for (const column of board.columns) {
+      const currentBoard = displayedBoard ?? board;
+      for (const column of currentBoard.columns) {
         for (const task of column.tasks) {
           const nested = task.subtasks.find((item) => item.id === subtaskId);
           if (nested) {
@@ -483,7 +565,8 @@ export default function BoardPage() {
   }
 
   function previewTaskDrag(event: DragMoveEvent) {
-    if (!board || !event.over || busy || !String(event.active.id).startsWith('task:')) {
+    const currentBoard = displayedBoard ?? board;
+    if (!currentBoard || !event.over || busy || !String(event.active.id).startsWith('task:')) {
       if (!event.over) updateTaskDropPreview(null);
       return;
     }
@@ -496,7 +579,7 @@ export default function BoardPage() {
       return;
     }
 
-    const targetColumn = board.columns[targetColumnIndex];
+    const targetColumn = currentBoard.columns[targetColumnIndex];
     const targetIndex = taskDropIndex({
       taskIds: targetColumn.tasks.map((task) => task.id),
       activeTaskId,
@@ -554,28 +637,7 @@ export default function BoardPage() {
     if (String(event.active.id).startsWith('subtask:') && active?.type === 'subtask') {
       const activeId = String(event.active.id).replace(/^subtask:/, '');
       const overId = String(event.over.id);
-      if (overId.startsWith('subtask:')) {
-        const overSubtaskId = overId.replace(/^subtask:/, '');
-        const parentTask = board.columns
-          .flatMap((column) => column.tasks)
-          .find((task) => task.subtasks.some((subtask) => subtask.id === activeId));
-        if (parentTask && parentTask.subtasks.some((subtask) => subtask.id === overSubtaskId)) {
-          const oldIndex = parentTask.subtasks.findIndex((subtask) => subtask.id === activeId);
-          const newIndex = parentTask.subtasks.findIndex((subtask) => subtask.id === overSubtaskId);
-          if (oldIndex >= 0 && newIndex >= 0 && oldIndex !== newIndex) {
-            void saveBoardSubtaskOrder(
-              parentTask,
-              arrayMove(parentTask.subtasks, oldIndex, newIndex),
-            );
-          } else {
-            dragOriginBoard.current = null;
-            flushPendingReload();
-          }
-          return;
-        }
-      }
 
-      const current = findBoardSubtask(activeId);
       const originSubtask =
         origin &&
         (() => {
@@ -589,10 +651,78 @@ export default function BoardPage() {
           }
           return null;
         })();
-      if (current && originSubtask && current.subtask.columnId !== originSubtask.columnId) {
-        void moveSubtask(active.taskId, originSubtask, current.subtask.columnId);
+
+      if (!origin || !originSubtask) {
+        dragOriginBoard.current = null;
+        flushPendingReload();
         return;
       }
+
+      const current = findBoardSubtask(activeId);
+      const targetColumnIndex = resolveColumnIndex(overId);
+      const resolvedColumnId =
+        targetColumnIndex >= 0 ? (board.columns[targetColumnIndex]?.id ?? null) : null;
+      const targetColumnId = resolvedColumnId ?? current?.subtask.columnId ?? null;
+
+      if (!targetColumnId) {
+        setBoard(origin);
+        dragOriginBoard.current = null;
+        flushPendingReload();
+        return;
+      }
+
+      const columnChanged = targetColumnId !== originSubtask.columnId;
+
+      if (columnChanged) {
+        const parentTask = board.columns
+          .flatMap((column) => column.tasks)
+          .find((task) => task.id === active.taskId);
+
+        let reorderedSubtasks: BoardSubtask[] | undefined;
+        if (parentTask && parentTask.columnId === targetColumnId && overId.startsWith('subtask:')) {
+          const overSubtaskId = overId.replace(/^subtask:/, '');
+          if (
+            overSubtaskId !== activeId &&
+            parentTask.subtasks.some((subtask) => subtask.id === overSubtaskId)
+          ) {
+            const oldIndex = parentTask.subtasks.findIndex((subtask) => subtask.id === activeId);
+            const newIndex = parentTask.subtasks.findIndex(
+              (subtask) => subtask.id === overSubtaskId,
+            );
+            if (oldIndex >= 0 && newIndex >= 0 && oldIndex !== newIndex) {
+              reorderedSubtasks = arrayMove(parentTask.subtasks, oldIndex, newIndex);
+            }
+          }
+        }
+
+        void moveSubtask(active.taskId, originSubtask, targetColumnId, reorderedSubtasks);
+        return;
+      }
+
+      // Column did not change
+      if (overId.startsWith('subtask:')) {
+        const overSubtaskId = overId.replace(/^subtask:/, '');
+        if (overSubtaskId !== activeId) {
+          const parentTask = board.columns
+            .flatMap((column) => column.tasks)
+            .find((task) => task.subtasks.some((subtask) => subtask.id === activeId));
+          if (parentTask && parentTask.subtasks.some((subtask) => subtask.id === overSubtaskId)) {
+            const oldIndex = parentTask.subtasks.findIndex((subtask) => subtask.id === activeId);
+            const newIndex = parentTask.subtasks.findIndex(
+              (subtask) => subtask.id === overSubtaskId,
+            );
+            if (oldIndex >= 0 && newIndex >= 0 && oldIndex !== newIndex) {
+              void saveBoardSubtaskOrder(
+                parentTask,
+                arrayMove(parentTask.subtasks, oldIndex, newIndex),
+              );
+              return;
+            }
+          }
+        }
+      }
+
+      setBoard(origin);
       dragOriginBoard.current = null;
       flushPendingReload();
       return;
@@ -655,6 +785,193 @@ export default function BoardPage() {
     } finally {
       updateBusy(false);
       flushPendingReload();
+    }
+  }
+
+  async function handlePriorityChange(task: TaskCard, priority: TaskPriority) {
+    if (task.priority === priority) return;
+    try {
+      await request(`/tasks/${task.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ priority }),
+      });
+      toast.success(`Priority set to ${priority.toLowerCase()}.`);
+      await load();
+    } catch (caught) {
+      toast.fromError(caught, 'Could not change priority.');
+    }
+  }
+
+  async function handleToggleAssignee(task: TaskCard, userId: string) {
+    const currentIds = task.assignees.map((a) => a.user.id);
+    const nextIds = currentIds.includes(userId)
+      ? currentIds.filter((id) => id !== userId)
+      : [...currentIds, userId];
+    try {
+      await request(`/tasks/${task.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ assigneeIds: nextIds }),
+      });
+      toast.success('Assignees updated.');
+      await load();
+    } catch (caught) {
+      toast.fromError(caught, 'Could not update assignees.');
+    }
+  }
+
+  async function handleAssignSelf(task: TaskCard) {
+    if (!user?.id) return;
+    const currentIds = task.assignees.map((a) => a.user.id);
+    if (currentIds.includes(user.id)) return;
+    try {
+      await request(`/tasks/${task.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ assigneeIds: [...currentIds, user.id] }),
+      });
+      toast.success('Assigned to you.');
+      await load();
+    } catch (caught) {
+      toast.fromError(caught, 'Could not assign task.');
+    }
+  }
+
+  async function handleClearAssignees(task: TaskCard) {
+    try {
+      await request(`/tasks/${task.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ assigneeIds: [] }),
+      });
+      toast.success('All assignees cleared.');
+      await load();
+    } catch (caught) {
+      toast.fromError(caught, 'Could not clear assignees.');
+    }
+  }
+
+  async function handleDeleteTask(task: TaskCard) {
+    if (!window.confirm(`Delete “${task.title}” and all of its subtasks and files?`)) return;
+    try {
+      await request<void>(`/tasks/${task.id}`, { method: 'DELETE' });
+      toast.success('Task deleted.');
+      await load();
+    } catch (caught) {
+      toast.fromError(caught, 'Could not delete the task.');
+    }
+  }
+
+  async function handleSaveTitle(newTitle: string) {
+    if (!editingTitleItem) return;
+    if (editingTitleItem.type === 'task') {
+      try {
+        await request(`/tasks/${editingTitleItem.item.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ title: newTitle }),
+        });
+        toast.success('Task title updated.');
+        await load();
+      } catch (caught) {
+        toast.fromError(caught, 'Could not update task title.');
+      }
+    } else {
+      try {
+        await request(
+          `/tasks/${editingTitleItem.item.taskId}/subtasks/${editingTitleItem.item.id}`,
+          {
+            method: 'PATCH',
+            body: JSON.stringify({ title: newTitle }),
+          },
+        );
+        toast.success('Subtask title updated.');
+        await load();
+      } catch (caught) {
+        toast.fromError(caught, 'Could not update subtask title.');
+      }
+    }
+  }
+
+  async function handleSaveDescription(newDescription: string) {
+    if (!editingDescriptionItem) return;
+    if (editingDescriptionItem.type === 'task') {
+      try {
+        await request(`/tasks/${editingDescriptionItem.item.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ description: newDescription || null }),
+        });
+        toast.success('Task description updated.');
+        await load();
+      } catch (caught) {
+        toast.fromError(caught, 'Could not update task description.');
+      }
+    } else {
+      try {
+        await request(
+          `/tasks/${editingDescriptionItem.item.taskId}/subtasks/${editingDescriptionItem.item.id}`,
+          {
+            method: 'PATCH',
+            body: JSON.stringify({ description: newDescription || null }),
+          },
+        );
+        toast.success('Subtask description updated.');
+        await load();
+      } catch (caught) {
+        toast.fromError(caught, 'Could not update subtask description.');
+      }
+    }
+  }
+
+  async function handleSaveSubtaskAssignee(assigneeId: string | null) {
+    if (!editingSubtaskAssignee) return;
+    try {
+      await request(
+        `/tasks/${editingSubtaskAssignee.taskId}/subtasks/${editingSubtaskAssignee.id}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ assigneeId }),
+        },
+      );
+      toast.success('Subtask assignee updated.');
+      await load();
+    } catch (caught) {
+      toast.fromError(caught, 'Could not update subtask assignee.');
+    }
+  }
+
+  async function handleSubtaskAssignUser(subtask: BoardSubtask, userId: string | null) {
+    try {
+      await request(`/tasks/${subtask.taskId}/subtasks/${subtask.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ assigneeId: userId }),
+      });
+      toast.success(userId ? 'Subtask assigned.' : 'Subtask unassigned.');
+      await load();
+    } catch (caught) {
+      toast.fromError(caught, 'Could not update subtask assignee.');
+    }
+  }
+
+  async function handleSubtaskPriorityChange(subtask: BoardSubtask, priority: TaskPriority) {
+    try {
+      await request(`/tasks/${subtask.taskId}/subtasks/${subtask.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ priority }),
+      });
+      toast.success(`Priority set to ${priority.toLowerCase()}.`);
+      await load();
+    } catch (caught) {
+      toast.fromError(caught, 'Could not change subtask priority.');
+    }
+  }
+
+  async function handleSubtaskDelete(subtask: BoardSubtask) {
+    if (!window.confirm(`Delete “${subtask.title}”?`)) return;
+    try {
+      await request<void>(`/tasks/${subtask.taskId}/subtasks/${subtask.id}`, {
+        method: 'DELETE',
+      });
+      toast.success('Subtask deleted.');
+      await load();
+    } catch (caught) {
+      toast.fromError(caught, 'Could not delete subtask.');
     }
   }
 
@@ -754,6 +1071,25 @@ export default function BoardPage() {
             onChange={(value) => setFilters({ ...filters, priority: value })}
           />
         </label>
+        <label className="board-filter-sort">
+          <Select
+            aria-label="Sort by"
+            placeholder="Sort by"
+            value={filters.sortBy || undefined}
+            onChange={(event) =>
+              setFilters({
+                ...filters,
+                sortBy: isValidBoardSortOption(event.target.value) ? event.target.value : '',
+              })
+            }
+          >
+            {BOARD_SORT_OPTIONS.map((opt) => (
+              <option value={opt.value} key={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </Select>
+        </label>
         <div className="board-filter-toggles" role="group" aria-label="Quick filters">
           <label className="check-field">
             <Checkbox
@@ -795,7 +1131,7 @@ export default function BoardPage() {
         </Button>
       </section>
 
-      {!board ? (
+      {!displayedBoard ? (
         <div className="board-loading">
           {loadFailed ? (
             <p className="empty-copy">The board could not be loaded.</p>
@@ -817,7 +1153,7 @@ export default function BoardPage() {
           onDragEnd={finishBoardDrag}
         >
           <section className={`task-board ${busy ? 'is-busy' : ''}`} aria-label="Task board">
-            {board.columns.map((column) => {
+            {displayedBoard.columns.map((column) => {
               const activeTaskId = activeDrag?.type === 'task' ? activeDrag.task.id : null;
               const visibleTaskCount = column.tasks.filter(
                 (task) => task.id !== activeTaskId,
@@ -861,8 +1197,29 @@ export default function BoardPage() {
                           >
                             <TaskCardContent
                               task={task}
+                              users={users}
+                              currentUserId={user?.id}
                               disabled={busy}
                               onNavigateGuard={guardCardNavigation}
+                              onEditTitle={(t) => setEditingTitleItem({ type: 'task', item: t })}
+                              onEditDescription={(t) =>
+                                setEditingDescriptionItem({ type: 'task', item: t })
+                              }
+                              onPriorityChange={handlePriorityChange}
+                              onToggleAssignee={handleToggleAssignee}
+                              onAssignSelf={handleAssignSelf}
+                              onClearAssignees={handleClearAssignees}
+                              onDelete={handleDeleteTask}
+                              onEditSubtaskTitle={(s) =>
+                                setEditingTitleItem({ type: 'subtask', item: s })
+                              }
+                              onEditSubtaskDescription={(s) =>
+                                setEditingDescriptionItem({ type: 'subtask', item: s })
+                              }
+                              onEditSubtaskAssignee={(s) => setEditingSubtaskAssignee(s)}
+                              onSubtaskAssignUser={handleSubtaskAssignUser}
+                              onSubtaskPriorityChange={handleSubtaskPriorityChange}
+                              onSubtaskDelete={handleSubtaskDelete}
                             />
                           </SortableTaskShell>
                         </Fragment>
@@ -884,9 +1241,19 @@ export default function BoardPage() {
                               id: subtask.taskId,
                               title: subtask.parentTask?.title ?? 'Parent task',
                             }}
+                            users={users}
+                            currentUserId={user?.id}
                             disabled={busy}
                             standalone
                             onNavigateGuard={guardCardNavigation}
+                            onEditTitle={(s) => setEditingTitleItem({ type: 'subtask', item: s })}
+                            onEditDescription={(s) =>
+                              setEditingDescriptionItem({ type: 'subtask', item: s })
+                            }
+                            onEditAssignee={(s) => setEditingSubtaskAssignee(s)}
+                            onAssignUser={handleSubtaskAssignUser}
+                            onPriorityChange={handleSubtaskPriorityChange}
+                            onDelete={handleSubtaskDelete}
                           />
                         ))}
                       </SortableContext>
@@ -917,6 +1284,31 @@ export default function BoardPage() {
           </DragOverlay>
         </DndContext>
       )}
+
+      <QuickEditTitleModal
+        open={Boolean(editingTitleItem)}
+        initialTitle={editingTitleItem?.item.title ?? ''}
+        itemType={editingTitleItem?.type ?? 'task'}
+        onClose={() => setEditingTitleItem(null)}
+        onSave={handleSaveTitle}
+      />
+
+      <QuickEditDescriptionModal
+        open={Boolean(editingDescriptionItem)}
+        initialDescription={editingDescriptionItem?.item.description ?? ''}
+        itemType={editingDescriptionItem?.type ?? 'task'}
+        onClose={() => setEditingDescriptionItem(null)}
+        onSave={handleSaveDescription}
+      />
+
+      <QuickEditAssigneeModal
+        open={Boolean(editingSubtaskAssignee)}
+        currentAssigneeId={editingSubtaskAssignee?.assigneeId ?? null}
+        users={users}
+        itemType="subtask"
+        onClose={() => setEditingSubtaskAssignee(null)}
+        onSave={handleSaveSubtaskAssignee}
+      />
     </div>
   );
 }
@@ -948,14 +1340,44 @@ function TaskDropPlaceholder() {
 
 function TaskCardContent({
   task,
+  users = [],
+  currentUserId,
   disabled = false,
   interactive = true,
   onNavigateGuard,
+  onEditTitle,
+  onEditDescription,
+  onPriorityChange,
+  onToggleAssignee,
+  onAssignSelf,
+  onClearAssignees,
+  onDelete,
+  onEditSubtaskTitle,
+  onEditSubtaskDescription,
+  onEditSubtaskAssignee,
+  onSubtaskAssignUser,
+  onSubtaskPriorityChange,
+  onSubtaskDelete,
 }: {
   task: TaskCard;
+  users?: ManagedUser[];
+  currentUserId?: string;
   disabled?: boolean;
   interactive?: boolean;
   onNavigateGuard?: (event: { preventDefault(): void; stopPropagation(): void }) => void;
+  onEditTitle?: (task: TaskCard) => void;
+  onEditDescription?: (task: TaskCard) => void;
+  onPriorityChange?: (task: TaskCard, priority: TaskPriority) => void | Promise<void>;
+  onToggleAssignee?: (task: TaskCard, userId: string) => void | Promise<void>;
+  onAssignSelf?: (task: TaskCard) => void | Promise<void>;
+  onClearAssignees?: (task: TaskCard) => void | Promise<void>;
+  onDelete?: (task: TaskCard) => void | Promise<void>;
+  onEditSubtaskTitle?: (subtask: BoardSubtask) => void;
+  onEditSubtaskDescription?: (subtask: BoardSubtask) => void;
+  onEditSubtaskAssignee?: (subtask: BoardSubtask) => void;
+  onSubtaskAssignUser?: (subtask: BoardSubtask, userId: string | null) => void | Promise<void>;
+  onSubtaskPriorityChange?: (subtask: BoardSubtask, priority: TaskPriority) => void | Promise<void>;
+  onSubtaskDelete?: (subtask: BoardSubtask) => void | Promise<void>;
 }) {
   const completed = task.subtasks.filter((item) => item.isCompleted).length;
   return (
@@ -1007,44 +1429,61 @@ function TaskCardContent({
             ) : null}
             <h2 title={task.title}>{task.title}</h2>
           </div>
-          <div
-            className="card-assignees"
-            aria-label={
-              task.assignees.length
-                ? `Assigned to ${task.assignees.map((item) => item.user.displayName).join(', ')}`
-                : 'Unassigned'
-            }
-          >
-            {task.assignees.length ? (
-              <>
-                <div className="card-assignee-avatars">
-                  {task.assignees.slice(0, 3).map((item) => (
-                    <Avatar
-                      color={item.user.color}
-                      hasAvatar={item.user.hasAvatar}
-                      initialsSize={18}
-                      key={item.user.id}
-                      name={item.user.displayName}
-                      size={24}
-                      userId={item.user.id}
-                    />
-                  ))}
-                  {task.assignees.length > 3 ? <span>+{task.assignees.length - 3}</span> : null}
-                </div>
-                <span
-                  className="card-assignee-name"
-                  title={task.assignees.map((item) => item.user.displayName).join(', ')}
-                >
-                  {task.assignees.length === 1
-                    ? task.assignees[0].user.displayName
-                    : `${task.assignees[0].user.displayName} +${task.assignees.length - 1}`}
+          <div className="task-card-header-actions">
+            <div
+              className="card-assignees"
+              aria-label={
+                task.assignees.length
+                  ? `Assigned to ${task.assignees.map((item) => item.user.displayName).join(', ')}`
+                  : 'Unassigned'
+              }
+            >
+              {task.assignees.length ? (
+                <>
+                  <div className="card-assignee-avatars">
+                    {task.assignees.slice(0, 3).map((item) => (
+                      <Avatar
+                        color={item.user.color}
+                        hasAvatar={item.user.hasAvatar}
+                        initialsSize={18}
+                        key={item.user.id}
+                        name={item.user.displayName}
+                        size={24}
+                        userId={item.user.id}
+                      />
+                    ))}
+                    {task.assignees.length > 3 ? <span>+{task.assignees.length - 3}</span> : null}
+                  </div>
+                  <span
+                    className="card-assignee-name"
+                    title={task.assignees.map((item) => item.user.displayName).join(', ')}
+                  >
+                    {task.assignees.length === 1
+                      ? task.assignees[0].user.displayName
+                      : `${task.assignees[0].user.displayName} +${task.assignees.length - 1}`}
+                  </span>
+                </>
+              ) : (
+                <span className="unassigned-label" title="Unassigned">
+                  —
                 </span>
-              </>
-            ) : (
-              <span className="unassigned-label" title="Unassigned">
-                —
-              </span>
-            )}
+              )}
+            </div>
+            {interactive && onEditTitle && onEditDescription ? (
+              <TaskCardMenu
+                task={task}
+                users={users}
+                currentUserId={currentUserId}
+                disabled={disabled}
+                onEditTitle={onEditTitle}
+                onEditDescription={onEditDescription}
+                onPriorityChange={onPriorityChange ?? (() => {})}
+                onToggleAssignee={onToggleAssignee ?? (() => {})}
+                onAssignSelf={onAssignSelf ?? (() => {})}
+                onClearAssignees={onClearAssignees ?? (() => {})}
+                onDelete={onDelete ?? (() => {})}
+              />
+            ) : null}
           </div>
         </div>
         <p
@@ -1090,8 +1529,16 @@ function TaskCardContent({
                   key={subtask.id}
                   subtask={subtask}
                   task={task}
+                  users={users}
+                  currentUserId={currentUserId}
                   disabled={disabled}
                   onNavigateGuard={onNavigateGuard}
+                  onEditTitle={onEditSubtaskTitle}
+                  onEditDescription={onEditSubtaskDescription}
+                  onEditAssignee={onEditSubtaskAssignee}
+                  onAssignUser={onSubtaskAssignUser}
+                  onPriorityChange={onSubtaskPriorityChange}
+                  onDelete={onSubtaskDelete}
                 />
               ))}
             </div>
@@ -1151,15 +1598,31 @@ function SortableTaskShell({
 function SortableBoardSubtaskCard({
   subtask,
   task,
+  users = [],
+  currentUserId,
   disabled,
   standalone = false,
   onNavigateGuard,
+  onEditTitle,
+  onEditDescription,
+  onEditAssignee,
+  onAssignUser,
+  onPriorityChange,
+  onDelete,
 }: {
   subtask: BoardSubtask;
   task: Pick<TaskCard, 'id' | 'title'>;
+  users?: ManagedUser[];
+  currentUserId?: string;
   disabled: boolean;
   standalone?: boolean;
   onNavigateGuard?: (event: { preventDefault(): void; stopPropagation(): void }) => void;
+  onEditTitle?: (subtask: BoardSubtask) => void;
+  onEditDescription?: (subtask: BoardSubtask) => void;
+  onEditAssignee?: (subtask: BoardSubtask) => void;
+  onAssignUser?: (subtask: BoardSubtask, userId: string | null) => void | Promise<void>;
+  onPriorityChange?: (subtask: BoardSubtask, priority: TaskPriority) => void | Promise<void>;
+  onDelete?: (subtask: BoardSubtask) => void | Promise<void>;
 }) {
   const { attributes, isDragging, listeners, setNodeRef, transform, transition } = useSortable({
     id: `subtask:${subtask.id}`,
@@ -1191,7 +1654,16 @@ function SortableBoardSubtaskCard({
         subtask={subtask}
         task={task}
         standalone={standalone}
+        users={users}
+        currentUserId={currentUserId}
+        disabled={disabled}
         onNavigateGuard={onNavigateGuard}
+        onEditTitle={onEditTitle}
+        onEditDescription={onEditDescription}
+        onEditAssignee={onEditAssignee}
+        onAssignUser={onAssignUser}
+        onPriorityChange={onPriorityChange}
+        onDelete={onDelete}
       />
     </div>
   );
@@ -1201,12 +1673,32 @@ function BoardSubtaskCard({
   subtask,
   task,
   standalone = false,
+  users = [],
+  currentUserId,
+  disabled = false,
+  interactive = true,
   onNavigateGuard,
+  onEditTitle,
+  onEditDescription,
+  onEditAssignee,
+  onAssignUser,
+  onPriorityChange,
+  onDelete,
 }: {
   subtask: BoardSubtask;
   task?: { id: string; title: string };
   standalone?: boolean;
+  users?: ManagedUser[];
+  currentUserId?: string;
+  disabled?: boolean;
+  interactive?: boolean;
   onNavigateGuard?: (event: { preventDefault(): void; stopPropagation(): void }) => void;
+  onEditTitle?: (subtask: BoardSubtask) => void;
+  onEditDescription?: (subtask: BoardSubtask) => void;
+  onEditAssignee?: (subtask: BoardSubtask) => void;
+  onAssignUser?: (subtask: BoardSubtask, userId: string | null) => void | Promise<void>;
+  onPriorityChange?: (subtask: BoardSubtask, priority: TaskPriority) => void | Promise<void>;
+  onDelete?: (subtask: BoardSubtask) => void | Promise<void>;
 }) {
   const parentTask = task ?? { id: subtask.taskId, title: 'Parent task' };
   const attachmentCount = subtask._count?.attachments ?? 0;
@@ -1217,7 +1709,14 @@ function BoardSubtaskCard({
       data-priority={subtask.priority}
       href={`/tasks/${parentTask.id}`}
       aria-label={`Subtask ${title} for ${parentTask.title}`}
-      onClick={(event) => onNavigateGuard?.(event)}
+      tabIndex={interactive ? undefined : -1}
+      onClick={(event) => {
+        if (!interactive) {
+          event.preventDefault();
+          return;
+        }
+        onNavigateGuard?.(event);
+      }}
     >
       <span className="board-subtask-marker" aria-hidden="true" />
       <div className="board-subtask-copy">
@@ -1245,82 +1744,40 @@ function BoardSubtaskCard({
           ) : null}
         </div>
       </div>
-      <div className="board-subtask-assignee" aria-hidden={!subtask.assignee}>
-        {subtask.assignee ? (
-          <Avatar
-            color={subtask.assignee.color}
-            hasAvatar={subtask.assignee.hasAvatar}
-            initialsSize={18}
-            name={subtask.assignee.displayName}
-            size={24}
-            userId={subtask.assignee.id}
+      <div className="board-subtask-side">
+        {interactive && onEditTitle && onEditDescription && onEditAssignee ? (
+          <SubtaskCardMenu
+            subtask={subtask}
+            users={users}
+            currentUserId={currentUserId}
+            disabled={disabled}
+            onEditTitle={onEditTitle}
+            onEditDescription={onEditDescription}
+            onEditAssignee={onEditAssignee}
+            onAssignUser={onAssignUser}
+            onPriorityChange={onPriorityChange}
+            onDelete={onDelete}
           />
         ) : (
-          <span className="board-subtask-assignee-empty" />
+          <span style={{ width: 22, height: 22 }} />
         )}
+        <div className="board-subtask-assignee" aria-hidden={!subtask.assignee}>
+          {subtask.assignee ? (
+            <Avatar
+              color={subtask.assignee.color}
+              hasAvatar={subtask.assignee.hasAvatar}
+              initialsSize={18}
+              name={subtask.assignee.displayName}
+              size={24}
+              userId={subtask.assignee.id}
+            />
+          ) : (
+            <span className="board-subtask-assignee-empty" />
+          )}
+        </div>
       </div>
     </Link>
   );
-}
-
-function placeSubtaskOnColumn(
-  board: BoardResponse,
-  subtaskId: string,
-  targetColumnId: string,
-): BoardResponse {
-  let moving: BoardSubtask | null = null;
-  let parentTask: { id: string; title: string } | null = null;
-
-  const columnsWithout = board.columns.map((column) => {
-    const nestedTasks = column.tasks.map((task) => {
-      const match = task.subtasks.find((item) => item.id === subtaskId);
-      if (!match) return task;
-      moving = { ...match, columnId: targetColumnId };
-      parentTask = { id: task.id, title: task.title };
-      return { ...task, subtasks: task.subtasks.filter((item) => item.id !== subtaskId) };
-    });
-    const standalone = column.subtasks.find((item) => item.id === subtaskId);
-    if (standalone) {
-      moving = { ...standalone, columnId: targetColumnId };
-      parentTask = {
-        id: standalone.taskId,
-        title: standalone.parentTask?.title ?? 'Parent task',
-      };
-    }
-    return {
-      ...column,
-      tasks: nestedTasks,
-      subtasks: column.subtasks.filter((item) => item.id !== subtaskId),
-    };
-  });
-
-  if (!moving) return board;
-
-  return {
-    ...board,
-    columns: columnsWithout.map((column) => {
-      if (column.id !== targetColumnId) return column;
-      const parentStillHere = column.tasks.some((task) => task.id === moving!.taskId);
-      if (parentStillHere) {
-        return {
-          ...column,
-          tasks: column.tasks.map((task) =>
-            task.id === moving!.taskId ? { ...task, subtasks: [...task.subtasks, moving!] } : task,
-          ),
-        };
-      }
-      return {
-        ...column,
-        subtasks: [
-          ...column.subtasks,
-          {
-            ...moving!,
-            parentTask: parentTask ?? moving!.parentTask,
-          },
-        ],
-      };
-    }),
-  };
 }
 
 function formatHours(value: number) {

@@ -85,13 +85,9 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<CurrentUser | null>(() => getStoredUser());
-  const tokenRef = useRef<string | null>(getStoredToken());
-  const [loading, setLoading] = useState(() => {
-    const cachedToken = getStoredToken();
-    const cachedUser = getStoredUser();
-    return !(cachedToken && cachedUser);
-  });
+  const [user, setUser] = useState<CurrentUser | null>(null);
+  const tokenRef = useRef<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const refreshPromise = useRef<Promise<string | null> | null>(null);
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
@@ -169,11 +165,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [clearRefreshTimer, scheduleTokenRefresh]);
 
   useEffect(() => {
+    const cachedToken = getStoredToken();
+    const cachedUser = getStoredUser();
+    if (cachedToken && cachedUser) {
+      tokenRef.current = cachedToken;
+      setUser(cachedUser);
+      setLoading(false);
+      scheduleTokenRefresh(cachedToken);
+    }
     void refresh();
     return () => {
       clearRefreshTimer();
     };
-  }, [refresh, clearRefreshTimer]);
+  }, [refresh, clearRefreshTimer, scheduleTokenRefresh]);
 
   useEffect(() => {
     function handleVisibilityOrFocus() {

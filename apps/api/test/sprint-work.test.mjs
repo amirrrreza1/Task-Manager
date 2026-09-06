@@ -86,6 +86,16 @@ describe('sprintOutcomeTotals', () => {
       estimates: { HOURS: 4, POINTS: 5 },
     });
   });
+
+  it('correctly sums fractional hours without floating-point precision errors', () => {
+    const result = sprintOutcomeTotals([
+      { estimateValue: 0.5, estimateUnit: 'HOURS', column: { isDone: false } },
+      { estimateValue: 0.25, estimateUnit: 'HOURS', column: { isDone: true } },
+      { estimateValue: 0.1, estimateUnit: 'HOURS', column: { isDone: false } },
+      { estimateValue: 0.2, estimateUnit: 'HOURS', column: { isDone: false } },
+    ]);
+    assert.deepEqual(result.estimates, { HOURS: 1.05 });
+  });
 });
 
 describe('pickBacklogColumnId', () => {

@@ -19,6 +19,7 @@ import { useAuth } from '../../../components/auth-provider';
 import { useToast } from '../../../components/toast-provider';
 import { useWorkspace } from '../../../components/workspace-provider';
 import { DEFAULT_TASK_PRIORITY } from '../../../lib/priority';
+import { parseEstimateInput } from '../../../lib/estimate';
 import type {
   BoardResponse,
   ManagedUser,
@@ -138,6 +139,13 @@ export default function BacklogPage() {
   async function createTask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!board || !backlogColumn) return;
+
+    const parsedEstimate = parseEstimateInput(estimate);
+    if (estimate.trim() && (parsedEstimate === null || Number.isNaN(parsedEstimate))) {
+      toast.error('Please enter a valid positive numeric estimate.');
+      return;
+    }
+
     setBusy(true);
     try {
       await request('/tasks', {
@@ -150,10 +158,10 @@ export default function BacklogPage() {
           ...(projectIds.length > 0 ? { projectIds } : {}),
           assigneeIds,
           priority,
-          ...(estimate
+          ...(parsedEstimate !== null
             ? {
                 estimate: {
-                  value: Number(estimate),
+                  value: parsedEstimate,
                   unit: board.settings.estimateMode === 'TIME' ? 'HOURS' : 'POINTS',
                 },
               }
@@ -319,12 +327,11 @@ export default function BacklogPage() {
             <label>
               {board.settings.estimateMode === 'TIME' ? 'Hours' : 'Points'}
               <Input
-                min={1}
-                max={board.settings.estimateMode === 'TIME' ? 8760 : 10000}
-                type="number"
+                type="text"
+                inputMode="decimal"
                 value={estimate}
                 onChange={(event) => setEstimate(event.target.value)}
-                placeholder="Optional"
+                placeholder={board.settings.estimateMode === 'TIME' ? 'e.g. 0.5 or 2' : 'e.g. 3'}
               />
             </label>
             <label>

@@ -4,13 +4,17 @@ import type { EstimateDto } from './dto/estimate.dto';
 
 export function assertEstimate(estimate?: EstimateDto | null) {
   if (!estimate) return;
-  const maximum = estimate.unit === EstimateUnit.HOURS ? 8_760 : 10_000;
-  if (!Number.isInteger(estimate.value) || estimate.value < 1 || estimate.value > maximum) {
-    throw new BadRequestException(
-      estimate.unit === EstimateUnit.HOURS
-        ? 'A time estimate must be between 1 and 8760 hours.'
-        : 'A point estimate must be between 1 and 10000 points.',
-    );
+  if (typeof estimate.value !== 'number' || !Number.isFinite(estimate.value)) {
+    throw new BadRequestException('Estimate value must be a valid number.');
+  }
+  if (estimate.unit === EstimateUnit.HOURS) {
+    if (estimate.value <= 0 || estimate.value > 8_760) {
+      throw new BadRequestException('A time estimate must be between 0.01 and 8760 hours.');
+    }
+  } else if (estimate.unit === EstimateUnit.POINTS) {
+    if (!Number.isInteger(estimate.value) || estimate.value < 1 || estimate.value > 10_000) {
+      throw new BadRequestException('A point estimate must be between 1 and 10000 points.');
+    }
   }
 }
 

@@ -43,7 +43,17 @@ function TaskRow({ task }: { task: SprintReportTask }) {
             {task.title}
           </Link>
           {task.subtasks.length > 0 && (
-            <span className="muted" style={{ marginLeft: '0.5rem', fontSize: '0.8em' }}>
+            <span
+              className="muted"
+              style={{
+                marginLeft: '0.5rem',
+                fontSize: '0.8em',
+                padding: '0.15rem 0.45rem',
+                borderRadius: '4px',
+                background: 'var(--color-bg-subtle, rgba(125,125,125,0.1))',
+                userSelect: 'none',
+              }}
+            >
               {open ? '▲' : '▼'} {task.subtasks.length} subtask
               {task.subtasks.length !== 1 ? 's' : ''}
             </span>
@@ -95,8 +105,24 @@ function TaskRow({ task }: { task: SprintReportTask }) {
               )}
             </TableCell>
             <TableCell>
-              {/* subtask has single assignee resolved at parent level */}
-              <span className="muted">Subtask</span>
+              {s.assignee ? (
+                <span className="report-assignees">
+                  <span title={s.assignee.displayName}>
+                    <Avatar
+                      color={s.assignee.color}
+                      hasAvatar={s.assignee.hasAvatar}
+                      name={s.assignee.displayName}
+                      size={20}
+                      userId={s.assignee.id}
+                    />
+                  </span>
+                  <span style={{ marginLeft: '0.35rem', fontSize: '0.85em' }}>
+                    {s.assignee.displayName}
+                  </span>
+                </span>
+              ) : (
+                <span className="muted">Unassigned</span>
+              )}
             </TableCell>
             <TableCell>
               {formatEstimate(s.estimateValue, s.estimateUnit) ?? <span className="muted">—</span>}
@@ -230,6 +256,16 @@ export default function SprintReportPage({ params }: { params: Promise<{ id: str
         </div>
       ) : report ? (
         <>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <h1 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 600 }}>{report.sprint.name}</h1>
+              <span className={`report-badge ${report.sprint.status === 'COMPLETED' ? 'done' : 'pending'}`}>
+                {report.sprint.status === 'COMPLETED' ? 'Completed' : report.sprint.status === 'ACTIVE' ? 'Active' : 'Planned'}
+              </span>
+            </div>
+            {report.sprint.goal ? <p className="muted" style={{ margin: 0 }}>{report.sprint.goal}</p> : null}
+          </div>
+
           {/* Summary stats */}
           <section className="report-stats" aria-label="Sprint summary">
             <div className="report-stat">
@@ -324,6 +360,7 @@ export default function SprintReportPage({ params }: { params: Promise<{ id: str
                       <TableHead scope="col">Subtask</TableHead>
                       <TableHead scope="col">Parent task</TableHead>
                       <TableHead scope="col">Column</TableHead>
+                      <TableHead scope="col">Assignee</TableHead>
                       <TableHead scope="col">Estimate</TableHead>
                       <TableHead scope="col">Status</TableHead>
                     </TableRow>
@@ -339,6 +376,26 @@ export default function SprintReportPage({ params }: { params: Promise<{ id: str
                         </TableCell>
                         <TableCell>
                           <span className="tag">{s.column.name}</span>
+                        </TableCell>
+                        <TableCell>
+                          {s.assignee ? (
+                            <span className="report-assignees">
+                              <span title={s.assignee.displayName}>
+                                <Avatar
+                                  color={s.assignee.color}
+                                  hasAvatar={s.assignee.hasAvatar}
+                                  name={s.assignee.displayName}
+                                  size={20}
+                                  userId={s.assignee.id}
+                                />
+                              </span>
+                              <span style={{ marginLeft: '0.35rem', fontSize: '0.85em' }}>
+                                {s.assignee.displayName}
+                              </span>
+                            </span>
+                          ) : (
+                            <span className="muted">Unassigned</span>
+                          )}
                         </TableCell>
                         <TableCell>
                           {formatEstimate(s.estimateValue, s.estimateUnit) ?? (

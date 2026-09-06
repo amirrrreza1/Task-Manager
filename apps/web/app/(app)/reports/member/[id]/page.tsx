@@ -1,6 +1,6 @@
 'use client';
 
-import { Select } from '../../../../../components/design-system';
+import { Button, Select } from '../../../../../components/design-system';
 import {
   Table,
   TableBody,
@@ -12,6 +12,8 @@ import {
 
 import Link from 'next/link';
 import { use, useCallback, useEffect, useState } from 'react';
+import { HeaderActions } from '../../../../../components/header-actions';
+import { Avatar } from '../../../../../components/avatar';
 import { useAuth } from '../../../../../components/auth-provider';
 import { useToast } from '../../../../../components/toast-provider';
 import type { MemberReport, ReportSubtask, SprintSummary } from '../../../../../lib/types';
@@ -100,6 +102,30 @@ export default function MemberReportPage({ params }: { params: Promise<{ id: str
 
   return (
     <div className="page-stack">
+      {report ? (
+        <HeaderActions>
+          <Button nativeButton={false} variant="outline" render={<Link href={`/profile/${id}`} />}>
+            View profile
+          </Button>
+        </HeaderActions>
+      ) : null}
+
+      {report?.user && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', marginBottom: '0.5rem' }}>
+          <Avatar
+            color={report.user.color}
+            hasAvatar={report.user.hasAvatar}
+            name={report.user.displayName}
+            size={40}
+            userId={report.user.id}
+          />
+          <div>
+            <h1 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 600 }}>{report.user.displayName}</h1>
+            <p className="muted" style={{ margin: 0, fontSize: '0.9em' }}>Member performance & subtask report</p>
+          </div>
+        </div>
+      )}
+
       <section className="board-filters" aria-label="Report filters">
         <label>
           <span>Sprint</span>

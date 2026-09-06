@@ -18,6 +18,7 @@ import { PriorityBadge, PrioritySelect } from '../../../../../../components/prio
 import { useAuth } from '../../../../../../components/auth-provider';
 import { useToast } from '../../../../../../components/toast-provider';
 import { formatDateTime } from '../../../../../../lib/app-config';
+import { parseEstimateInput } from '../../../../../../lib/estimate';
 import type {
   AppSettings,
   Attachment,
@@ -92,13 +93,19 @@ export default function SubtaskPage() {
   }
   async function saveSubtask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const parsedEstimate = parseEstimateInput(estimate);
+    if (estimate.trim() && (parsedEstimate === null || Number.isNaN(parsedEstimate))) {
+      toast.error('Please enter a valid positive numeric estimate.');
+      return;
+    }
+
     await update(
       {
         title,
         description: description || null,
         assigneeId: assigneeId || null,
         priority,
-        estimate: estimate ? { value: Number(estimate), unit } : null,
+        estimate: parsedEstimate !== null ? { value: parsedEstimate, unit } : null,
       },
       'Subtask saved.',
     );
@@ -463,11 +470,11 @@ export default function SubtaskPage() {
             <label>
               Estimate ({unit === 'HOURS' ? 'hours' : 'points'})
               <Input
-                type="number"
-                min={1}
+                type="text"
+                inputMode="decimal"
                 value={estimate}
                 onChange={(event) => setEstimate(event.target.value)}
-                placeholder="Optional"
+                placeholder={unit === 'HOURS' ? 'e.g. 0.5 or 2' : 'e.g. 3'}
               />
             </label>
             <footer>

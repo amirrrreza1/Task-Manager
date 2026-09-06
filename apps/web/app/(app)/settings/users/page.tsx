@@ -1,6 +1,6 @@
 'use client';
 
-import { Button, Input, Modal } from '../../../../components/design-system';
+import { Button, Input, Modal, Select } from '../../../../components/design-system';
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -31,7 +31,7 @@ const emptyCreateForm: CreateForm = {
 };
 
 function UsersAdmin() {
-  const { request } = useAuth();
+  const { user: currentUser, request } = useAuth();
   const toast = useToast();
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [search, setSearch] = useState('');
@@ -39,6 +39,8 @@ function UsersAdmin() {
   const [createForm, setCreateForm] = useState<CreateForm>(emptyCreateForm);
   const [resetUser, setResetUser] = useState<ManagedUser | null>(null);
   const [resetPassword, setResetPassword] = useState('');
+  const [removeUser, setRemoveUser] = useState<ManagedUser | null>(null);
+  const [reassignToUserId, setReassignToUserId] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -131,6 +133,32 @@ function UsersAdmin() {
 
   function replaceUser(updated: ManagedUser) {
     setUsers((current) => current.map((user) => (user.id === updated.id ? updated : user)));
+  }
+
+  async function submitRemove(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!removeUser) return;
+    setBusyId(removeUser.id);
+    try {
+      const query = reassignToUserId
+        ? `?reassignToUserId=${encodeURIComponent(reassignToUserId)}`
+        : '';
+      await request<void>(`/users/${removeUser.id}${query}`, {
+        method: 'DELETE',
+      });
+      setUsers((current) => current.filter((user) => user.id !== removeUser.id));
+      setRemoveUser(null);
+      setReassignToUserId('');
+      toast.success(
+        reassignToUserId
+          ? 'Member removed and tasks reassigned.'
+          : 'Member removed.',
+      );
+    } catch (caught) {
+      toast.fromError(caught, 'Could not remove the member.');
+    } finally {
+      setBusyId(null);
+    }
   }
 
   return (
@@ -226,6 +254,20 @@ function UsersAdmin() {
                   >
                     {user.isActive ? 'Deactivate' : 'Reactivate'}
                   </Button>
+                  {currentUser?.id !== user.id ? (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      disabled={busyId === user.id}
+                      onClick={() => {
+                        setRemoveUser(user);
+                        setReassignToUserId('');
+                      }}
+                      type="button"
+                    >
+                      Remove
+                    </Button>
+                  ) : null}
                 </>
               ) : null}
             </div>
@@ -373,6 +415,56 @@ function UsersAdmin() {
               </Button>
               <Button variant="primary" disabled={busyId === resetUser.id} type="submit">
                 Reset password
+              </Button>
+            </footer>
+          </form>
+        </Modal>
+      ) : null}
+
+      {removeUser ? (
+        <Modal
+          className="modal"
+          labelledBy="remove-user-title"
+          onOpenChange={(open) => {
+            if (!open) setRemoveUser(null);
+          }}
+        >
+          <header>
+            <div>
+              <p className="section-label">Member removal</p>
+              <h2 id="remove-user-title">Remove {removeUser.displayName}</h2>
+            </div>
+          </header>
+          <form onSubmit={submitRemove}>
+            <p className="muted">
+              Are you sure you want to remove <strong>{removeUser.displayName}</strong> (@{removeUser.username})? This action cannot be undone.
+            </p>
+            <label>
+              Reassign tasks and subtasks to
+              <Select
+                value={reassignToUserId}
+                onChange={(event) => setReassignToUserId(event.target.value)}
+              >
+                <option value="">Leave unassigned</option>
+                {users
+                  .filter((u) => u.id !== removeUser.id && u.isActive)
+                  .map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.displayName} (@{u.username})
+                    </option>
+                  ))}
+              </Select>
+            </label>
+            <footer>
+              <Button variant="ghost" onClick={() => setRemoveUser(null)} type="button">
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={busyId === removeUser.id}
+                type="submit"
+              >
+                {busyId === removeUser.id ? 'Removing…' : 'Remove member'}
               </Button>
             </footer>
           </form>

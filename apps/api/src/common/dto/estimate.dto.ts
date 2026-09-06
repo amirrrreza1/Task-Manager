@@ -1,10 +1,10 @@
 import { EstimateUnit } from '@prisma/client';
-import { IsEnum, IsInt, Max, Min } from 'class-validator';
+import { IsEnum, IsNumber, IsPositive, Max } from 'class-validator';
 
 export class EstimateDto {
-  @IsInt()
-  @Min(1)
-  @Max(8_760)
+  @IsNumber()
+  @IsPositive()
+  @Max(10_000)
   value!: number;
 
   @IsEnum(EstimateUnit)
@@ -13,6 +13,12 @@ export class EstimateDto {
 
 export function estimateData(estimate?: EstimateDto | null) {
   return estimate
-    ? { estimateValue: estimate.value, estimateUnit: estimate.unit }
+    ? {
+        estimateValue:
+          estimate.unit === EstimateUnit.HOURS
+            ? Math.round(estimate.value * 100) / 100
+            : estimate.value,
+        estimateUnit: estimate.unit,
+      }
     : { estimateValue: null, estimateUnit: null };
 }

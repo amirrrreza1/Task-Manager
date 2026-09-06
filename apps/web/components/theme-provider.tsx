@@ -9,6 +9,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { useServerInsertedHTML } from 'next/navigation';
 import {
   DEFAULT_THEME_STORAGE_KEY,
   DEFAULT_THEMES,
@@ -111,7 +112,7 @@ export function ThemeScript({
   enableColorScheme?: boolean;
   themes?: string[];
 }) {
-  return (
+  useServerInsertedHTML(() => (
     <script
       suppressHydrationWarning
       dangerouslySetInnerHTML={{
@@ -124,7 +125,9 @@ export function ThemeScript({
         ),
       }}
     />
-  );
+  ));
+
+  return null;
 }
 
 export function ThemeProvider({

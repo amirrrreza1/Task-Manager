@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
   PayloadTooLargeException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -13,6 +14,7 @@ import { basename } from 'node:path';
 import { PasswordService } from '../auth/password.service';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import { LocalFileStorage } from '../infrastructure/storage/local-file-storage.service';
+import { BoardEventsService } from '../board/board-events.service';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import type { CreateUserDto } from './dto/create-user.dto';
 import type { UpdateUserDto } from './dto/update-user.dto';
@@ -54,6 +56,7 @@ export class UsersService {
     private readonly storage: LocalFileStorage,
     private readonly notifications: NotificationsService,
     config: ConfigService,
+    @Optional() private readonly events?: BoardEventsService,
   ) {
     this.maximumAvatarBytes = Math.min(
       (config.get<number>('MAX_UPLOAD_SIZE_MB', 25) * 1024 * 1024) / 5,
@@ -350,6 +353,179 @@ export class UsersService {
     return {
       mimeType: user.avatarMimeType,
       stream: this.storage.open(user.avatarStorageKey),
+    };
+  }
+
+  async remove(id: string, actor: AuthenticatedUser, reassignToUserId?: string) {
+    const existing = await this.prisma.user.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('User not found.');
+
+    if (existing.isBootstrapAdmin) {
+      throw new ForbiddenException('The bootstrap administrator cannot be removed.');
+    }
+
+    if (actor.id === id) {
+      throw new ForbiddenException('You cannot remove your own account.');
+    }
+
+    const targetId = reassignToUserId?.trim() || null;
+    if (targetId) {
+      if (targetId === id) {
+        throw new BadRequestException('Cannot reassign tasks to the user being removed.');
+      }
+      const targetUser = await this.prisma.user.findUnique({ where: { id: targetId } });
+      if (!targetUser || !targetUser.isActive) {
+        throw new BadRequestException('The selected reassignment user does not exist or is inactive.');
+      }
+    }
+
+    const { affectedWorkspaceIds, tasksMovedCount, subtasksMovedCount } =
+      await this.prisma.$transaction(async (transaction) => {
+        const userTaskAssignments = await transaction.taskAssignment.findMany({
+          where: { userId: id },
+          select: { taskId: true, task: { select: { workspaceId: true } } },
+        });
+        const assignedSubtasks = await transaction.subtask.findMany({
+          where: { assigneeId: id },
+          select: { id: true, task: { select: { workspaceId: true } } },
+        });
+
+        const affectedWorkspaceIds = new Set<string>();
+        for (const a of userTaskAssignments) {
+          if (a.task?.workspaceId) affectedWorkspaceIds.add(a.task.workspaceId);
+        }
+        for (const s of assignedSubtasks) {
+          if (s.task?.workspaceId) affectedWorkspaceIds.add(s.task.workspaceId);
+        }
+
+        if (targetId) {
+          const taskIds = userTaskAssignments.map((a) => a.taskId);
+          const existingTargetAssignments = await transaction.taskAssignment.findMany({
+            where: {
+              userId: targetId,
+              taskId: { in: taskIds },
+            },
+            select: { taskId: true },
+          });
+          const alreadyAssignedTaskIds = new Set(existingTargetAssignments.map((a) => a.taskId));
+          const toAssignTaskIds = taskIds.filter((tId) => !alreadyAssignedTaskIds.has(tId));
+
+          if (toAssignTaskIds.length > 0) {
+            await transaction.taskAssignment.createMany({
+              data: toAssignTaskIds.map((taskId) => ({
+                taskId,
+                userId: targetId,
+              })),
+            });
+          }
+        }
+        await transaction.taskAssignment.deleteMany({
+          where: { userId: id },
+        });
+
+        await transaction.subtask.updateMany({
+          where: { assigneeId: id },
+          data: { assigneeId: targetId },
+        });
+
+        const fallbackOwnerId = targetId || actor.id;
+
+        await transaction.task.updateMany({
+          where: { createdById: id },
+          data: { createdById: fallbackOwnerId },
+        });
+
+        await transaction.subtask.updateMany({
+          where: { createdById: id },
+          data: { createdById: fallbackOwnerId },
+        });
+
+        await transaction.sprintComment.updateMany({
+          where: { authorId: id },
+          data: { authorId: fallbackOwnerId },
+        });
+
+        await transaction.workItemComment.updateMany({
+          where: { authorId: id },
+          data: { authorId: fallbackOwnerId },
+        });
+
+        await transaction.attachment.updateMany({
+          where: { uploadedById: id },
+          data: { uploadedById: fallbackOwnerId },
+        });
+
+        await transaction.refreshSession.deleteMany({
+          where: { userId: id },
+        });
+
+        await transaction.notification.deleteMany({
+          where: { userId: id },
+        });
+
+        await transaction.projectSenior.deleteMany({
+          where: { userId: id },
+        });
+
+        await transaction.user.delete({
+          where: { id },
+        });
+
+        await transaction.activityEvent.create({
+          data: {
+            eventType: 'user.deleted',
+            entityType: 'user',
+            entityId: id,
+            actorId: actor.id,
+            payload: {
+              version: 1,
+              username: existing.username,
+              displayName: existing.displayName,
+              reassignToUserId: targetId,
+            },
+          },
+        });
+
+        return {
+          affectedWorkspaceIds: Array.from(affectedWorkspaceIds),
+          tasksMovedCount: userTaskAssignments.length,
+          subtasksMovedCount: assignedSubtasks.length,
+        };
+      });
+
+    if (existing.avatarStorageKey) {
+      try {
+        await this.storage.delete(existing.avatarStorageKey);
+      } catch {
+        // Storage deletion failure should not break user removal
+      }
+    }
+
+    if (this.events) {
+      for (const wsId of affectedWorkspaceIds) {
+        this.events.emitBoardUpdate(wsId, 'board.refresh', undefined, actor.id);
+      }
+    }
+
+    if (targetId && (tasksMovedCount > 0 || subtasksMovedCount > 0)) {
+      void this.notifications.dispatch({
+        recipientUserIds: [targetId],
+        actorId: actor.id,
+        type: 'user.reassigned',
+        title: '📋 Tasks Reassigned',
+        message: `Work items previously assigned to @${existing.username} were reassigned to you.`,
+        lines: [
+          `Tasks and subtasks previously assigned to ${existing.displayName} (@${existing.username}) have been reassigned to you.`,
+        ],
+      });
+    }
+
+    return {
+      success: true,
+      id,
+      reassignToUserId: targetId,
+      tasksMovedCount,
+      subtasksMovedCount,
     };
   }
 

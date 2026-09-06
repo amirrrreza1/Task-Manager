@@ -401,6 +401,7 @@ export interface ReportSubtask {
   column: { id: string; name: string; isDone: boolean };
   task: { id: string; title: string } | null;
   sprint: { id: string; name: string; status: SprintStatus } | null;
+  assignee?: UserSummary | null;
 }
 
 export interface MemberReportTotals {

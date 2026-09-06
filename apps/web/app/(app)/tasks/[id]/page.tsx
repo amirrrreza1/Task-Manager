@@ -13,6 +13,7 @@ import { useAuth } from '../../../../components/auth-provider';
 import { useToast } from '../../../../components/toast-provider';
 import { formatDateTime } from '../../../../lib/app-config';
 import { DEFAULT_TASK_PRIORITY } from '../../../../lib/priority';
+import { parseEstimateInput } from '../../../../lib/estimate';
 import type {
   AppSettings,
   Attachment,
@@ -99,6 +100,12 @@ export default function TaskPage() {
 
   async function saveTask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const parsedEstimate = parseEstimateInput(estimate);
+    if (estimate.trim() && (parsedEstimate === null || Number.isNaN(parsedEstimate))) {
+      toast.error('Please enter a valid positive numeric estimate.');
+      return;
+    }
+
     setBusy(true);
     try {
       await request(`/tasks/${id}`, {
@@ -110,7 +117,8 @@ export default function TaskPage() {
           sprintId: sprintId || null,
           projectIds,
           priority,
-          estimate: estimate ? { value: Number(estimate), unit: estimateUnit } : null,
+          estimate:
+            parsedEstimate !== null ? { value: parsedEstimate, unit: estimateUnit } : null,
         }),
       });
       setEditing(false);
@@ -126,6 +134,16 @@ export default function TaskPage() {
   async function saveSubtask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!subtaskForm) return;
+
+    const parsedEstimate = parseEstimateInput(subtaskForm.estimate);
+    if (
+      subtaskForm.estimate.trim() &&
+      (parsedEstimate === null || Number.isNaN(parsedEstimate))
+    ) {
+      toast.error('Please enter a valid positive numeric estimate.');
+      return;
+    }
+
     setBusy(true);
     try {
       const created = await request<{ id: string }>(`/tasks/${id}/subtasks`, {
@@ -135,9 +153,8 @@ export default function TaskPage() {
           description: subtaskForm.description || null,
           assigneeId: subtaskForm.assigneeId || null,
           priority: subtaskForm.priority,
-          estimate: subtaskForm.estimate
-            ? { value: Number(subtaskForm.estimate), unit: estimateUnit }
-            : null,
+          estimate:
+            parsedEstimate !== null ? { value: parsedEstimate, unit: estimateUnit } : null,
         }),
       });
       toast.success('Subtask created.');
@@ -806,11 +823,11 @@ function SubtaskModal({
         <label>
           Estimate ({unit === 'HOURS' ? 'hours' : 'points'})
           <Input
-            type="number"
-            min={1}
+            type="text"
+            inputMode="decimal"
             value={form.estimate}
             onChange={(event) => onChange({ ...form, estimate: event.target.value })}
-            placeholder="Optional"
+            placeholder={unit === 'HOURS' ? 'e.g. 0.5 or 2' : 'e.g. 3'}
           />
         </label>
         <footer>
@@ -945,11 +962,11 @@ function TaskEditModal({
         <label>
           Estimate ({estimateUnit === 'HOURS' ? 'hours' : 'points'})
           <Input
-            type="number"
-            min={1}
+            type="text"
+            inputMode="decimal"
             value={estimate}
             onChange={(event) => setEstimate(event.target.value)}
-            placeholder="Optional"
+            placeholder={estimateUnit === 'HOURS' ? 'e.g. 0.5 or 2' : 'e.g. 3'}
           />
         </label>
         <label>

@@ -14,6 +14,7 @@ import type { AssignSprintTasksDto } from './dto/assign-sprint-tasks.dto';
 import type { AssignSprintSubtasksDto } from './dto/assign-sprint-subtasks.dto';
 import type { CommentDto } from './dto/comment.dto';
 import type { CreateSprintDto } from './dto/create-sprint.dto';
+import type { FinishSprintDto } from './dto/finish-sprint.dto';
 import type { SprintQueryDto } from './dto/sprint-query.dto';
 import type { StartSprintDto } from './dto/start-sprint.dto';
 import type { UpdateSprintDto } from './dto/update-sprint.dto';
@@ -23,6 +24,27 @@ import {
   sprintAcceptsNewWork,
   sprintOutcomeTotals,
 } from './sprint-work';
+
+export function generateNextSprintName(currentName: string, existingNames: string[]): string {
+  const nameLowerSet = new Set(existingNames.map((n) => n.trim().toLowerCase()));
+  const trimmed = currentName.trim();
+  const match = trimmed.match(/^(.*?)(\d+)$/);
+  let prefix = '';
+  let startNum = 2;
+  if (match) {
+    prefix = match[1];
+    startNum = parseInt(match[2], 10) + 1;
+  } else {
+    prefix = `${trimmed} `;
+    startNum = 2;
+  }
+  let candidate = `${prefix}${startNum}`.trim();
+  while (nameLowerSet.has(candidate.toLowerCase())) {
+    startNum++;
+    candidate = `${prefix}${startNum}`.trim();
+  }
+  return candidate;
+}
 import { pickBacklogColumnId, pickTodoColumnId } from '../tasks/task-work';
 
 import { NotificationsService } from '../notifications/notifications.service';
@@ -408,7 +430,7 @@ export class SprintsService {
     return result.updated;
   }
 
-  async finish(id: string, actorId: string) {
+  async finish(id: string, actorId: string, input?: FinishSprintDto) {
     const result = await this.prisma.$transaction(async (transaction) => {
       const sprint = await transaction.sprint.findUnique({
         where: { id },
@@ -486,43 +508,75 @@ export class SprintsService {
         .filter((subtask) => !unfinishedTaskIds.includes(subtask.taskId))
         .map((subtask) => subtask.id);
 
-      if (unfinishedTaskIds.length || standaloneSubtaskIds.length) {
-        const columns = await transaction.boardColumn.findMany({
-          where: { workspaceId: sprint.workspaceId },
-          select: { id: true, isBacklog: true, position: true },
-          orderBy: { position: 'asc' },
-        });
-        const backlogColumnId = pickBacklogColumnId(columns);
-        if (!backlogColumnId)
-          throw new BadRequestException('The backlog column is not configured.');
+      let nextSprint: { id: string; name: string } | null = null;
 
-        const maximum = await transaction.task.aggregate({
-          where: { columnId: backlogColumnId },
-          _max: { position: true },
-        });
-        let position = Number(maximum._max.position ?? 0);
+      if (unfinishedTaskIds.length || standaloneSubtaskIds.length) {
+        if (input?.targetSprintId) {
+          const target = await transaction.sprint.findUnique({
+            where: { id: input.targetSprintId },
+            select: { id: true, name: true, status: true, workspaceId: true },
+          });
+          if (!target || target.workspaceId !== sprint.workspaceId) {
+            throw new BadRequestException('Target sprint not found.');
+          }
+          if (target.status !== SprintStatus.PLANNED) {
+            throw new BadRequestException('Target sprint must be a planned sprint.');
+          }
+          nextSprint = target;
+        } else {
+          nextSprint = await transaction.sprint.findFirst({
+            where: {
+              workspaceId: sprint.workspaceId,
+              status: SprintStatus.PLANNED,
+            },
+            orderBy: [{ startsAt: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
+            select: { id: true, name: true },
+          });
+
+          if (!nextSprint) {
+            const allWorkspaceSprints = await transaction.sprint.findMany({
+              where: { workspaceId: sprint.workspaceId },
+              select: { name: true },
+            });
+            const nextSprintName = generateNextSprintName(
+              sprint.name,
+              allWorkspaceSprints.map((s) => s.name),
+            );
+            nextSprint = await transaction.sprint.create({
+              data: {
+                workspaceId: sprint.workspaceId,
+                name: nextSprintName,
+                status: SprintStatus.PLANNED,
+              },
+              select: { id: true, name: true },
+            });
+            await this.event(transaction, 'sprint.created', nextSprint.id, actorId, {
+              name: nextSprintName,
+              workspaceId: sprint.workspaceId,
+              autoCreatedOnSprintFinish: true,
+            });
+          }
+        }
+
         for (const taskId of unfinishedTaskIds) {
-          position += 1024;
           await transaction.subtask.updateMany({
             where: { taskId, isCompleted: false },
-            data: { sprintId: null, columnId: backlogColumnId },
+            data: { sprintId: nextSprint.id },
           });
           await transaction.task.update({
             where: { id: taskId },
-            data: { sprintId: null, columnId: backlogColumnId, position },
+            data: { sprintId: nextSprint.id },
           });
         }
+
         if (standaloneSubtaskIds.length) {
           await transaction.subtask.updateMany({
             where: { id: { in: standaloneSubtaskIds } },
-            data: { sprintId: null, columnId: backlogColumnId },
-          });
-          await transaction.sprintSubtaskSnapshot.updateMany({
-            where: { sprintId: id, subtaskId: { in: standaloneSubtaskIds } },
-            data: { subtaskId: null },
+            data: { sprintId: nextSprint.id },
           });
         }
       }
+
       const updated = await transaction.sprint.update({
         where: { id },
         data: { status: SprintStatus.COMPLETED, completedAt },
@@ -534,8 +588,20 @@ export class SprintsService {
         completedTasks: completedTasksCount,
         totalSubtasks: subtasks.size,
         completedSubtasks: subtasks.size - unfinishedSubtaskIds.length,
+        movedToNextSprintTasks: unfinishedTaskIds.length,
+        nextSprintId: nextSprint?.id ?? null,
+        nextSprintName: nextSprint?.name ?? null,
         ...(sprint.workspaceId ? { workspaceId: sprint.workspaceId } : {}),
       });
+
+      if (nextSprint && (unfinishedTaskIds.length || standaloneSubtaskIds.length)) {
+        await this.event(transaction, 'sprint.work_carried_over', id, actorId, {
+          taskIds: unfinishedTaskIds,
+          subtaskIds: standaloneSubtaskIds,
+          targetSprintId: nextSprint.id,
+        });
+      }
+
       return {
         updated,
         workspaceId: sprint.workspaceId,
@@ -543,10 +609,15 @@ export class SprintsService {
         totalTasks: sprint.tasks.length,
         completedTasks: completedTasksCount,
         remainingTasks: sprint.tasks.length - completedTasksCount,
+        nextSprintId: nextSprint?.id ?? null,
+        nextSprintName: nextSprint?.name ?? null,
       };
     });
 
     this.events?.emitBoardUpdate(result.workspaceId, 'sprint.finished', id, actorId);
+    if (result.nextSprintId) {
+      this.events?.emitBoardUpdate(result.workspaceId, 'sprint.work_carried_over', id, actorId);
+    }
 
     void (async () => {
       try {
@@ -554,16 +625,21 @@ export class SprintsService {
           where: { isActive: true },
           select: { id: true },
         });
+        const incompleteMsg = result.nextSprintName
+          ? `${result.remainingTasks} incomplete task(s) moved to "${result.nextSprintName}".`
+          : `${result.remainingTasks} incomplete.`;
         await this.notifications.dispatch({
           recipientUserIds: activeUsers.map((u) => u.id),
           actorId,
           type: 'sprint.finished',
           title: `🏁 Sprint Completed: ${result.sprintName}`,
-          message: `Sprint "${result.sprintName}" was completed. ${result.completedTasks} task(s) done, ${result.remainingTasks} incomplete.`,
+          message: `Sprint "${result.sprintName}" was completed. ${result.completedTasks} task(s) done, ${incompleteMsg}`,
           lines: [
             `Sprint "${result.sprintName}" has been completed.`,
             `Completed tasks: ${result.completedTasks}`,
-            `Incomplete tasks: ${result.remainingTasks}`,
+            result.nextSprintName
+              ? `Incomplete tasks moved to "${result.nextSprintName}": ${result.remainingTasks}`
+              : `Incomplete tasks: ${result.remainingTasks}`,
           ],
           link: `/sprints/${id}`,
           actionLabel: 'View Sprint Retro',

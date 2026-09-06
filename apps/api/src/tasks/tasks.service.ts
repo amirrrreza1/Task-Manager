@@ -352,14 +352,30 @@ export class TasksService {
       },
     });
     if (!task) throw new NotFoundException('Task not found.');
-    if (task.updatedAt.getTime() !== new Date(input.expectedUpdatedAt).getTime())
-      throw new ConflictException('This task changed elsewhere. Reload the board and try again.');
     const column = await this.prisma.boardColumn.findUnique({ where: { id: input.columnId } });
     if (!column) throw new BadRequestException('Destination column not found.');
     if (input.beforeTaskId === id || input.afterTaskId === id)
       throw new BadRequestException('A task cannot be positioned relative to itself.');
 
+    const isSameColumn = task.columnId === input.columnId;
+    if (!isSameColumn && task.updatedAt.getTime() !== new Date(input.expectedUpdatedAt).getTime()) {
+      throw new ConflictException('This task changed elsewhere. Reload the board and try again.');
+    }
+
     const updatedTask = await this.prisma.$transaction(async (transaction) => {
+      const currentTask =
+        (typeof transaction.task.findUniqueOrThrow === 'function'
+          ? await transaction.task.findUniqueOrThrow({
+              where: { id },
+              select: { id: true, columnId: true, position: true },
+            })
+          : typeof transaction.task.findUnique === 'function'
+            ? await transaction.task.findUnique({
+                where: { id },
+                select: { id: true, columnId: true, position: true },
+              })
+            : null) ?? task;
+      const fromColumnId = currentTask.columnId;
       let neighbors = await transaction.task.findMany({
         where: { columnId: input.columnId, id: { not: id } },
         orderBy: { position: 'asc' },
@@ -412,10 +428,12 @@ export class TasksService {
                 ? Number(normalizedAfter.position) / 2
                 : 1024;
       }
-      await transaction.subtask.updateMany({
-        where: { taskId: id, columnId: task.columnId },
-        data: { columnId: input.columnId },
-      });
+      if (fromColumnId !== input.columnId) {
+        await transaction.subtask.updateMany({
+          where: { taskId: id, columnId: fromColumnId },
+          data: { columnId: input.columnId },
+        });
+      }
       const updated = await transaction.task.update({
         where: { id },
         data: { columnId: input.columnId, position },
@@ -426,7 +444,7 @@ export class TasksService {
         },
       });
       await this.event(transaction, 'task.moved', 'task', id, actorId, {
-        fromColumnId: task.columnId,
+        fromColumnId,
         toColumnId: input.columnId,
         position,
       });
@@ -647,10 +665,6 @@ export class TasksService {
       include: { task: { select: { workspaceId: true } } },
     });
     if (!subtask) throw new NotFoundException('Subtask not found.');
-    if (subtask.updatedAt.getTime() !== new Date(input.expectedUpdatedAt).getTime())
-      throw new ConflictException(
-        'This subtask changed elsewhere. Reload the board and try again.',
-      );
     const column = await this.prisma.boardColumn.findUnique({ where: { id: input.columnId } });
     if (!column) throw new BadRequestException('Destination column not found.');
     if (subtask.columnId === input.columnId) {
@@ -664,6 +678,10 @@ export class TasksService {
         })
         .then((item) => this.serializeSubtask(item));
     }
+    if (subtask.updatedAt.getTime() !== new Date(input.expectedUpdatedAt).getTime())
+      throw new ConflictException(
+        'This subtask changed elsewhere. Reload the board and try again.',
+      );
     const updated = await this.prisma.$transaction(async (transaction) => {
       const moved = await transaction.subtask.update({
         where: { id },
