@@ -8,11 +8,13 @@ import { Button, Input, Modal, Select, Textarea } from '../../../../components/d
 import { Avatar } from '../../../../components/avatar';
 import { HeaderActions } from '../../../../components/header-actions';
 import { PriorityBadge, PrioritySelect } from '../../../../components/priority-badge';
+import { TaskTypeBadge, TaskTypeSelect } from '../../../../components/task-type-badge';
 import { ProjectIcon } from '../../../../lib/project-icons';
 import { useAuth } from '../../../../components/auth-provider';
 import { useToast } from '../../../../components/toast-provider';
 import { formatDateTime } from '../../../../lib/app-config';
 import { DEFAULT_TASK_PRIORITY } from '../../../../lib/priority';
+import { DEFAULT_TASK_TYPE } from '../../../../lib/task-type';
 import { parseEstimateInput } from '../../../../lib/estimate';
 import type {
   AppSettings,
@@ -24,6 +26,7 @@ import type {
   SprintSummary,
   TaskDetail,
   TaskPriority,
+  TaskType,
   WorkItemComment,
 } from '../../../../lib/types';
 
@@ -55,6 +58,7 @@ export default function TaskPage() {
   const [busy, setBusy] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [type, setType] = useState<TaskType>(DEFAULT_TASK_TYPE);
   const [estimate, setEstimate] = useState('');
   const [priority, setPriority] = useState<TaskPriority>(DEFAULT_TASK_PRIORITY);
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
@@ -78,6 +82,7 @@ export default function TaskPage() {
       setPlannedSprints([...active.items, ...planned.items]);
       setTitle(nextTask.title);
       setDescription(nextTask.description ?? '');
+      setType(nextTask.type ?? DEFAULT_TASK_TYPE);
       setEstimate(nextTask.estimateValue?.toString() ?? '');
       setPriority(nextTask.priority);
       setAssigneeIds(nextTask.assignees.map((item) => item.user.id));
@@ -113,12 +118,12 @@ export default function TaskPage() {
         body: JSON.stringify({
           title,
           description: description || null,
+          type,
           assigneeIds,
           sprintId: sprintId || null,
           projectIds,
           priority,
-          estimate:
-            parsedEstimate !== null ? { value: parsedEstimate, unit: estimateUnit } : null,
+          estimate: parsedEstimate !== null ? { value: parsedEstimate, unit: estimateUnit } : null,
         }),
       });
       setEditing(false);
@@ -136,10 +141,7 @@ export default function TaskPage() {
     if (!subtaskForm) return;
 
     const parsedEstimate = parseEstimateInput(subtaskForm.estimate);
-    if (
-      subtaskForm.estimate.trim() &&
-      (parsedEstimate === null || Number.isNaN(parsedEstimate))
-    ) {
+    if (subtaskForm.estimate.trim() && (parsedEstimate === null || Number.isNaN(parsedEstimate))) {
       toast.error('Please enter a valid positive numeric estimate.');
       return;
     }
@@ -153,8 +155,7 @@ export default function TaskPage() {
           description: subtaskForm.description || null,
           assigneeId: subtaskForm.assigneeId || null,
           priority: subtaskForm.priority,
-          estimate:
-            parsedEstimate !== null ? { value: parsedEstimate, unit: estimateUnit } : null,
+          estimate: parsedEstimate !== null ? { value: parsedEstimate, unit: estimateUnit } : null,
         }),
       });
       toast.success('Subtask created.');
@@ -313,6 +314,7 @@ export default function TaskPage() {
                 {task.project.key ? `${task.project.key}-${task.project.name}` : task.project.name}
               </span>
             ) : null}
+            <TaskTypeBadge type={task.type} />
             <PriorityBadge priority={task.priority} />
           </div>
           <h1>{task.title}</h1>
@@ -513,6 +515,7 @@ export default function TaskPage() {
           projects={projects}
           sprints={plannedSprints}
           title={title}
+          type={type}
           description={description}
           estimate={estimate}
           priority={priority}
@@ -524,6 +527,7 @@ export default function TaskPage() {
           onClose={() => setEditing(false)}
           onSubmit={saveTask}
           setTitle={setTitle}
+          setType={setType}
           setDescription={setDescription}
           setEstimate={setEstimate}
           setPriority={setPriority}
@@ -849,6 +853,7 @@ function TaskEditModal({
   projects,
   sprints,
   title,
+  type,
   description,
   estimate,
   priority,
@@ -860,6 +865,7 @@ function TaskEditModal({
   onClose,
   onSubmit,
   setTitle,
+  setType,
   setDescription,
   setEstimate,
   setPriority,
@@ -872,6 +878,7 @@ function TaskEditModal({
   projects: Project[];
   sprints: SprintSummary[];
   title: string;
+  type: TaskType;
   description: string;
   estimate: string;
   priority: TaskPriority;
@@ -883,6 +890,7 @@ function TaskEditModal({
   onClose(): void;
   onSubmit(event: FormEvent<HTMLFormElement>): void;
   setTitle(value: string): void;
+  setType(value: TaskType): void;
   setDescription(value: string): void;
   setEstimate(value: string): void;
   setPriority(value: TaskPriority): void;
@@ -954,6 +962,10 @@ function TaskEditModal({
             value={description}
             onChange={(event) => setDescription(event.target.value)}
           />
+        </label>
+        <label>
+          Type
+          <TaskTypeSelect value={type} onChange={(value) => value && setType(value)} />
         </label>
         <label>
           Priority

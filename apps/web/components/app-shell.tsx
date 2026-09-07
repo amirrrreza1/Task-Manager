@@ -8,6 +8,7 @@ import {
   CalendarTime,
   ChartBar,
   Checklist,
+  Database,
   Folder,
   LayoutKanban,
   ReportAnalytics,
@@ -52,6 +53,7 @@ const adminNavigation: NavItem[] = [
   { href: '/settings/notifications', label: 'Notifications', icon: Bell },
   { href: '/settings/general', label: 'Settings', icon: Settings },
   { href: '/settings/board', label: 'Workflow', icon: ChartBar },
+  { href: '/settings/backup', label: 'Backup & Restore', icon: Database },
   { href: '/reports', label: 'Reports', icon: ReportAnalytics },
 ];
 

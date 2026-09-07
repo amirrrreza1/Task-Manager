@@ -24,6 +24,7 @@ import {
 import { Avatar } from '../../../../components/avatar';
 import { HeaderActions } from '../../../../components/header-actions';
 import { PriorityBadge } from '../../../../components/priority-badge';
+import { TaskTypeBadge } from '../../../../components/task-type-badge';
 import { useAuth } from '../../../../components/auth-provider';
 import { useToast } from '../../../../components/toast-provider';
 import { formatDate, formatDateTime } from '../../../../lib/app-config';
@@ -342,11 +343,13 @@ export default function SprintDetailPage() {
             <h2>Start this sprint</h2>
             {activeSprint ? (
               <p className="muted" style={{ color: 'var(--color-warning, #f59e0b)' }}>
-                Cannot start: Sprint <strong>&quot;{activeSprint.name}&quot;</strong> is currently active. Finish it before starting this sprint.
+                Cannot start: Sprint <strong>&quot;{activeSprint.name}&quot;</strong> is currently
+                active. Finish it before starting this sprint.
               </p>
             ) : (
               <p className="muted">
-                Starting this sprint will activate it and move its planned work to your active workflow.
+                Starting this sprint will activate it and move its planned work to your active
+                workflow.
               </p>
             )}
           </div>
@@ -390,6 +393,9 @@ export default function SprintDetailPage() {
                     <small>{'columnName' in task ? task.columnName : task.column.name}</small>
                   </div>
                   <span className="sprint-task-facts">
+                    {'type' in task && task.type ? (
+                      <TaskTypeBadge type={task.type} showLabel={false} />
+                    ) : null}
                     {'priority' in task ? <PriorityBadge priority={task.priority} /> : null}
                     {task.estimateValue
                       ? `${task.estimateValue} ${task.estimateUnit === 'HOURS' ? 'h' : 'pts'}`
@@ -675,8 +681,8 @@ export default function SprintDetailPage() {
             }}
           >
             <p>
-              A snapshot of completed work will be saved. All incomplete tasks will automatically move
-              to the next sprint with their current statuses preserved.
+              A snapshot of completed work will be saved. All incomplete tasks will automatically
+              move to the next sprint with their current statuses preserved.
             </p>
             {sprint.tasks.some((t) => !t.column?.isDone) ? (
               <div style={{ margin: '1rem 0' }}>
@@ -696,7 +702,8 @@ export default function SprintDetailPage() {
                   </label>
                 ) : (
                   <p className="muted" style={{ fontSize: '0.9rem' }}>
-                    No planned sprint is currently created. The next sprint will automatically be created for you.
+                    No planned sprint is currently created. The next sprint will automatically be
+                    created for you.
                   </p>
                 )}
               </div>

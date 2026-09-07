@@ -12,10 +12,7 @@ import {
   type ReactNode,
 } from 'react';
 import { API_URL, ApiError, parseApiResponse } from '../lib/api';
-import {
-  getTimeUntilRefreshMs,
-  isTokenExpiringSoon,
-} from '../lib/auth-tokens';
+import { getTimeUntilRefreshMs, isTokenExpiringSoon } from '../lib/auth-tokens';
 import type { CurrentUser } from '../lib/types';
 
 const TOKEN_STORAGE_KEY = 'task_manager_auth_token';

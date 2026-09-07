@@ -1,4 +1,4 @@
-import { TaskPriority } from '@prisma/client';
+import { TaskPriority, TaskType } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import {
   ArrayUnique,
@@ -47,6 +47,10 @@ export class UpdateTaskDto {
   @ArrayUnique()
   @IsUuidLike({ each: true, message: 'Each project ID must be a UUID' })
   projectIds?: string[];
+
+  @IsOptional()
+  @IsEnum(TaskType)
+  type?: TaskType;
 
   @IsOptional()
   @IsEnum(TaskPriority)

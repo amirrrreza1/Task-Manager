@@ -183,6 +183,7 @@ export class TasksService {
           sprintId: input.sprintId ?? null,
           createdById: actorId,
           position: Number(maximum._max.position ?? 0) + 1024,
+          ...(input.type ? { type: input.type } : {}),
           ...(input.priority ? { priority: input.priority } : {}),
           ...estimateData(input.estimate),
           assignees: { create: (input.assigneeIds ?? []).map((userId) => ({ userId })) },
@@ -197,6 +198,7 @@ export class TasksService {
         assigneeIds: input.assigneeIds ?? [],
         workspaceId,
         projectIds,
+        type: created.type,
       });
       return created;
     });
@@ -287,6 +289,7 @@ export class TasksService {
             : {}),
           ...(input.sprintId !== undefined ? { sprintId: input.sprintId } : {}),
           ...(todoColumnId ? { columnId: todoColumnId, position: sprintPosition } : {}),
+          ...(input.type !== undefined ? { type: input.type } : {}),
           ...(input.priority !== undefined ? { priority: input.priority } : {}),
           ...(input.estimate !== undefined ? estimateData(input.estimate) : {}),
         },
@@ -429,9 +432,10 @@ export class TasksService {
                 : 1024;
       }
       if (fromColumnId !== input.columnId) {
+        const isDone = column.isDone || column.name.trim().toLowerCase() === 'done';
         await transaction.subtask.updateMany({
           where: { taskId: id, columnId: fromColumnId },
-          data: { columnId: input.columnId },
+          data: { columnId: input.columnId, isCompleted: isDone },
         });
       }
       const updated = await transaction.task.update({
@@ -528,12 +532,20 @@ export class TasksService {
   async createSubtask(taskId: string, input: CreateSubtaskDto, actorId: string) {
     const task = await this.prisma.task.findUnique({
       where: { id: taskId },
-      select: { id: true, columnId: true, workspaceId: true },
+      select: {
+        id: true,
+        columnId: true,
+        workspaceId: true,
+        column: { select: { isDone: true, name: true } },
+      },
     });
     if (!task) throw new NotFoundException('Task not found.');
     if (!input.title.trim()) throw new BadRequestException('Subtask title cannot be empty.');
     await this.assertWorkspaceEstimate(input.estimate);
     if (input.assigneeId) await this.assertActiveUsers([input.assigneeId]);
+    const isDone = Boolean(
+      task.column?.isDone || task.column?.name?.trim().toLowerCase() === 'done',
+    );
     const subtask = await this.prisma.$transaction(async (transaction) => {
       const maximum = await transaction.subtask.aggregate({
         where: { taskId },
@@ -543,6 +555,7 @@ export class TasksService {
         data: {
           taskId,
           columnId: task.columnId,
+          isCompleted: isDone,
           title: input.title.trim(),
           description: input.description?.trim() || null,
           assigneeId: input.assigneeId ?? null,
@@ -683,9 +696,13 @@ export class TasksService {
         'This subtask changed elsewhere. Reload the board and try again.',
       );
     const updated = await this.prisma.$transaction(async (transaction) => {
+      const isDone = column.isDone || column.name.trim().toLowerCase() === 'done';
       const moved = await transaction.subtask.update({
         where: { id },
-        data: { columnId: input.columnId },
+        data: {
+          columnId: input.columnId,
+          isCompleted: isDone,
+        },
         include: {
           assignee: { select: userSummary },
           attachments: { orderBy: { createdAt: 'asc' }, include: attachmentInclude },
@@ -911,6 +928,7 @@ export class TasksService {
       ...(query.unassigned ? { assignees: { none: {} } } : {}),
       ...(query.hasEstimate === true ? { estimateValue: { not: null } } : {}),
       ...(query.hasEstimate === false ? { estimateValue: null } : {}),
+      ...(query.type ? { type: query.type } : {}),
       ...(query.priority ? { priority: query.priority } : {}),
     };
   }

@@ -28,7 +28,13 @@ const taskCardInclude = {
             orderBy: { assignedAt: 'asc' },
             include: {
               user: {
-                select: { id: true, displayName: true, color: true, hasAvatar: true, isActive: true },
+                select: {
+                  id: true,
+                  displayName: true,
+                  color: true,
+                  hasAvatar: true,
+                  isActive: true,
+                },
               },
             },
           },
@@ -125,12 +131,14 @@ export class BoardService {
       ...(query.unassigned ? { assignees: { none: {} } } : {}),
       ...(query.hasEstimate === true ? { estimateValue: { not: null } } : {}),
       ...(query.hasEstimate === false ? { estimateValue: null } : {}),
+      ...(query.type ? { type: query.type } : {}),
       ...(query.priority ? { priority: query.priority } : {}),
     };
     const subtaskWhere: Prisma.SubtaskWhereInput = {
       task: {
         workspaceId,
         ...(query.projectId ? { projects: { some: { projectId: query.projectId } } } : {}),
+        ...(query.type ? { type: query.type } : {}),
       },
       ...(query.search?.trim()
         ? {

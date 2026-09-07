@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma, TaskType } from '@prisma/client';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import type { ActivityQueryDto } from './dto/activity-query.dto';
 import type { MemberReportQueryDto } from './dto/member-report-query.dto';
@@ -18,7 +19,7 @@ type SerializedSubtask = {
   estimateValue: number | null;
   estimateUnit: string | null;
   column: { id: string; name: string; isDone: boolean };
-  task: { id: string; title: string } | null;
+  task: { id: string; title: string; type?: TaskType } | null;
   sprint: { id: string; name: string; status: string } | null;
   assignee?: {
     id: string;
@@ -27,7 +28,7 @@ type SerializedSubtask = {
     hasAvatar: boolean;
     isActive: boolean;
   } | null;
-  parentTask?: { id: string; title: string };
+  parentTask?: { id: string; title: string; type?: TaskType };
 };
 
 @Injectable()
@@ -177,49 +178,70 @@ export class ReportsService {
     });
     if (!user) throw new NotFoundException('User not found.');
 
-    const sprintFilter = query.sprintId
+    const completedCondition: Prisma.SubtaskWhereInput = {
+      OR: [
+        { isCompleted: true },
+        { column: { isDone: true } },
+        { column: { name: { equals: 'Done', mode: 'insensitive' } } },
+      ],
+    };
+
+    const sprintCondition: Prisma.SubtaskWhereInput | undefined = query.sprintId
       ? {
           OR: [
             { sprintId: query.sprintId },
             { sprintId: null, task: { sprintId: query.sprintId } },
           ],
         }
-      : {};
-
-    const subtaskInclude = {
-      task: {
-        select: {
-          id: true,
-          title: true,
-          sprint: { select: { id: true, name: true, status: true } },
-        },
-      },
-      sprint: { select: { id: true, name: true, status: true } },
-      column: { select: { id: true, name: true, isDone: true } },
-      assignee: { select: actorSelect },
-    } as const;
+      : undefined;
 
     const completedSubtasks = await this.prisma.subtask.findMany({
       where: {
         assigneeId: userId,
-        isCompleted: true,
-        ...sprintFilter,
+        AND: sprintCondition ? [completedCondition, sprintCondition] : [completedCondition],
       },
       orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
-      include: subtaskInclude,
+      include: {
+        task: {
+          select: {
+            id: true,
+            title: true,
+            type: true,
+            sprint: { select: { id: true, name: true, status: true } },
+          },
+        },
+        sprint: { select: { id: true, name: true, status: true } },
+        column: { select: { id: true, name: true, isDone: true } },
+        assignee: { select: actorSelect },
+      },
     });
 
-    // Also include incomplete subtasks assigned to this user (so we can show
-    // in-progress work too), but tag them separately.
-    const incompleteSubtasks = await this.prisma.subtask.findMany({
+    const completedIds = new Set(completedSubtasks.map((s) => s.id));
+
+    // Incomplete subtasks assigned to this user that are NOT in completedSubtasks
+    const incompleteSubtasksRaw = await this.prisma.subtask.findMany({
       where: {
         assigneeId: userId,
         isCompleted: false,
-        ...sprintFilter,
+        column: { isDone: false, name: { not: 'Done' } },
+        ...(sprintCondition ? sprintCondition : {}),
       },
       orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
-      include: subtaskInclude,
+      include: {
+        task: {
+          select: {
+            id: true,
+            title: true,
+            type: true,
+            sprint: { select: { id: true, name: true, status: true } },
+          },
+        },
+        sprint: { select: { id: true, name: true, status: true } },
+        column: { select: { id: true, name: true, isDone: true } },
+        assignee: { select: actorSelect },
+      },
     });
+    const incompleteSubtasks = incompleteSubtasksRaw.filter((s) => !completedIds.has(s.id));
 
     const totalEstimateHours = this.sumEstimateHours(completedSubtasks);
     const totalEstimatePoints = this.sumEstimatePoints(completedSubtasks);
@@ -228,7 +250,7 @@ export class ReportsService {
       user,
       sprintFilter: query.sprintId ?? null,
       completedSubtasks: completedSubtasks.map((s: (typeof completedSubtasks)[number]) =>
-        this.serializeSubtask(s),
+        this.serializeSubtask({ ...s, isCompleted: true }),
       ),
       incompleteSubtasks: incompleteSubtasks.map((s: (typeof incompleteSubtasks)[number]) =>
         this.serializeSubtask(s),
@@ -271,16 +293,13 @@ export class ReportsService {
         subtasks: {
           // standalone subtasks (their parent task is NOT in this sprint)
           where: {
-            OR: [
-              { task: { sprintId: null } },
-              { task: { sprintId: { not: sprintId } } },
-            ],
+            OR: [{ task: { sprintId: null } }, { task: { sprintId: { not: sprintId } } }],
           },
           orderBy: [{ task: { title: 'asc' } }, { position: 'asc' }],
           include: {
             assignee: { select: actorSelect },
             column: { select: { id: true, name: true, isDone: true } },
-            task: { select: { id: true, title: true } },
+            task: { select: { id: true, title: true, type: true } },
           },
         },
         taskSnapshots: {
@@ -304,6 +323,7 @@ export class ReportsService {
               include: {
                 assignee: { select: actorSelect },
                 column: { select: { id: true, name: true, isDone: true } },
+                task: { select: { type: true } },
               },
             },
           },
@@ -347,9 +367,13 @@ export class ReportsService {
         column: { id: string; name: string; isDone: boolean };
         taskId: string;
       },
-      parentTask: { id: string; title: string },
+      parentTask: { id: string; title: string; type?: TaskType },
     ) => {
       if (!subtask.assignee) return;
+      const isDone =
+        subtask.isCompleted ||
+        Boolean(subtask.column?.isDone) ||
+        subtask.column?.name?.trim().toLowerCase() === 'done';
       const uid = subtask.assignee.id;
       if (!memberMap.has(uid)) {
         memberMap.set(uid, {
@@ -363,10 +387,15 @@ export class ReportsService {
       }
       const entry = memberMap.get(uid)!;
       entry.subtasks.push({
-        ...this.serializeSubtask({ ...subtask, task: parentTask, sprint: null }),
+        ...this.serializeSubtask({
+          ...subtask,
+          isCompleted: isDone,
+          task: parentTask,
+          sprint: null,
+        }),
         parentTask,
       });
-      if (subtask.isCompleted) {
+      if (isDone) {
         entry.completedSubtasks++;
         if (subtask.estimateUnit === 'HOURS' && subtask.estimateValue)
           entry.estimateHours =
@@ -398,18 +427,23 @@ export class ReportsService {
 
       const tasks = sprint.taskSnapshots.map((ts) => {
         const matchingSubtaskSnapshots = ts.taskId ? (subtasksByTaskId.get(ts.taskId) ?? []) : [];
+        const taskType: TaskType = ts.task?.type ?? 'TASK';
+        const parentTask = { id: ts.taskId ?? ts.id, title: ts.title, type: taskType };
         const taskSubtasks: SerializedSubtask[] = matchingSubtaskSnapshots.map((subSnap) => {
-          const parentTask = { id: ts.taskId ?? ts.id, title: ts.title };
+          const isDone =
+            subSnap.wasDone ||
+            Boolean(subSnap.subtask?.column?.isDone) ||
+            subSnap.subtask?.column?.name?.trim().toLowerCase() === 'done';
           const serialized: SerializedSubtask = {
             id: subSnap.subtaskId ?? subSnap.id,
             title: subSnap.title,
-            isCompleted: subSnap.wasDone,
+            isCompleted: isDone,
             estimateValue: subSnap.estimateValue,
             estimateUnit: subSnap.estimateUnit,
             column: {
               id: subSnap.subtask?.column?.id ?? '',
-              name: subSnap.subtask?.column?.name ?? (subSnap.wasDone ? 'Done' : 'In Progress'),
-              isDone: subSnap.wasDone,
+              name: subSnap.subtask?.column?.name ?? (isDone ? 'Done' : 'In Progress'),
+              isDone: isDone,
             },
             task: parentTask,
             sprint: { id: sprint.id, name: sprint.name, status: sprint.status },
@@ -438,6 +472,7 @@ export class ReportsService {
         return {
           id: ts.taskId ?? ts.id,
           title: ts.title,
+          type: taskType,
           estimateValue: ts.estimateValue,
           estimateUnit: ts.estimateUnit,
           isDone: ts.wasDone,
@@ -452,17 +487,27 @@ export class ReportsService {
       });
 
       const standaloneSubtasks = standaloneSnapshots.map((subSnap) => {
-        const parentTask = { id: subSnap.taskId ?? '', title: subSnap.taskTitle };
-        const serialized: SerializedSubtask & { parentTask: { id: string; title: string } } = {
+        const parentTask = {
+          id: subSnap.taskId ?? '',
+          title: subSnap.taskTitle,
+          type: subSnap.subtask?.task?.type ?? 'TASK',
+        };
+        const isDone =
+          subSnap.wasDone ||
+          Boolean(subSnap.subtask?.column?.isDone) ||
+          subSnap.subtask?.column?.name?.trim().toLowerCase() === 'done';
+        const serialized: SerializedSubtask & {
+          parentTask: { id: string; title: string; type?: TaskType };
+        } = {
           id: subSnap.subtaskId ?? subSnap.id,
           title: subSnap.title,
-          isCompleted: subSnap.wasDone,
+          isCompleted: isDone,
           estimateValue: subSnap.estimateValue,
           estimateUnit: subSnap.estimateUnit,
           column: {
             id: subSnap.subtask?.column?.id ?? '',
-            name: subSnap.subtask?.column?.name ?? (subSnap.wasDone ? 'Done' : 'In Progress'),
-            isDone: subSnap.wasDone,
+            name: subSnap.subtask?.column?.name ?? (isDone ? 'Done' : 'In Progress'),
+            isDone: isDone,
           },
           task: parentTask,
           sprint: { id: sprint.id, name: sprint.name, status: sprint.status },
@@ -488,8 +533,19 @@ export class ReportsService {
         return serialized;
       });
 
+      const standardTasks = sprint.taskSnapshots.filter(
+        (ts) => (ts.task?.type ?? 'TASK') === 'TASK',
+      );
+      const bugTasks = sprint.taskSnapshots.filter((ts) => ts.task?.type === 'BUG');
       const allTasksDone = sprint.taskSnapshots.filter((ts) => ts.wasDone).length;
-      const allSubtasksDone = sprint.subtaskSnapshots.filter((ss) => ss.wasDone).length;
+      const standardTasksDone = standardTasks.filter((ts) => ts.wasDone).length;
+      const bugsDone = bugTasks.filter((ts) => ts.wasDone).length;
+      const allSubtasksDone = sprint.subtaskSnapshots.filter(
+        (ss) =>
+          ss.wasDone ||
+          Boolean(ss.subtask?.column?.isDone) ||
+          ss.subtask?.column?.name?.trim().toLowerCase() === 'done',
+      ).length;
 
       return {
         sprint: {
@@ -508,6 +564,10 @@ export class ReportsService {
         totals: {
           taskCount: sprint.taskSnapshots.length,
           tasksDone: allTasksDone,
+          standardTaskCount: standardTasks.length,
+          standardTasksDone,
+          bugCount: bugTasks.length,
+          bugsDone,
           subtaskCount: sprint.subtaskSnapshots.length,
           subtasksDone: allSubtasksDone,
         },
@@ -518,47 +578,88 @@ export class ReportsService {
     const tasks = sprint.tasks.map((task: (typeof sprint.tasks)[number]) => {
       const isDone = task.column.isDone;
       for (const sub of task.subtasks) {
-        trackSubtask(sub, { id: task.id, title: task.title });
+        const isSubDone =
+          sub.isCompleted ||
+          Boolean(sub.column?.isDone) ||
+          sub.column?.name?.trim().toLowerCase() === 'done';
+        trackSubtask(
+          { ...sub, isCompleted: isSubDone },
+          { id: task.id, title: task.title, type: task.type },
+        );
       }
       return {
         id: task.id,
         title: task.title,
+        type: task.type,
         estimateValue: task.estimateValue,
         estimateUnit: task.estimateUnit,
         isDone,
         column: task.column,
         assignees: task.assignees.map((a: (typeof task.assignees)[number]) => a.user),
-        subtasks: task.subtasks.map((s: (typeof task.subtasks)[number]) =>
-          this.serializeSubtask({
+        subtasks: task.subtasks.map((s: (typeof task.subtasks)[number]) => {
+          const isSubDone =
+            s.isCompleted ||
+            Boolean(s.column?.isDone) ||
+            s.column?.name?.trim().toLowerCase() === 'done';
+          return this.serializeSubtask({
             ...s,
-            task: { id: task.id, title: task.title },
+            isCompleted: isSubDone,
+            column: {
+              ...s.column,
+              isDone: isSubDone,
+            },
+            task: { id: task.id, title: task.title, type: task.type },
             sprint: { id: sprint.id, name: sprint.name, status: sprint.status },
-          }),
-        ),
+          });
+        }),
       };
     });
 
     // Standalone subtasks
     const standaloneSubtasks = sprint.subtasks.map((s: (typeof sprint.subtasks)[number]) => {
-      trackSubtask({ ...s, taskId: s.task.id }, { id: s.task.id, title: s.task.title });
+      const isSubDone =
+        s.isCompleted ||
+        Boolean(s.column?.isDone) ||
+        s.column?.name?.trim().toLowerCase() === 'done';
+      trackSubtask(
+        { ...s, taskId: s.task.id, isCompleted: isSubDone },
+        { id: s.task.id, title: s.task.title, type: s.task.type },
+      );
       return {
         ...this.serializeSubtask({
           ...s,
+          isCompleted: isSubDone,
+          column: {
+            ...s.column,
+            isDone: isSubDone,
+          },
           task: s.task,
           sprint: { id: sprint.id, name: sprint.name, status: sprint.status },
         }),
-        parentTask: { id: s.task.id, title: s.task.title },
+        parentTask: { id: s.task.id, title: s.task.title, type: s.task.type },
       };
     });
 
     // Aggregate totals
+    const standardTasks = sprint.tasks.filter(
+      (t: (typeof sprint.tasks)[number]) => t.type === 'TASK',
+    );
+    const bugTasks = sprint.tasks.filter((t: (typeof sprint.tasks)[number]) => t.type === 'BUG');
     const allTasksDone = sprint.tasks.filter(
       (t: (typeof sprint.tasks)[number]) => t.column.isDone,
     ).length;
+    const standardTasksDone = standardTasks.filter((t) => t.column.isDone).length;
+    const bugsDone = bugTasks.filter((t) => t.column.isDone).length;
+
     const allSubtasksDone = [
       ...sprint.tasks.flatMap((t: (typeof sprint.tasks)[number]) => t.subtasks),
       ...sprint.subtasks,
-    ].filter((s) => s.isCompleted).length;
+    ].filter(
+      (s) =>
+        s.isCompleted ||
+        Boolean(s.column?.isDone) ||
+        s.column?.name?.trim().toLowerCase() === 'done',
+    ).length;
 
     const totalSubtasks =
       sprint.tasks.flatMap((t: (typeof sprint.tasks)[number]) => t.subtasks).length +
@@ -581,6 +682,10 @@ export class ReportsService {
       totals: {
         taskCount: sprint.tasks.length,
         tasksDone: allTasksDone,
+        standardTaskCount: standardTasks.length,
+        standardTasksDone,
+        bugCount: bugTasks.length,
+        bugsDone,
         subtaskCount: totalSubtasks,
         subtasksDone: allSubtasksDone,
       },
@@ -599,6 +704,7 @@ export class ReportsService {
     task?: {
       id: string;
       title: string;
+      type?: TaskType;
       sprint?: { id: string; name: string; status: string } | null;
     } | null;
     sprint?: { id: string; name: string; status: string } | null;
@@ -610,14 +716,19 @@ export class ReportsService {
       isActive: boolean;
     } | null;
   }) {
+    const isDone =
+      s.isCompleted || Boolean(s.column?.isDone) || s.column?.name?.trim().toLowerCase() === 'done';
     return {
       id: s.id,
       title: s.title,
-      isCompleted: s.isCompleted,
+      isCompleted: isDone,
       estimateValue: s.estimateValue,
       estimateUnit: s.estimateUnit,
-      column: s.column,
-      task: s.task ? { id: s.task.id, title: s.task.title } : null,
+      column: {
+        ...s.column,
+        isDone: isDone || Boolean(s.column?.isDone),
+      },
+      task: s.task ? { id: s.task.id, title: s.task.title, type: s.task.type ?? 'TASK' } : null,
       sprint: s.sprint ?? s.task?.sprint ?? null,
       assignee: s.assignee ?? null,
     };

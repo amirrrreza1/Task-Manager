@@ -149,11 +149,7 @@ function UsersAdmin() {
       setUsers((current) => current.filter((user) => user.id !== removeUser.id));
       setRemoveUser(null);
       setReassignToUserId('');
-      toast.success(
-        reassignToUserId
-          ? 'Member removed and tasks reassigned.'
-          : 'Member removed.',
-      );
+      toast.success(reassignToUserId ? 'Member removed and tasks reassigned.' : 'Member removed.');
     } catch (caught) {
       toast.fromError(caught, 'Could not remove the member.');
     } finally {
@@ -437,7 +433,8 @@ function UsersAdmin() {
           </header>
           <form onSubmit={submitRemove}>
             <p className="muted">
-              Are you sure you want to remove <strong>{removeUser.displayName}</strong> (@{removeUser.username})? This action cannot be undone.
+              Are you sure you want to remove <strong>{removeUser.displayName}</strong> (@
+              {removeUser.username})? This action cannot be undone.
             </p>
             <label>
               Reassign tasks and subtasks to
@@ -459,11 +456,7 @@ function UsersAdmin() {
               <Button variant="ghost" onClick={() => setRemoveUser(null)} type="button">
                 Cancel
               </Button>
-              <Button
-                variant="destructive"
-                disabled={busyId === removeUser.id}
-                type="submit"
-              >
+              <Button variant="destructive" disabled={busyId === removeUser.id} type="submit">
                 {busyId === removeUser.id ? 'Removing…' : 'Remove member'}
               </Button>
             </footer>

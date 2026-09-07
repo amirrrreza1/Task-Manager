@@ -403,9 +403,7 @@ describe('UsersService', () => {
         },
       },
       subtask: {
-        findMany: async () => [
-          { id: 'subtask-1', task: { workspaceId: 'ws-1' } },
-        ],
+        findMany: async () => [{ id: 'subtask-1', task: { workspaceId: 'ws-1' } }],
         updateMany: async ({ where, data }) => {
           if (where.assigneeId) subtaskAssigneeSetTo = data.assigneeId;
           return { count: 1 };

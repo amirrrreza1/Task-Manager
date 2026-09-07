@@ -172,11 +172,15 @@ describe('TasksService Review State and Project Seniors Notification', () => {
       $transaction: async (callback) => callback(transaction),
     };
 
-    const service = new TasksService(mockPrisma, {}, {
-      dispatch: async (dto) => {
-        dispatchedNotifications.push(dto);
+    const service = new TasksService(
+      mockPrisma,
+      {},
+      {
+        dispatch: async (dto) => {
+          dispatchedNotifications.push(dto);
+        },
       },
-    });
+    );
 
     await service.move(
       'task-multi',
@@ -278,4 +282,3 @@ describe('TasksService Review State and Project Seniors Notification', () => {
     assert.ok(notif.recipientUserIds.includes('user-senior-lead'));
   });
 });
-

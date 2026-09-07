@@ -15,6 +15,13 @@ export interface SendTelegramOptions {
   actionLabel?: string;
 }
 
+export interface SendTelegramDocumentOptions {
+  filename: string;
+  buffer: Buffer;
+  caption?: string;
+  mimeType?: string;
+}
+
 @Injectable()
 export class TelegramService {
   private readonly logger = new Logger(TelegramService.name);
@@ -265,5 +272,74 @@ export class TelegramService {
       this.logger.warn(`Failed to send Telegram notification: ${(error as Error).message}`);
       return false;
     }
+  }
+
+  async sendDocument(
+    options: SendTelegramDocumentOptions,
+  ): Promise<{ success: boolean; message: string }> {
+    const flags = await this.prisma.notificationConfig.upsert({
+      where: { id: 'default' },
+      update: {},
+      create: { id: 'default' },
+    });
+    const telegram = this.getEnvConfig();
+    const { botToken, chatId, messageThreadId } = telegram;
+
+    if (!botToken) {
+      throw new Error(
+        'Telegram bot token is not configured. Set TELEGRAM_BOT_TOKEN in the environment.',
+      );
+    }
+    if (!chatId) {
+      throw new Error(
+        'Telegram group chat ID is not configured. Set TELEGRAM_CHAT_ID in the environment.',
+      );
+    }
+
+    const effectiveProxy = flags.telegramProxyUrl?.trim() || telegram.proxyUrl;
+    const dispatcher = this.getDispatcher(effectiveProxy);
+
+    const form = new FormData();
+    form.append('chat_id', chatId);
+    if (messageThreadId !== null) {
+      form.append('message_thread_id', String(messageThreadId));
+    }
+    if (options.caption) {
+      form.append('caption', options.caption);
+      form.append('parse_mode', 'HTML');
+    }
+    const blob = new Blob([new Uint8Array(options.buffer)], {
+      type: options.mimeType || 'application/octet-stream',
+    });
+    form.append('document', blob, options.filename);
+
+    const sendOptions: RequestInit & { dispatcher?: Dispatcher } = {
+      method: 'POST',
+      body: form,
+      ...(dispatcher ? { dispatcher } : {}),
+    };
+
+    let sendRes: Response;
+    try {
+      sendRes = await fetch(`https://api.telegram.org/bot${botToken}/sendDocument`, sendOptions);
+    } catch (error) {
+      const cause = (error as any)?.cause?.message || (error as any)?.cause;
+      const proxyNote = effectiveProxy ? ` via proxy (${effectiveProxy})` : '';
+      throw new Error(
+        `Failed to send document to Telegram${proxyNote}: ${(error as Error).message}${cause ? ` - ${cause}` : ''}`,
+      );
+    }
+
+    const sendData = (await sendRes.json()) as { ok: boolean; description?: string };
+    if (!sendData.ok) {
+      throw new Error(
+        `Telegram error: ${sendData.description || 'Could not send backup file to Telegram group'}.`,
+      );
+    }
+
+    return {
+      success: true,
+      message: 'Backup file successfully sent to Telegram group.',
+    };
   }
 }

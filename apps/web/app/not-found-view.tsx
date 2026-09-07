@@ -61,7 +61,10 @@ export function NotFoundView() {
 
         <div className="not-found-header-actions">
           {user ? (
-            <div className="not-found-user-indicator" title={`Signed in as ${user.displayName || user.username}`}>
+            <div
+              className="not-found-user-indicator"
+              title={`Signed in as ${user.displayName || user.username}`}
+            >
               <span className="not-found-user-dot" aria-hidden="true" />
               <span className="not-found-user-name">{user.displayName || user.username}</span>
             </div>
@@ -88,7 +91,8 @@ export function NotFoundView() {
           <div className="not-found-headings">
             <h1 className="not-found-title">Page not found</h1>
             <p className="not-found-description">
-              The page you are looking for doesn&apos;t exist, was moved, or is temporarily unavailable.
+              The page you are looking for doesn&apos;t exist, was moved, or is temporarily
+              unavailable.
             </p>
             {showPath ? (
               <div className="not-found-path-pill" title={pathname}>

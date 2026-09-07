@@ -74,7 +74,7 @@ describe('TasksService Task Move Subtasks Handling', () => {
     assert.equal(subtaskUpdates.length, 1);
     assert.deepEqual(subtaskUpdates[0], {
       where: { taskId: 'task-1', columnId: 'col-todo' },
-      data: { columnId: 'col-done' },
+      data: { columnId: 'col-done', isCompleted: true },
     });
   });
 });

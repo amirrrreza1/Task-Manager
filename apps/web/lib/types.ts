@@ -118,6 +118,7 @@ export interface ApiErrorBody {
 export type EstimateUnit = 'HOURS' | 'POINTS';
 
 export type TaskPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+export type TaskType = 'TASK' | 'BUG';
 
 export interface Estimate {
   value: number;
@@ -174,6 +175,7 @@ export interface TaskCard {
   projects?: TaskProjectItem[];
   title: string;
   description: string | null;
+  type: TaskType;
   priority: TaskPriority;
   estimateValue: number | null;
   estimateUnit: EstimateUnit | null;
@@ -331,6 +333,7 @@ export interface SprintWorkSubtask {
 export interface SprintWorkTask {
   id: string;
   title: string;
+  type?: TaskType;
   priority: TaskPriority;
   estimateValue: number | null;
   estimateUnit: EstimateUnit | null;
@@ -399,7 +402,7 @@ export interface ReportSubtask {
   estimateValue: number | null;
   estimateUnit: EstimateUnit | null;
   column: { id: string; name: string; isDone: boolean };
-  task: { id: string; title: string } | null;
+  task: { id: string; title: string; type?: TaskType } | null;
   sprint: { id: string; name: string; status: SprintStatus } | null;
   assignee?: UserSummary | null;
 }
@@ -422,6 +425,7 @@ export interface MemberReport {
 export interface SprintReportTask {
   id: string;
   title: string;
+  type?: TaskType;
   estimateValue: number | null;
   estimateUnit: EstimateUnit | null;
   isDone: boolean;
@@ -436,7 +440,7 @@ export interface MemberContribution {
   incompleteSubtasks: number;
   estimateHours: number;
   estimatePoints: number;
-  subtasks: (ReportSubtask & { parentTask: { id: string; title: string } })[];
+  subtasks: (ReportSubtask & { parentTask: { id: string; title: string; type?: TaskType } })[];
 }
 
 export interface SprintReport {
@@ -450,13 +454,53 @@ export interface SprintReport {
     completedAt: string | null;
   };
   tasks: SprintReportTask[];
-  standaloneSubtasks: (ReportSubtask & { parentTask: { id: string; title: string } })[];
+  standaloneSubtasks: (ReportSubtask & {
+    parentTask: { id: string; title: string; type?: TaskType };
+  })[];
   taskSnapshots: SprintTaskSnapshot[];
   memberContributions: MemberContribution[];
   totals: {
     taskCount: number;
     tasksDone: number;
+    standardTaskCount?: number;
+    standardTasksDone?: number;
+    bugCount?: number;
+    bugsDone?: number;
     subtaskCount: number;
     subtasksDone: number;
+  };
+}
+
+export interface BackupStatus {
+  databaseReady: boolean;
+  totalCounts: {
+    users: number;
+    workspaces: number;
+    projects: number;
+    tasks: number;
+    subtasks: number;
+    attachments: number;
+  };
+  storageSizeBytes: number;
+  telegramConfigured: boolean;
+  telegramEnabled: boolean;
+  telegramChatId: string | null;
+  lastBackupAt: string | null;
+}
+
+export interface RestoreResult {
+  success: boolean;
+  message: string;
+  restoredAt: string;
+  counts: {
+    users: number;
+    workspaces: number;
+    projects: number;
+    boardColumns: number;
+    sprints: number;
+    tasks: number;
+    subtasks: number;
+    attachments: number;
+    comments: number;
   };
 }

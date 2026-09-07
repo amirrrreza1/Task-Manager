@@ -20,7 +20,10 @@ export class TokenBucketThrottlerStorageService implements ThrottlerStorage, OnA
   private readonly buckets = new Map<string, BucketState>();
   private readonly cleanupInterval: NodeJS.Timeout | null = null;
 
-  constructor(cleanupIntervalMs = 60_000, private readonly maxIdleMs = 300_000) {
+  constructor(
+    cleanupIntervalMs = 60_000,
+    private readonly maxIdleMs = 300_000,
+  ) {
     if (cleanupIntervalMs > 0) {
       this.cleanupInterval = setInterval(() => this.pruneIdleBuckets(), cleanupIntervalMs);
       if (this.cleanupInterval && typeof this.cleanupInterval.unref === 'function') {
@@ -97,7 +100,8 @@ export class TokenBucketThrottlerStorageService implements ThrottlerStorage, OnA
 
     // Insufficient tokens (< 1)
     const msNeededForOneToken = (1 - bucket.tokens) / refillRate;
-    const blockMs = blockDuration > 0 && blockDuration !== ttl ? blockDuration : msNeededForOneToken;
+    const blockMs =
+      blockDuration > 0 && blockDuration !== ttl ? blockDuration : msNeededForOneToken;
     bucket.blockExpiresAt = now + blockMs;
 
     const timeToBlockExpire = Math.max(1, Math.ceil(msNeededForOneToken / 1000));

@@ -1,4 +1,4 @@
-import { TaskPriority } from '@prisma/client';
+import { TaskPriority, TaskType } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
@@ -64,6 +64,11 @@ export class TaskQueryDto {
   @Transform(toBoolean)
   @IsBoolean()
   hasEstimate?: boolean;
+
+  @IsOptional()
+  @Transform(toOptionalString)
+  @IsEnum(TaskType)
+  type?: TaskType;
 
   @IsOptional()
   @Transform(toOptionalString)

@@ -1,17 +1,8 @@
 'use client';
 
-import { DotsVertical, Edit, FileText, Trash, User } from '@appica/icons-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-} from '@appica/ui-react/dropdown-menu';
+import { Edit, FileText, Trash, User } from '@appica/icons-react';
 import type { BoardSubtask, ManagedUser, TaskPriority } from '../lib/types';
+import { CardMenu, CardMenuItem, CardMenuSeparator, CardMenuSubmenu } from './card-menu-primitives';
 
 interface SubtaskCardMenuProps {
   subtask: BoardSubtask;
@@ -41,162 +32,147 @@ export function SubtaskCardMenu({
   if (disabled) return null;
 
   return (
-    <div
-      className="task-card-menu-wrapper subtask-card-menu-wrapper"
-      onClick={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-      }}
-      onPointerDown={(e) => e.stopPropagation()}
+    <CardMenu
+      triggerAriaLabel={`Options for subtask ${subtask.title}`}
+      triggerClassName="subtask-card-menu-trigger"
+      iconSize={13}
+      disabled={disabled}
     >
-      <DropdownMenu size="sm">
-        <DropdownMenuTrigger
-          className="task-card-menu-trigger subtask-card-menu-trigger"
-          aria-label={`Options for subtask ${subtask.title}`}
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-          }}
-          onPointerDown={(e) => e.stopPropagation()}
-        >
-          <DotsVertical size={13} className="task-card-menu-icon" />
-        </DropdownMenuTrigger>
-
-        <DropdownMenuContent
-          align="end"
-          side="bottom"
-          className="task-card-menu-content"
-          onClick={(e) => e.stopPropagation()}
-          onPointerDown={(e) => e.stopPropagation()}
-        >
-          <DropdownMenuItem
-            onClick={(e) => {
-              e.stopPropagation();
+      {({ close }) => (
+        <>
+          <CardMenuItem
+            icon={<Edit size={14} className="menu-icon" />}
+            onClick={() => {
+              close();
               onEditTitle(subtask);
             }}
           >
-            <Edit size={14} className="menu-icon" />
             <span>Edit title</span>
-          </DropdownMenuItem>
+          </CardMenuItem>
 
-          <DropdownMenuItem
-            onClick={(e) => {
-              e.stopPropagation();
+          <CardMenuItem
+            icon={<FileText size={14} className="menu-icon" />}
+            onClick={() => {
+              close();
               onEditDescription(subtask);
             }}
           >
-            <FileText size={14} className="menu-icon" />
             <span>Edit description</span>
-          </DropdownMenuItem>
+          </CardMenuItem>
 
-          <DropdownMenuItem
-            onClick={(e) => {
-              e.stopPropagation();
+          <CardMenuItem
+            icon={<User size={14} className="menu-icon" />}
+            onClick={() => {
+              close();
               onEditAssignee(subtask);
             }}
           >
-            <User size={14} className="menu-icon" />
             <span>Edit assignee...</span>
-          </DropdownMenuItem>
+          </CardMenuItem>
 
-          <DropdownMenuSeparator />
+          <CardMenuSeparator />
 
           {users.length > 0 && onAssignUser ? (
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                <span>Assignee</span>
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent className="task-card-menu-subcontent">
-                {currentUserId && subtask.assigneeId !== currentUserId ? (
-                  <DropdownMenuItem
+            <CardMenuSubmenu label="Assignee">
+              {currentUserId && subtask.assigneeId !== currentUserId ? (
+                <CardMenuItem
+                  onClick={() => {
+                    close();
+                    void onAssignUser(subtask, currentUserId);
+                  }}
+                >
+                  <span>Assign to me</span>
+                </CardMenuItem>
+              ) : null}
+              {subtask.assigneeId ? (
+                <CardMenuItem
+                  onClick={() => {
+                    close();
+                    void onAssignUser(subtask, null);
+                  }}
+                >
+                  <span>Unassign</span>
+                </CardMenuItem>
+              ) : null}
+              {(currentUserId && subtask.assigneeId !== currentUserId) || subtask.assigneeId ? (
+                <CardMenuSeparator />
+              ) : null}
+              {users.map((member) => {
+                const isAssigned = subtask.assigneeId === member.id;
+                return (
+                  <CardMenuItem
+                    key={member.id}
+                    active={isAssigned}
                     onClick={() => {
-                      void onAssignUser(subtask, currentUserId);
+                      close();
+                      void onAssignUser(subtask, isAssigned ? null : member.id);
                     }}
                   >
-                    <span>Assign to me</span>
-                  </DropdownMenuItem>
-                ) : null}
-                {subtask.assigneeId ? (
-                  <DropdownMenuItem
-                    onClick={() => {
-                      void onAssignUser(subtask, null);
-                    }}
-                  >
-                    <span>Unassign</span>
-                  </DropdownMenuItem>
-                ) : null}
-                {(currentUserId && subtask.assigneeId !== currentUserId) || subtask.assigneeId ? (
-                  <DropdownMenuSeparator />
-                ) : null}
-                {users.map((member) => {
-                  const isAssigned = subtask.assigneeId === member.id;
-                  return (
-                    <DropdownMenuItem
-                      key={member.id}
-                      onClick={() => {
-                        void onAssignUser(subtask, isAssigned ? null : member.id);
-                      }}
-                      className={isAssigned ? 'is-active-option' : ''}
-                    >
-                      <span className="truncate">{member.displayName}</span>
-                    </DropdownMenuItem>
-                  );
-                })}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
+                    <span className="truncate">{member.displayName}</span>
+                  </CardMenuItem>
+                );
+              })}
+            </CardMenuSubmenu>
           ) : null}
 
           {onPriorityChange ? (
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                <span>Priority</span>
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent className="task-card-menu-subcontent">
-                <DropdownMenuItem
-                  onClick={() => void onPriorityChange(subtask, 'LOW')}
-                  className={subtask.priority === 'LOW' ? 'is-active-option' : ''}
-                >
-                  <span>Low</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => void onPriorityChange(subtask, 'MEDIUM')}
-                  className={subtask.priority === 'MEDIUM' ? 'is-active-option' : ''}
-                >
-                  <span>Medium</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => void onPriorityChange(subtask, 'HIGH')}
-                  className={subtask.priority === 'HIGH' ? 'is-active-option' : ''}
-                >
-                  <span>High</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => void onPriorityChange(subtask, 'URGENT')}
-                  className={subtask.priority === 'URGENT' ? 'is-active-option' : ''}
-                >
-                  <span>Urgent</span>
-                </DropdownMenuItem>
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
+            <CardMenuSubmenu label="Priority">
+              <CardMenuItem
+                active={subtask.priority === 'LOW'}
+                onClick={() => {
+                  close();
+                  void onPriorityChange(subtask, 'LOW');
+                }}
+              >
+                <span>Low</span>
+              </CardMenuItem>
+              <CardMenuItem
+                active={subtask.priority === 'MEDIUM'}
+                onClick={() => {
+                  close();
+                  void onPriorityChange(subtask, 'MEDIUM');
+                }}
+              >
+                <span>Medium</span>
+              </CardMenuItem>
+              <CardMenuItem
+                active={subtask.priority === 'HIGH'}
+                onClick={() => {
+                  close();
+                  void onPriorityChange(subtask, 'HIGH');
+                }}
+              >
+                <span>High</span>
+              </CardMenuItem>
+              <CardMenuItem
+                active={subtask.priority === 'URGENT'}
+                onClick={() => {
+                  close();
+                  void onPriorityChange(subtask, 'URGENT');
+                }}
+              >
+                <span>Urgent</span>
+              </CardMenuItem>
+            </CardMenuSubmenu>
           ) : null}
 
           {onDelete ? (
             <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="menu-item-danger"
-                onClick={(e) => {
-                  e.stopPropagation();
+              <CardMenuSeparator />
+              <CardMenuItem
+                danger
+                icon={<Trash size={14} className="menu-icon" />}
+                onClick={() => {
+                  close();
                   void onDelete(subtask);
                 }}
               >
-                <Trash size={14} className="menu-icon" />
                 <span>Delete subtask</span>
-              </DropdownMenuItem>
+              </CardMenuItem>
             </>
           ) : null}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+        </>
+      )}
+    </CardMenu>
   );
 }

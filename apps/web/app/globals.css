@@ -1793,12 +1793,22 @@ label.check-field {
 .task-card-main > p.is-empty {
   display: none;
 }
+.task-card-footer {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 26px;
+  margin-top: auto;
+}
 .task-card-facts {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   min-height: 26px;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 .task-card-facts span,
 .subtask-meta span {
@@ -1868,6 +1878,39 @@ label.check-field {
 .board-subtask-card[data-priority='URGENT'] {
   box-shadow: inset 3px 0 0 var(--error-emphasis);
 }
+.task-card-tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: 100%;
+}
+.task-type-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0.12rem 0.45rem;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  font-size: 0.65rem;
+  font-weight: 750;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.task-type-pill .task-type-icon {
+  flex-shrink: 0;
+}
+.task-type-pill.task-type-task {
+  color: var(--foreground-muted);
+  background: var(--background-muted);
+  border-color: var(--border);
+}
+.task-type-pill.task-type-bug {
+  color: var(--error-emphasis);
+  background: color-mix(in srgb, var(--error-emphasis) 14%, transparent);
+  border-color: color-mix(in srgb, var(--error-emphasis) 32%, transparent);
+}
 .sprint-task-facts {
   display: inline-flex;
   align-items: center;
@@ -1875,12 +1918,11 @@ label.check-field {
 }
 .card-assignees {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: flex-end;
   min-width: 24px;
-  min-height: 24px;
-  padding-top: 1px;
+  min-height: 26px;
+  flex-shrink: 0;
 }
 .card-assignee-avatars {
   display: flex;
@@ -1949,14 +1991,18 @@ label.check-field {
   color: var(--muted);
   cursor: pointer;
   opacity: 0.55;
-  transition: opacity 150ms ease, background-color 150ms ease, color 150ms ease, border-color 150ms ease;
+  transition:
+    opacity 150ms ease,
+    background-color 150ms ease,
+    color 150ms ease,
+    border-color 150ms ease;
 }
 
 .task-card:hover .task-card-menu-trigger,
 .board-subtask-card:hover .task-card-menu-trigger,
 .task-card-menu-trigger:focus-visible,
 .task-card-menu-trigger[data-popup-open],
-.task-card-menu-trigger[aria-expanded="true"] {
+.task-card-menu-trigger[aria-expanded='true'] {
   opacity: 1;
 }
 
@@ -2026,6 +2072,89 @@ label.check-field {
   color: var(--danger);
 }
 
+.task-card-menu-panel {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 8px);
+  box-shadow:
+    0 10px 25px -5px rgba(0, 0, 0, 0.4),
+    0 8px 10px -6px rgba(0, 0, 0, 0.3);
+  padding: 4px;
+  outline: none;
+}
+
+.task-card-menu-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 6px 8px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  user-select: none;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+  outline: none;
+  gap: 2px;
+}
+
+.task-card-menu-item:hover,
+.task-card-menu-item:focus-visible,
+.task-card-menu-item[data-highlighted] {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.task-card-menu-item:disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.task-card-menu-subtrigger {
+  justify-content: space-between;
+}
+
+.task-card-menu-subtrigger.is-active-trigger {
+  background: var(--surface-2);
+}
+
+.menu-submenu-chevron {
+  margin-left: auto;
+  opacity: 0.6;
+}
+
+.card-menu-submenu-wrapper {
+  position: relative;
+}
+
+.card-menu-submenu-panel {
+  position: absolute;
+  top: -4px;
+  right: calc(100% + 4px);
+  z-index: 10000;
+}
+
+.card-menu-submenu-panel.align-right {
+  right: auto;
+  left: calc(100% + 4px);
+}
+
+.task-card-menu-separator {
+  height: 1px;
+  margin: 4px 2px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
 .task-quick-edit-modal-content {
   max-width: 580px;
   width: 100%;
@@ -2081,7 +2210,10 @@ label.check-field {
   color: var(--text);
   font-size: 0.8rem;
   cursor: pointer;
-  transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease,
+    color 140ms ease;
 }
 
 .quick-edit-assignee-pill:hover {
@@ -5257,7 +5389,8 @@ label:not([data-slot='field-label']) {
 }
 
 @keyframes pulse-live {
-  0%, 100% {
+  0%,
+  100% {
     transform: scale(1);
     opacity: 1;
   }
@@ -5540,5 +5673,3 @@ label:not([data-slot='field-label']) {
   font-size: 0.8125rem;
   color: var(--foreground-muted);
 }
-
-

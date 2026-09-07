@@ -22,6 +22,11 @@ enum EstimateUnit {
   POINTS
 }
 
+enum TaskType {
+  TASK
+  BUG
+}
+
 enum TaskPriority {
   LOW
   MEDIUM
@@ -207,6 +212,7 @@ model Task {
   workspaceId     String               @default("00000000-0000-0000-0000-000000000001") @db.Uuid
   title           String               @db.VarChar(240)
   description     String?              @db.Text
+  type            TaskType             @default(TASK)
   priority        TaskPriority         @default(MEDIUM)
   estimateValue   Float?
   estimateUnit    EstimateUnit?
@@ -229,6 +235,7 @@ model Task {
 
   @@index([workspaceId, columnId, position])
   @@index([workspaceId, priority])
+  @@index([workspaceId, type])
   @@index([columnId, position])
   @@index([sprintId])
   @@index([updatedAt])

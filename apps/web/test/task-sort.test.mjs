@@ -149,8 +149,22 @@ describe('compareWorkItems and sortTasks', () => {
 
   it('sorts subtasks with sortSubtasks', () => {
     const subtasks = [
-      { id: 's1', title: 'B', priority: 'LOW', estimateValue: null, createdAt: '2026-01-01', updatedAt: '2026-01-01' },
-      { id: 's2', title: 'A', priority: 'HIGH', estimateValue: null, createdAt: '2026-01-02', updatedAt: '2026-01-02' },
+      {
+        id: 's1',
+        title: 'B',
+        priority: 'LOW',
+        estimateValue: null,
+        createdAt: '2026-01-01',
+        updatedAt: '2026-01-01',
+      },
+      {
+        id: 's2',
+        title: 'A',
+        priority: 'HIGH',
+        estimateValue: null,
+        createdAt: '2026-01-02',
+        updatedAt: '2026-01-02',
+      },
     ];
     const sorted = sortSubtasks(subtasks, 'title-asc');
     assert.equal(sorted[0].id, 's2');
@@ -166,12 +180,40 @@ describe('applyBoardSort', () => {
         id: 'col-todo',
         position: 0,
         tasks: [
-          { id: 't1', title: 'Task Low', priority: 'LOW', estimateValue: 8, createdAt: '2026-01-01', updatedAt: '2026-01-01' },
-          { id: 't2', title: 'Task Urgent', priority: 'URGENT', estimateValue: 2, createdAt: '2026-01-02', updatedAt: '2026-01-02' },
+          {
+            id: 't1',
+            title: 'Task Low',
+            priority: 'LOW',
+            estimateValue: 8,
+            createdAt: '2026-01-01',
+            updatedAt: '2026-01-01',
+          },
+          {
+            id: 't2',
+            title: 'Task Urgent',
+            priority: 'URGENT',
+            estimateValue: 2,
+            createdAt: '2026-01-02',
+            updatedAt: '2026-01-02',
+          },
         ],
         subtasks: [
-          { id: 's1', title: 'Subtask Low', priority: 'LOW', estimateValue: 1, createdAt: '2026-01-01', updatedAt: '2026-01-01' },
-          { id: 's2', title: 'Subtask High', priority: 'HIGH', estimateValue: 5, createdAt: '2026-01-02', updatedAt: '2026-01-02' },
+          {
+            id: 's1',
+            title: 'Subtask Low',
+            priority: 'LOW',
+            estimateValue: 1,
+            createdAt: '2026-01-01',
+            updatedAt: '2026-01-01',
+          },
+          {
+            id: 's2',
+            title: 'Subtask High',
+            priority: 'HIGH',
+            estimateValue: 5,
+            createdAt: '2026-01-02',
+            updatedAt: '2026-01-02',
+          },
         ],
       },
     ],

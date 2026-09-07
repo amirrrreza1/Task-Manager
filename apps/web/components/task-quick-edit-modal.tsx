@@ -3,10 +3,18 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Button, Input, Modal, Select, Textarea } from './design-system';
 import { PrioritySelect } from './priority-badge';
+import { TaskTypeSelect } from './task-type-badge';
 import { Avatar } from './avatar';
 import { useAuth } from './auth-provider';
 import { useToast } from './toast-provider';
-import type { EstimateUnit, ManagedUser, Project, TaskCard, TaskPriority } from '../lib/types';
+import type {
+  EstimateUnit,
+  ManagedUser,
+  Project,
+  TaskCard,
+  TaskPriority,
+  TaskType,
+} from '../lib/types';
 import { parseEstimateInput } from '../lib/estimate';
 
 interface TaskQuickEditModalProps {
@@ -35,6 +43,7 @@ export function TaskQuickEditModal({
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [type, setType] = useState<TaskType>('TASK');
   const [priority, setPriority] = useState<TaskPriority>('MEDIUM');
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [projectId, setProjectId] = useState<string>('');
@@ -46,6 +55,7 @@ export function TaskQuickEditModal({
     if (!task) return;
     setTitle(task.title);
     setDescription(task.description ?? '');
+    setType(task.type ?? 'TASK');
     setPriority(task.priority);
     setAssigneeIds(task.assignees.map((a) => a.user.id));
     const assignedProjectId =
@@ -88,6 +98,7 @@ export function TaskQuickEditModal({
         body: JSON.stringify({
           title: title.trim(),
           description: description.trim() ? description : null,
+          type,
           priority,
           assigneeIds,
           projectId: projectId || null,
@@ -160,6 +171,17 @@ export function TaskQuickEditModal({
           </label>
 
           <div className="quick-edit-grid">
+            <label className="field">
+              <span className="field-label">Type</span>
+              <TaskTypeSelect
+                value={type}
+                onChange={(val) => {
+                  if (val) setType(val);
+                }}
+                disabled={saving}
+              />
+            </label>
+
             <label className="field">
               <span className="field-label">Priority</span>
               <PrioritySelect

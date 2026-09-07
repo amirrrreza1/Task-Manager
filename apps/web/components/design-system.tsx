@@ -7,6 +7,7 @@ import {
   type ComponentProps,
   type ReactNode,
   isValidElement,
+  useMemo,
 } from 'react';
 import { Button } from '@appica/ui-react/button';
 import { Checkbox as AppicaCheckbox } from '@appica/ui-react/checkbox';
@@ -134,8 +135,10 @@ function Select({
   const resolvedValue = value === undefined ? undefined : String(value);
   const resolvedDefaultValue = defaultValue === undefined ? undefined : String(defaultValue);
   // Base UI only shows option labels in the trigger when `items` is provided;
-  // otherwise the raw value (often an id) is displayed.
-  const items = collectSelectItems(children);
+  // otherwise the raw value (often an id) is displayed. Memoize to prevent
+  // recreating the items object on every render.
+  const items = useMemo(() => collectSelectItems(children), [children]);
+  const optionNodes = useMemo(() => getOptionNodes(children), [children]);
 
   return (
     <AppicaSelect
@@ -163,7 +166,7 @@ function Select({
       >
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
-      <SelectContent>{getOptionNodes(children)}</SelectContent>
+      <SelectContent>{optionNodes}</SelectContent>
     </AppicaSelect>
   );
 }

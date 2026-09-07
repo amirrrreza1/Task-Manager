@@ -17,6 +17,7 @@ import { useAuth } from '../../../../../components/auth-provider';
 import { useToast } from '../../../../../components/toast-provider';
 import { formatDate } from '../../../../../lib/app-config';
 import { Avatar } from '../../../../../components/avatar';
+import { TaskTypeBadge } from '../../../../../components/task-type-badge';
 import type { MemberContribution, SprintReport, SprintReportTask } from '../../../../../lib/types';
 
 function formatEstimate(value: number | null, unit: string | null) {
@@ -25,39 +26,60 @@ function formatEstimate(value: number | null, unit: string | null) {
   return `${value} pt`;
 }
 
+function isSubtaskDone(s: {
+  isCompleted?: boolean;
+  column?: { isDone?: boolean; name?: string };
+}): boolean {
+  return Boolean(
+    s.isCompleted || s.column?.isDone || s.column?.name?.trim().toLowerCase() === 'done',
+  );
+}
+
 function TaskRow({ task }: { task: SprintReportTask }) {
+  const isBug = task.type === 'BUG';
+  // Bugs do not show subtasks in reports
+  const hasSubtasks = !isBug && task.subtasks.length > 0;
   const [open, setOpen] = useState(false);
   return (
     <>
       <TableRow
         className={`report-task-row ${task.isDone ? 'is-done' : ''}`}
-        onClick={() => task.subtasks.length > 0 && setOpen((v) => !v)}
-        style={{ cursor: task.subtasks.length > 0 ? 'pointer' : undefined }}
+        onClick={() => hasSubtasks && setOpen((v) => !v)}
+        style={{ cursor: hasSubtasks ? 'pointer' : undefined }}
       >
         <TableCell>
-          <Link
-            href={`/tasks/${task.id}`}
-            className="report-link"
-            onClick={(e) => e.stopPropagation()}
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              flexWrap: 'wrap',
+            }}
           >
-            {task.title}
-          </Link>
-          {task.subtasks.length > 0 && (
-            <span
-              className="muted"
-              style={{
-                marginLeft: '0.5rem',
-                fontSize: '0.8em',
-                padding: '0.15rem 0.45rem',
-                borderRadius: '4px',
-                background: 'var(--color-bg-subtle, rgba(125,125,125,0.1))',
-                userSelect: 'none',
-              }}
+            {task.type ? <TaskTypeBadge type={task.type} showLabel={false} /> : null}
+            <Link
+              href={`/tasks/${task.id}`}
+              className="report-link"
+              onClick={(e) => e.stopPropagation()}
             >
-              {open ? '▲' : '▼'} {task.subtasks.length} subtask
-              {task.subtasks.length !== 1 ? 's' : ''}
-            </span>
-          )}
+              {task.title}
+            </Link>
+            {hasSubtasks && (
+              <span
+                className="muted"
+                style={{
+                  fontSize: '0.8em',
+                  padding: '0.15rem 0.45rem',
+                  borderRadius: '4px',
+                  background: 'var(--color-bg-subtle, rgba(125,125,125,0.1))',
+                  userSelect: 'none',
+                }}
+              >
+                {open ? '▲' : '▼'} {task.subtasks.length} subtask
+                {task.subtasks.length !== 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
         </TableCell>
         <TableCell>
           <span className="tag">{task.column.name}</span>
@@ -93,42 +115,48 @@ function TaskRow({ task }: { task: SprintReportTask }) {
         </TableCell>
       </TableRow>
       {open &&
-        task.subtasks.map((s) => (
-          <TableRow key={s.id} className={`report-subtask-row ${s.isCompleted ? 'is-done' : ''}`}>
-            <TableCell style={{ paddingLeft: '2rem' }}>↳ {s.title}</TableCell>
-            <TableCell>
-              <span className="tag">{s.column.name}</span>
-              {s.isCompleted && (
-                <span className="report-badge done" style={{ marginLeft: '0.35rem' }}>
-                  Done
-                </span>
-              )}
-            </TableCell>
-            <TableCell>
-              {s.assignee ? (
-                <span className="report-assignees">
-                  <span title={s.assignee.displayName}>
-                    <Avatar
-                      color={s.assignee.color}
-                      hasAvatar={s.assignee.hasAvatar}
-                      name={s.assignee.displayName}
-                      size={20}
-                      userId={s.assignee.id}
-                    />
+        hasSubtasks &&
+        task.subtasks.map((s) => {
+          const done = isSubtaskDone(s);
+          return (
+            <TableRow key={s.id} className={`report-subtask-row ${done ? 'is-done' : ''}`}>
+              <TableCell style={{ paddingLeft: '2rem' }}>↳ {s.title}</TableCell>
+              <TableCell>
+                <span className="tag">{s.column.name}</span>
+                {done && (
+                  <span className="report-badge done" style={{ marginLeft: '0.35rem' }}>
+                    Done
                   </span>
-                  <span style={{ marginLeft: '0.35rem', fontSize: '0.85em' }}>
-                    {s.assignee.displayName}
+                )}
+              </TableCell>
+              <TableCell>
+                {s.assignee ? (
+                  <span className="report-assignees">
+                    <span title={s.assignee.displayName}>
+                      <Avatar
+                        color={s.assignee.color}
+                        hasAvatar={s.assignee.hasAvatar}
+                        name={s.assignee.displayName}
+                        size={20}
+                        userId={s.assignee.id}
+                      />
+                    </span>
+                    <span style={{ marginLeft: '0.35rem', fontSize: '0.85em' }}>
+                      {s.assignee.displayName}
+                    </span>
                   </span>
-                </span>
-              ) : (
-                <span className="muted">Unassigned</span>
-              )}
-            </TableCell>
-            <TableCell>
-              {formatEstimate(s.estimateValue, s.estimateUnit) ?? <span className="muted">—</span>}
-            </TableCell>
-          </TableRow>
-        ))}
+                ) : (
+                  <span className="muted">Unassigned</span>
+                )}
+              </TableCell>
+              <TableCell>
+                {formatEstimate(s.estimateValue, s.estimateUnit) ?? (
+                  <span className="muted">—</span>
+                )}
+              </TableCell>
+            </TableRow>
+          );
+        })}
     </>
   );
 }
@@ -183,31 +211,41 @@ function MemberCard({ contribution }: { contribution: MemberContribution }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {contribution.subtasks.map((s) => (
-                  <TableRow key={s.id} className={s.isCompleted ? 'is-done' : ''}>
-                    <TableCell>{s.title}</TableCell>
-                    <TableCell>
-                      <Link href={`/tasks/${s.parentTask.id}`} className="report-link">
-                        {s.parentTask.title}
-                      </Link>
-                    </TableCell>
-                    <TableCell>
-                      <span className="tag">{s.column.name}</span>
-                    </TableCell>
-                    <TableCell>
-                      {formatEstimate(s.estimateValue, s.estimateUnit) ?? (
-                        <span className="muted">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {s.isCompleted ? (
-                        <span className="report-badge done">Done</span>
-                      ) : (
-                        <span className="report-badge pending">In progress</span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {contribution.subtasks.map((s) => {
+                  const done = isSubtaskDone(s);
+                  return (
+                    <TableRow key={s.id} className={done ? 'is-done' : ''}>
+                      <TableCell>{s.title}</TableCell>
+                      <TableCell>
+                        <span
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                        >
+                          {s.parentTask.type ? (
+                            <TaskTypeBadge type={s.parentTask.type} showLabel={false} />
+                          ) : null}
+                          <Link href={`/tasks/${s.parentTask.id}`} className="report-link">
+                            {s.parentTask.title}
+                          </Link>
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <span className="tag">{s.column.name}</span>
+                      </TableCell>
+                      <TableCell>
+                        {formatEstimate(s.estimateValue, s.estimateUnit) ?? (
+                          <span className="muted">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {done ? (
+                          <span className="report-badge done">Done</span>
+                        ) : (
+                          <span className="report-badge pending">In progress</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
@@ -256,24 +294,63 @@ export default function SprintReportPage({ params }: { params: Promise<{ id: str
         </div>
       ) : report ? (
         <>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '1rem',
+              flexWrap: 'wrap',
+              marginBottom: '0.5rem',
+            }}
+          >
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <h1 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 600 }}>{report.sprint.name}</h1>
-              <span className={`report-badge ${report.sprint.status === 'COMPLETED' ? 'done' : 'pending'}`}>
-                {report.sprint.status === 'COMPLETED' ? 'Completed' : report.sprint.status === 'ACTIVE' ? 'Active' : 'Planned'}
+              <h1 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 600 }}>
+                {report.sprint.name}
+              </h1>
+              <span
+                className={`report-badge ${report.sprint.status === 'COMPLETED' ? 'done' : 'pending'}`}
+              >
+                {report.sprint.status === 'COMPLETED'
+                  ? 'Completed'
+                  : report.sprint.status === 'ACTIVE'
+                    ? 'Active'
+                    : 'Planned'}
               </span>
             </div>
-            {report.sprint.goal ? <p className="muted" style={{ margin: 0 }}>{report.sprint.goal}</p> : null}
+            {report.sprint.goal ? (
+              <p className="muted" style={{ margin: 0 }}>
+                {report.sprint.goal}
+              </p>
+            ) : null}
           </div>
 
           {/* Summary stats */}
           <section className="report-stats" aria-label="Sprint summary">
-            <div className="report-stat">
-              <strong>
-                {report.totals.tasksDone}/{report.totals.taskCount}
-              </strong>
-              <span>Tasks done</span>
-            </div>
+            {report.totals.bugCount !== undefined && report.totals.bugCount > 0 ? (
+              <>
+                <div className="report-stat">
+                  <strong>
+                    {report.totals.standardTasksDone ?? report.totals.tasksDone}/
+                    {report.totals.standardTaskCount ?? report.totals.taskCount}
+                  </strong>
+                  <span>Tasks done</span>
+                </div>
+                <div className="report-stat">
+                  <strong>
+                    {report.totals.bugsDone ?? 0}/{report.totals.bugCount}
+                  </strong>
+                  <span>Bugs done</span>
+                </div>
+              </>
+            ) : (
+              <div className="report-stat">
+                <strong>
+                  {report.totals.tasksDone}/{report.totals.taskCount}
+                </strong>
+                <span>Tasks done</span>
+              </div>
+            )}
             <div className="report-stat">
               <strong>
                 {report.totals.subtasksDone}/{report.totals.subtaskCount}
@@ -321,7 +398,7 @@ export default function SprintReportPage({ params }: { params: Promise<{ id: str
           {report.tasks.length > 0 && (
             <section aria-labelledby="tasks-heading">
               <h2 id="tasks-heading" className="section-label" style={{ marginBottom: '0.75rem' }}>
-                Tasks ({report.tasks.length})
+                Tasks & Bugs ({report.tasks.length})
               </h2>
               <div className="report-table-wrap">
                 <Table size="sm" hoverableRows className="report-table">
@@ -366,51 +443,65 @@ export default function SprintReportPage({ params }: { params: Promise<{ id: str
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {report.standaloneSubtasks.map((s) => (
-                      <TableRow key={s.id} className={s.isCompleted ? 'is-done' : ''}>
-                        <TableCell>{s.title}</TableCell>
-                        <TableCell>
-                          <Link href={`/tasks/${s.parentTask.id}`} className="report-link">
-                            {s.parentTask.title}
-                          </Link>
-                        </TableCell>
-                        <TableCell>
-                          <span className="tag">{s.column.name}</span>
-                        </TableCell>
-                        <TableCell>
-                          {s.assignee ? (
-                            <span className="report-assignees">
-                              <span title={s.assignee.displayName}>
-                                <Avatar
-                                  color={s.assignee.color}
-                                  hasAvatar={s.assignee.hasAvatar}
-                                  name={s.assignee.displayName}
-                                  size={20}
-                                  userId={s.assignee.id}
-                                />
-                              </span>
-                              <span style={{ marginLeft: '0.35rem', fontSize: '0.85em' }}>
-                                {s.assignee.displayName}
-                              </span>
+                    {report.standaloneSubtasks.map((s) => {
+                      const done = isSubtaskDone(s);
+                      return (
+                        <TableRow key={s.id} className={done ? 'is-done' : ''}>
+                          <TableCell>{s.title}</TableCell>
+                          <TableCell>
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem',
+                              }}
+                            >
+                              {s.parentTask.type ? (
+                                <TaskTypeBadge type={s.parentTask.type} showLabel={false} />
+                              ) : null}
+                              <Link href={`/tasks/${s.parentTask.id}`} className="report-link">
+                                {s.parentTask.title}
+                              </Link>
                             </span>
-                          ) : (
-                            <span className="muted">Unassigned</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {formatEstimate(s.estimateValue, s.estimateUnit) ?? (
-                            <span className="muted">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {s.isCompleted ? (
-                            <span className="report-badge done">Done</span>
-                          ) : (
-                            <span className="report-badge pending">In progress</span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                          </TableCell>
+                          <TableCell>
+                            <span className="tag">{s.column.name}</span>
+                          </TableCell>
+                          <TableCell>
+                            {s.assignee ? (
+                              <span className="report-assignees">
+                                <span title={s.assignee.displayName}>
+                                  <Avatar
+                                    color={s.assignee.color}
+                                    hasAvatar={s.assignee.hasAvatar}
+                                    name={s.assignee.displayName}
+                                    size={20}
+                                    userId={s.assignee.id}
+                                  />
+                                </span>
+                                <span style={{ marginLeft: '0.35rem', fontSize: '0.85em' }}>
+                                  {s.assignee.displayName}
+                                </span>
+                              </span>
+                            ) : (
+                              <span className="muted">Unassigned</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {formatEstimate(s.estimateValue, s.estimateUnit) ?? (
+                              <span className="muted">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {done ? (
+                              <span className="report-badge done">Done</span>
+                            ) : (
+                              <span className="report-badge pending">In progress</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>

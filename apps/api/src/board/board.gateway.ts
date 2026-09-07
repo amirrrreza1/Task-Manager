@@ -53,7 +53,9 @@ export class BoardGateway implements OnGatewayConnection, OnGatewayDisconnect {
       });
 
       if (!user || !user.isActive) {
-        this.logger.warn(`WebSocket connection rejected: User inactive or not found (${client.id})`);
+        this.logger.warn(
+          `WebSocket connection rejected: User inactive or not found (${client.id})`,
+        );
         client.disconnect(true);
         return;
       }

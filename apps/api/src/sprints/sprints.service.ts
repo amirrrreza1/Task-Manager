@@ -438,10 +438,17 @@ export class SprintsService {
           tasks: {
             include: {
               column: { select: { name: true, isDone: true } },
-              subtasks: true,
+              subtasks: {
+                include: { column: { select: { name: true, isDone: true } } },
+              },
             },
           },
-          subtasks: { include: { task: { select: { title: true } } } },
+          subtasks: {
+            include: {
+              column: { select: { name: true, isDone: true } },
+              task: { select: { title: true } },
+            },
+          },
         },
       });
       if (!sprint) throw new NotFoundException('Sprint not found.');
@@ -472,6 +479,7 @@ export class SprintsService {
           estimateValue: number | null;
           estimateUnit: 'HOURS' | 'POINTS' | null;
           isCompleted: boolean;
+          column?: { name: string; isDone: boolean } | null;
         }
       >();
       for (const task of sprint.tasks) {
@@ -484,25 +492,35 @@ export class SprintsService {
       }
       if (subtasks.size) {
         await transaction.sprintSubtaskSnapshot.createMany({
-          data: Array.from(subtasks.values()).map((subtask) => ({
-            sprintId: id,
-            subtaskId: subtask.id,
-            taskId: subtask.taskId,
-            taskTitle: subtask.taskTitle,
-            title: subtask.title,
-            estimateValue: subtask.estimateValue,
-            estimateUnit: subtask.estimateUnit,
-            wasDone: subtask.isCompleted,
-            completedAt,
-          })),
+          data: Array.from(subtasks.values()).map((subtask) => {
+            const isDone =
+              subtask.isCompleted ||
+              Boolean(subtask.column?.isDone) ||
+              subtask.column?.name?.trim().toLowerCase() === 'done';
+            return {
+              sprintId: id,
+              subtaskId: subtask.id,
+              taskId: subtask.taskId,
+              taskTitle: subtask.taskTitle,
+              title: subtask.title,
+              estimateValue: subtask.estimateValue,
+              estimateUnit: subtask.estimateUnit,
+              wasDone: isDone,
+              completedAt,
+            };
+          }),
         });
       }
       const unfinishedTaskIds = sprint.tasks
         .filter((task) => !task.column.isDone)
         .map((task) => task.id);
-      const unfinishedSubtasks = Array.from(subtasks.values()).filter(
-        (subtask) => !subtask.isCompleted,
-      );
+      const unfinishedSubtasks = Array.from(subtasks.values()).filter((subtask) => {
+        const isDone =
+          subtask.isCompleted ||
+          Boolean(subtask.column?.isDone) ||
+          subtask.column?.name?.trim().toLowerCase() === 'done';
+        return !isDone;
+      });
       const unfinishedSubtaskIds = unfinishedSubtasks.map((subtask) => subtask.id);
       const standaloneSubtaskIds = unfinishedSubtasks
         .filter((subtask) => !unfinishedTaskIds.includes(subtask.taskId))

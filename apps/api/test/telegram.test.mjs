@@ -414,5 +414,77 @@ describe('Telegram Configuration and Service', () => {
         globalThis.fetch = originalFetch;
       }
     });
+
+    test('sendDocument dispatches multipart document to Telegram API with proper chat_id and caption', async () => {
+      process.env.TELEGRAM_BOT_TOKEN = '123456:ABC-DEF';
+      process.env.TELEGRAM_CHAT_ID = '-1002428157981';
+      process.env.TELEGRAM_MESSAGE_THREAD_ID = '42';
+
+      let capturedUrl = null;
+      let capturedOptions = null;
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = async (url, options) => {
+        capturedUrl = url;
+        capturedOptions = options;
+        return {
+          json: async () => ({ ok: true, result: { message_id: 999 } }),
+        };
+      };
+
+      try {
+        const mockPrisma = {
+          notificationConfig: {
+            upsert: async () => ({ telegramEnabled: true, telegramProxyUrl: null }),
+          },
+        };
+        const service = new TelegramService(mockPrisma);
+        const result = await service.sendDocument({
+          filename: 'test-backup.zip',
+          buffer: Buffer.from('dummy zip content'),
+          caption: 'Backup caption',
+          mimeType: 'application/zip',
+        });
+
+        assert.equal(result.success, true);
+        assert.ok(capturedUrl.includes('/bot123456:ABC-DEF/sendDocument'));
+        assert.equal(capturedOptions.method, 'POST');
+        assert.ok(capturedOptions.body instanceof FormData);
+        assert.equal(capturedOptions.body.get('chat_id'), '-1002428157981');
+        assert.equal(capturedOptions.body.get('message_thread_id'), '42');
+        assert.equal(capturedOptions.body.get('caption'), 'Backup caption');
+        const doc = capturedOptions.body.get('document');
+        assert.ok(doc);
+        assert.equal(doc.name, 'test-backup.zip');
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
+    test('sendDocument throws descriptive error when Telegram returns ok: false', async () => {
+      process.env.TELEGRAM_BOT_TOKEN = '123456:ABC-DEF';
+      process.env.TELEGRAM_CHAT_ID = '-1002428157981';
+
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = async () => ({
+        json: async () => ({ ok: false, description: 'Request Entity Too Large' }),
+      });
+
+      try {
+        const mockPrisma = {
+          notificationConfig: {
+            upsert: async () => ({ telegramEnabled: true }),
+          },
+        };
+        const service = new TelegramService(mockPrisma);
+        await assert.rejects(async () => {
+          await service.sendDocument({
+            filename: 'test.zip',
+            buffer: Buffer.from('data'),
+          });
+        }, /Request Entity Too Large/);
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
   });
 });

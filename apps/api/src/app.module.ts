@@ -23,6 +23,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { ReportsModule } from './reports/reports.module';
 import { WorkspacesModule } from './workspaces/workspaces.module';
 import { ProjectsModule } from './projects/projects.module';
+import { BackupModule } from './backup/backup.module';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { ProjectsModule } from './projects/projects.module';
     SprintsModule,
     ReportsModule,
     HealthModule,
+    BackupModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

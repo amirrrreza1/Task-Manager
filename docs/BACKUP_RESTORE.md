@@ -1,6 +1,21 @@
 # Backup and restore manual
 
-This manual defines operator-run commands until automated backups are added.
+Task Manager supports both built-in administrator backup & restore (via Web UI and API with Telegram group delivery) and low-level operator CLI commands.
+
+## In-App Backup & Restore (Web UI & API)
+
+Administrators (`ADMIN` role) can manage backups directly in the Task Manager UI under **Settings > Backup & Restore** (`/settings/backup`):
+
+- **Download Backup**: Generates an archive (`.zip` containing `backup.json` and attachments, or standalone `.json` snapshot) and downloads it directly to your computer.
+- **Send to Telegram Group**: Compresses system data and sends the backup document directly to the team's configured Telegram group or topic via the Telegram Bot API (`sendDocument`).
+- **Restore Backup**: Accepts an uploaded `.zip` archive or `.json` snapshot, validates contents, safely extracts attachments, and executes an atomic PostgreSQL transaction that restores tables in dependency order.
+
+API Endpoints:
+
+- `GET /api/v1/backup/status` - Backup metrics and Telegram readiness
+- `GET /api/v1/backup/download` - Stream backup download
+- `POST /api/v1/backup/telegram` - Dispatch backup archive to Telegram group
+- `POST /api/v1/backup/restore` - Restore system from multipart backup file upload
 
 ## What must be backed up
 

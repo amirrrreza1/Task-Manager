@@ -1,4 +1,4 @@
-import { TaskPriority } from '@prisma/client';
+import { TaskPriority, TaskType } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import { IsBoolean, IsEnum, IsOptional, IsString, MaxLength, ValidateIf } from 'class-validator';
 import { IsUuidLike } from '../../common/validators/is-uuid-like';
@@ -36,6 +36,11 @@ export class BoardQueryDto {
   @Transform(toBoolean)
   @IsBoolean()
   hasEstimate?: boolean;
+
+  @IsOptional()
+  @Transform(toOptionalString)
+  @IsEnum(TaskType)
+  type?: TaskType;
 
   @IsOptional()
   @Transform(toOptionalString)

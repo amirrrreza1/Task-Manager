@@ -375,7 +375,9 @@ export class UsersService {
       }
       const targetUser = await this.prisma.user.findUnique({ where: { id: targetId } });
       if (!targetUser || !targetUser.isActive) {
-        throw new BadRequestException('The selected reassignment user does not exist or is inactive.');
+        throw new BadRequestException(
+          'The selected reassignment user does not exist or is inactive.',
+        );
       }
     }
 

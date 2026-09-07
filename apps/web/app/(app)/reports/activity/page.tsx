@@ -16,6 +16,7 @@ import { useAuth } from '../../../../components/auth-provider';
 import { useToast } from '../../../../components/toast-provider';
 import { formatDateTime } from '../../../../lib/app-config';
 import { Avatar } from '../../../../components/avatar';
+import { TaskTypeBadge } from '../../../../components/task-type-badge';
 import type { ActivityEventItem, ManagedUser } from '../../../../lib/types';
 
 interface Filters {
@@ -245,7 +246,23 @@ export default function ActivityLogPage() {
                       <span className="tag">{entityTypeLabel(ev.entityType)}</span>
                     </TableCell>
                     <TableCell>
-                      {ev.entityLabel ?? <span className="muted">{ev.entityId.slice(0, 8)}…</span>}
+                      <span
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                      >
+                        {ev.entityType === 'task' &&
+                        ev.payload &&
+                        typeof ev.payload === 'object' &&
+                        'type' in ev.payload &&
+                        (ev.payload as { type?: 'TASK' | 'BUG' }).type ? (
+                          <TaskTypeBadge
+                            type={(ev.payload as { type: 'TASK' | 'BUG' }).type}
+                            showLabel={false}
+                          />
+                        ) : null}
+                        {ev.entityLabel ?? (
+                          <span className="muted">{ev.entityId.slice(0, 8)}…</span>
+                        )}
+                      </span>
                     </TableCell>
                   </TableRow>
                 ))}

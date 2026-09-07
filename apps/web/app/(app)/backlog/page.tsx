@@ -11,14 +11,17 @@ import {
 
 import Link from 'next/link';
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { Bug, Checklist } from '@appica/icons-react';
 import { Avatar } from '../../../components/avatar';
 import { HeaderActions } from '../../../components/header-actions';
 import { PriorityBadge, PrioritySelect } from '../../../components/priority-badge';
+import { TaskTypeBadge, TaskTypeSelect } from '../../../components/task-type-badge';
 import { ProjectIcon } from '../../../lib/project-icons';
 import { useAuth } from '../../../components/auth-provider';
 import { useToast } from '../../../components/toast-provider';
 import { useWorkspace } from '../../../components/workspace-provider';
 import { DEFAULT_TASK_PRIORITY } from '../../../lib/priority';
+import { DEFAULT_TASK_TYPE, isTaskType } from '../../../lib/task-type';
 import { parseEstimateInput } from '../../../lib/estimate';
 import type {
   BoardResponse,
@@ -28,6 +31,7 @@ import type {
   SprintSummary,
   TaskCard,
   TaskPriority,
+  TaskType,
 } from '../../../lib/types';
 import { backlogBoard, primaryBacklogColumn } from '../../../lib/board-columns';
 import { useBoardSocket } from '../../../lib/use-board-socket';
@@ -45,6 +49,7 @@ export default function BacklogPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [sprintOptions, setSprintOptions] = useState<SprintSummary[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
+  const [type, setType] = useState<TaskType>(DEFAULT_TASK_TYPE);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [estimate, setEstimate] = useState('');
@@ -53,6 +58,7 @@ export default function BacklogPage() {
   const [sprintId, setSprintId] = useState('');
   const [projectIds, setProjectIds] = useState<string[]>([]);
   const [projectFilter, setProjectFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState<TaskType | ''>('');
   const [search, setSearch] = useState('');
   const [loadFailed, setLoadFailed] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -61,15 +67,19 @@ export default function BacklogPage() {
     const params = new URLSearchParams(window.location.search);
     const proj = params.get('projectId');
     if (proj) setProjectFilter(proj);
+    const t = params.get('type');
+    if (t && isTaskType(t)) setTypeFilter(t);
     const q = params.get('search');
     if (q) setSearch(q);
   }, []);
 
-  const updateFilters = (nextProject: string, nextSearch: string) => {
+  const updateFilters = (nextProject: string, nextType: TaskType | '', nextSearch: string) => {
     setProjectFilter(nextProject);
+    setTypeFilter(nextType);
     setSearch(nextSearch);
     const params = new URLSearchParams();
     if (nextProject) params.set('projectId', nextProject);
+    if (nextType) params.set('type', nextType);
     if (nextSearch.trim()) params.set('search', nextSearch.trim());
     const query = params.toString();
     window.history.replaceState(null, '', query ? `/backlog?${query}` : '/backlog');
@@ -86,6 +96,9 @@ export default function BacklogPage() {
           task.projects?.some((p) => p.project.id === projectFilter),
       );
     }
+    if (typeFilter) {
+      items = items.filter((task) => task.type === typeFilter);
+    }
     const term = search.trim().toLowerCase();
     if (!term) return items;
     return items.filter(
@@ -93,7 +106,7 @@ export default function BacklogPage() {
         task.title.toLowerCase().includes(term) ||
         (task.description?.toLowerCase().includes(term) ?? false),
     );
-  }, [backlogColumn, search, projectFilter]);
+  }, [backlogColumn, search, projectFilter, typeFilter]);
 
   const load = useCallback(async () => {
     setLoadFailed(false);
@@ -152,6 +165,7 @@ export default function BacklogPage() {
         method: 'POST',
         body: JSON.stringify({
           title,
+          type,
           ...(currentWorkspace?.id ? { workspaceId: currentWorkspace.id } : {}),
           ...(description.trim() ? { description } : {}),
           ...(sprintId ? { sprintId } : {}),
@@ -171,15 +185,16 @@ export default function BacklogPage() {
       setTitle('');
       setDescription('');
       setEstimate('');
+      setType(DEFAULT_TASK_TYPE);
       setPriority(DEFAULT_TASK_PRIORITY);
       setAssigneeIds([]);
       setSprintId('');
       setProjectIds([]);
       setCreateOpen(false);
-      toast.success('Task created.');
+      toast.success(`${type === 'BUG' ? 'Bug' : 'Task'} created.`);
       await load();
     } catch (caught) {
-      toast.fromError(caught, 'Could not create the task.');
+      toast.fromError(caught, `Could not create the ${type === 'BUG' ? 'bug' : 'task'}.`);
     } finally {
       setBusy(false);
     }
@@ -216,7 +231,7 @@ export default function BacklogPage() {
           <Input
             type="search"
             value={search}
-            onChange={(event) => updateFilters(projectFilter, event.target.value)}
+            onChange={(event) => updateFilters(projectFilter, typeFilter, event.target.value)}
             placeholder="Title or description"
           />
         </label>
@@ -224,7 +239,7 @@ export default function BacklogPage() {
           <span>Project</span>
           <Select
             value={projectFilter}
-            onChange={(event) => updateFilters(event.target.value, search)}
+            onChange={(event) => updateFilters(event.target.value, typeFilter, search)}
           >
             <option value="">All projects</option>
             {projects.map((proj) => (
@@ -233,6 +248,14 @@ export default function BacklogPage() {
               </option>
             ))}
           </Select>
+        </label>
+        <label>
+          <span>Type</span>
+          <TaskTypeSelect
+            allowAny
+            value={typeFilter}
+            onChange={(val) => updateFilters(projectFilter, val, search)}
+          />
         </label>
       </section>
 
@@ -267,9 +290,50 @@ export default function BacklogPage() {
         >
           <header>
             <p className="section-label">New work</p>
-            <h2 id="backlog-new-task-title">Create a backlog task</h2>
+            <h2 id="backlog-new-task-title">Create a backlog {type === 'BUG' ? 'bug' : 'task'}</h2>
           </header>
           <form onSubmit={createTask}>
+            <div className="field">
+              <span
+                className="field-label"
+                style={{
+                  fontWeight: 600,
+                  fontSize: '0.875rem',
+                  marginBottom: '0.5rem',
+                  display: 'block',
+                }}
+              >
+                Type
+              </span>
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+                <Button
+                  type="button"
+                  variant={type === 'TASK' ? 'primary' : 'outline'}
+                  size="sm"
+                  onClick={() => setType('TASK')}
+                >
+                  <Checklist size={14} aria-hidden="true" />
+                  Task
+                </Button>
+                <Button
+                  type="button"
+                  variant={type === 'BUG' ? 'primary' : 'outline'}
+                  size="sm"
+                  onClick={() => setType('BUG')}
+                  style={
+                    type === 'BUG'
+                      ? {
+                          backgroundColor: 'var(--error-emphasis)',
+                          borderColor: 'var(--error-emphasis)',
+                        }
+                      : undefined
+                  }
+                >
+                  <Bug size={14} aria-hidden="true" />
+                  Bug
+                </Button>
+              </div>
+            </div>
             <label>
               Title
               <Input
@@ -386,7 +450,7 @@ export default function BacklogPage() {
                 Cancel
               </Button>
               <Button variant="primary" disabled={busy} type="submit">
-                {busy ? 'Creating…' : 'Create task'}
+                {busy ? 'Creating…' : type === 'BUG' ? 'Create bug' : 'Create task'}
               </Button>
             </footer>
           </form>
@@ -399,39 +463,42 @@ export default function BacklogPage() {
 function BacklogTaskRow({ task }: { task: TaskCard }) {
   const completed = task.subtasks.filter((item) => item.isCompleted).length;
   return (
-    <article className="backlog-task">
-      <Link href={`/tasks/${task.id}`} className="backlog-task-main">
+    <article className="backlog-task" data-type={task.type}>
+      <Link href={`/tasks/${task.id}`} className="backlog-task-main" data-type={task.type}>
         <div className="task-title-group">
-          {task.projects && task.projects.length > 0 ? (
-            <div className="task-project-pills">
-              {task.projects.map(({ project }) => (
-                <span
-                  key={project.id}
-                  className="task-project-pill"
-                  style={{
-                    backgroundColor: `${project.color || '#2563EB'}20`,
-                    color: project.color || '#2563EB',
-                    borderColor: `${project.color || '#2563EB'}40`,
-                  }}
-                >
-                  <ProjectIcon className="project-badge-icon" name={project.icon} />
-                  {project.key ? project.key : project.name}
-                </span>
-              ))}
-            </div>
-          ) : task.project ? (
-            <span
-              className="task-project-pill"
-              style={{
-                backgroundColor: `${task.project.color || '#2563EB'}20`,
-                color: task.project.color || '#2563EB',
-                borderColor: `${task.project.color || '#2563EB'}40`,
-              }}
-            >
-              <ProjectIcon className="project-badge-icon" name={task.project.icon} />
-              {task.project.key ? task.project.key : task.project.name}
-            </span>
-          ) : null}
+          <div className="task-card-tags">
+            <TaskTypeBadge type={task.type} />
+            {task.projects && task.projects.length > 0 ? (
+              <div className="task-project-pills">
+                {task.projects.map(({ project }) => (
+                  <span
+                    key={project.id}
+                    className="task-project-pill"
+                    style={{
+                      backgroundColor: `${project.color || '#2563EB'}20`,
+                      color: project.color || '#2563EB',
+                      borderColor: `${project.color || '#2563EB'}40`,
+                    }}
+                  >
+                    <ProjectIcon className="project-badge-icon" name={project.icon} />
+                    {project.key ? project.key : project.name}
+                  </span>
+                ))}
+              </div>
+            ) : task.project ? (
+              <span
+                className="task-project-pill"
+                style={{
+                  backgroundColor: `${task.project.color || '#2563EB'}20`,
+                  color: task.project.color || '#2563EB',
+                  borderColor: `${task.project.color || '#2563EB'}40`,
+                }}
+              >
+                <ProjectIcon className="project-badge-icon" name={task.project.icon} />
+                {task.project.key ? task.project.key : task.project.name}
+              </span>
+            ) : null}
+          </div>
           <h2>{task.title}</h2>
         </div>
         <p className={task.description ? undefined : 'is-empty'}>{task.description || '\u00A0'}</p>

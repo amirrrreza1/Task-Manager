@@ -45,6 +45,7 @@ import { useToast } from '../../../components/toast-provider';
 import { useWorkspace } from '../../../components/workspace-provider';
 import { HeaderActions } from '../../../components/header-actions';
 import { PriorityBadge, PrioritySelect } from '../../../components/priority-badge';
+import { TaskTypeBadge, TaskTypeSelect } from '../../../components/task-type-badge';
 import { TaskCardMenu } from '../../../components/task-card-menu';
 import { SubtaskCardMenu } from '../../../components/subtask-card-menu';
 import {
@@ -54,6 +55,7 @@ import {
 } from '../../../components/quick-edit-field-modals';
 import { ProjectIcon } from '../../../lib/project-icons';
 import { isTaskPriority } from '../../../lib/priority';
+import { isTaskType } from '../../../lib/task-type';
 import type {
   BoardResponse,
   BoardSubtask,
@@ -61,6 +63,7 @@ import type {
   Project,
   TaskCard,
   TaskPriority,
+  TaskType,
 } from '../../../lib/types';
 import { placeSubtaskOnColumn, workflowBoard } from '../../../lib/board-columns';
 import { taskDropIndex } from '../../../lib/board-dnd';
@@ -153,6 +156,7 @@ interface Filters {
   mine: boolean;
   estimate: '' | 'true' | 'false';
   priority: TaskPriority | '';
+  type: TaskType | '';
   sortBy: BoardSortOption;
 }
 
@@ -164,6 +168,7 @@ const emptyFilters: Filters = {
   mine: false,
   estimate: '',
   priority: '',
+  type: '',
   sortBy: '',
 };
 
@@ -237,6 +242,7 @@ export default function BoardPage() {
     const mine = params.get('mine') === 'true';
     const estimated = params.get('hasEstimate');
     const priority = params.get('priority') ?? '';
+    const type = params.get('type') ?? '';
     const sortBy = params.get('sortBy') ?? params.get('sort') ?? '';
     setFilters({
       search: params.get('search') ?? '',
@@ -246,6 +252,7 @@ export default function BoardPage() {
       mine,
       estimate: estimated === 'true' || estimated === 'false' ? estimated : '',
       priority: isTaskPriority(priority) ? priority : '',
+      type: isTaskType(type) ? type : '',
       sortBy: isValidBoardSortOption(sortBy) ? sortBy : '',
     });
   }, []);
@@ -284,6 +291,10 @@ export default function BoardPage() {
     if (filters.priority) {
       browserParams.set('priority', filters.priority);
       apiParams.set('priority', filters.priority);
+    }
+    if (filters.type) {
+      browserParams.set('type', filters.type);
+      apiParams.set('type', filters.type);
     }
     if (filters.sortBy) {
       browserParams.set('sortBy', filters.sortBy);
@@ -802,6 +813,20 @@ export default function BoardPage() {
     }
   }
 
+  async function handleTypeChange(task: TaskCard, type: TaskType) {
+    if (task.type === type) return;
+    try {
+      await request(`/tasks/${task.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ type }),
+      });
+      toast.success(`Converted to ${type === 'BUG' ? 'bug' : 'task'}.`);
+      await load();
+    } catch (caught) {
+      toast.fromError(caught, 'Could not change item type.');
+    }
+  }
+
   async function handleToggleAssignee(task: TaskCard, userId: string) {
     const currentIds = task.assignees.map((a) => a.user.id);
     const nextIds = currentIds.includes(userId)
@@ -1071,6 +1096,15 @@ export default function BoardPage() {
             onChange={(value) => setFilters({ ...filters, priority: value })}
           />
         </label>
+        <label>
+          <TaskTypeSelect
+            allowAny
+            aria-label="Type"
+            placeholder="Type"
+            value={filters.type}
+            onChange={(value) => setFilters({ ...filters, type: value })}
+          />
+        </label>
         <label className="board-filter-sort">
           <Select
             aria-label="Sort by"
@@ -1192,6 +1226,7 @@ export default function BoardPage() {
                             id={task.id}
                             columnId={column.id}
                             title={task.title}
+                            type={task.type}
                             disabled={busy}
                             onNavigateGuard={guardCardNavigation}
                           >
@@ -1206,6 +1241,7 @@ export default function BoardPage() {
                                 setEditingDescriptionItem({ type: 'task', item: t })
                               }
                               onPriorityChange={handlePriorityChange}
+                              onTypeChange={handleTypeChange}
                               onToggleAssignee={handleToggleAssignee}
                               onAssignSelf={handleAssignSelf}
                               onClearAssignees={handleClearAssignees}
@@ -1268,7 +1304,7 @@ export default function BoardPage() {
           </section>
           <DragOverlay dropAnimation={dropAnimation}>
             {activeDrag?.type === 'task' ? (
-              <article className="task-card task-card--overlay">
+              <article className="task-card task-card--overlay" data-type={activeDrag.task.type}>
                 <TaskCardContent task={activeDrag.task} interactive={false} />
               </article>
             ) : null}
@@ -1348,6 +1384,7 @@ function TaskCardContent({
   onEditTitle,
   onEditDescription,
   onPriorityChange,
+  onTypeChange,
   onToggleAssignee,
   onAssignSelf,
   onClearAssignees,
@@ -1368,6 +1405,7 @@ function TaskCardContent({
   onEditTitle?: (task: TaskCard) => void;
   onEditDescription?: (task: TaskCard) => void;
   onPriorityChange?: (task: TaskCard, priority: TaskPriority) => void | Promise<void>;
+  onTypeChange?: (task: TaskCard, type: TaskType) => void | Promise<void>;
   onToggleAssignee?: (task: TaskCard, userId: string) => void | Promise<void>;
   onAssignSelf?: (task: TaskCard) => void | Promise<void>;
   onClearAssignees?: (task: TaskCard) => void | Promise<void>;
@@ -1386,6 +1424,7 @@ function TaskCardContent({
         href={`/tasks/${task.id}`}
         className="task-card-main"
         data-priority={task.priority}
+        data-type={task.type}
         tabIndex={interactive ? undefined : -1}
         onClick={(event) => {
           if (!interactive) {
@@ -1397,79 +1436,43 @@ function TaskCardContent({
       >
         <div className="task-card-header">
           <div className="task-title-group">
-            {task.projects && task.projects.length > 0 ? (
-              <div className="task-project-pills">
-                {task.projects.map(({ project }) => (
-                  <span
-                    key={project.id}
-                    className="task-project-pill"
-                    style={{
-                      backgroundColor: `${project.color || '#2563EB'}20`,
-                      color: project.color || '#2563EB',
-                      borderColor: `${project.color || '#2563EB'}40`,
-                    }}
-                  >
-                    <ProjectIcon className="project-badge-icon" name={project.icon} />
-                    {project.key ? project.key : project.name}
-                  </span>
-                ))}
-              </div>
-            ) : task.project ? (
-              <span
-                className="task-project-pill"
-                style={{
-                  backgroundColor: `${task.project.color || '#2563EB'}20`,
-                  color: task.project.color || '#2563EB',
-                  borderColor: `${task.project.color || '#2563EB'}40`,
-                }}
-              >
-                <ProjectIcon className="project-badge-icon" name={task.project.icon} />
-                {task.project.key ? task.project.key : task.project.name}
-              </span>
-            ) : null}
+            <div className="task-card-tags">
+              <TaskTypeBadge type={task.type} />
+              {task.projects && task.projects.length > 0 ? (
+                <div className="task-project-pills">
+                  {task.projects.map(({ project }) => (
+                    <span
+                      key={project.id}
+                      className="task-project-pill"
+                      style={{
+                        backgroundColor: `${project.color || '#2563EB'}20`,
+                        color: project.color || '#2563EB',
+                        borderColor: `${project.color || '#2563EB'}40`,
+                      }}
+                    >
+                      <ProjectIcon className="project-badge-icon" name={project.icon} />
+                      {project.key ? project.key : project.name}
+                    </span>
+                  ))}
+                </div>
+              ) : task.project ? (
+                <span
+                  className="task-project-pill"
+                  style={{
+                    backgroundColor: `${task.project.color || '#2563EB'}20`,
+                    color: task.project.color || '#2563EB',
+                    borderColor: `${task.project.color || '#2563EB'}40`,
+                  }}
+                >
+                  <ProjectIcon className="project-badge-icon" name={task.project.icon} />
+                  {task.project.key ? task.project.key : task.project.name}
+                </span>
+              ) : null}
+            </div>
             <h2 title={task.title}>{task.title}</h2>
           </div>
-          <div className="task-card-header-actions">
-            <div
-              className="card-assignees"
-              aria-label={
-                task.assignees.length
-                  ? `Assigned to ${task.assignees.map((item) => item.user.displayName).join(', ')}`
-                  : 'Unassigned'
-              }
-            >
-              {task.assignees.length ? (
-                <>
-                  <div className="card-assignee-avatars">
-                    {task.assignees.slice(0, 3).map((item) => (
-                      <Avatar
-                        color={item.user.color}
-                        hasAvatar={item.user.hasAvatar}
-                        initialsSize={18}
-                        key={item.user.id}
-                        name={item.user.displayName}
-                        size={24}
-                        userId={item.user.id}
-                      />
-                    ))}
-                    {task.assignees.length > 3 ? <span>+{task.assignees.length - 3}</span> : null}
-                  </div>
-                  <span
-                    className="card-assignee-name"
-                    title={task.assignees.map((item) => item.user.displayName).join(', ')}
-                  >
-                    {task.assignees.length === 1
-                      ? task.assignees[0].user.displayName
-                      : `${task.assignees[0].user.displayName} +${task.assignees.length - 1}`}
-                  </span>
-                </>
-              ) : (
-                <span className="unassigned-label" title="Unassigned">
-                  —
-                </span>
-              )}
-            </div>
-            {interactive && onEditTitle && onEditDescription ? (
+          {interactive && onEditTitle && onEditDescription ? (
+            <div className="task-card-header-actions">
               <TaskCardMenu
                 task={task}
                 users={users}
@@ -1478,13 +1481,14 @@ function TaskCardContent({
                 onEditTitle={onEditTitle}
                 onEditDescription={onEditDescription}
                 onPriorityChange={onPriorityChange ?? (() => {})}
+                onTypeChange={onTypeChange ?? (() => {})}
                 onToggleAssignee={onToggleAssignee ?? (() => {})}
                 onAssignSelf={onAssignSelf ?? (() => {})}
                 onClearAssignees={onClearAssignees ?? (() => {})}
                 onDelete={onDelete ?? (() => {})}
               />
-            ) : null}
-          </div>
+            </div>
+          ) : null}
         </div>
         <p
           className={task.description ? undefined : 'is-empty'}
@@ -1492,25 +1496,65 @@ function TaskCardContent({
         >
           {task.description || '\u00A0'}
         </p>
-        <div className="task-card-facts">
-          <PriorityBadge priority={task.priority} />
-          {task.estimateValue ? (
-            <span>
-              {task.estimateUnit === 'HOURS'
-                ? formatHours(task.estimateValue)
-                : `${task.estimateValue} pt`}
-            </span>
-          ) : null}
-          {task.subtasks.length ? (
-            <span>
-              {completed}/{task.subtasks.length} subtasks
-            </span>
-          ) : null}
-          {task._count.attachments ? (
-            <span>
-              {task._count.attachments} file{task._count.attachments === 1 ? '' : 's'}
-            </span>
-          ) : null}
+        <div className="task-card-footer">
+          <div className="task-card-facts">
+            <PriorityBadge priority={task.priority} />
+            {task.estimateValue ? (
+              <span>
+                {task.estimateUnit === 'HOURS'
+                  ? formatHours(task.estimateValue)
+                  : `${task.estimateValue} pt`}
+              </span>
+            ) : null}
+            {task.subtasks.length ? (
+              <span>
+                {completed}/{task.subtasks.length} subtasks
+              </span>
+            ) : null}
+            {task._count.attachments ? (
+              <span>
+                {task._count.attachments} file{task._count.attachments === 1 ? '' : 's'}
+              </span>
+            ) : null}
+          </div>
+          <div
+            className="card-assignees"
+            aria-label={
+              task.assignees.length
+                ? `Assigned to ${task.assignees.map((item) => item.user.displayName).join(', ')}`
+                : 'Unassigned'
+            }
+          >
+            {task.assignees.length ? (
+              <div className="card-assignee-avatars">
+                {task.assignees.slice(0, 3).map((item) => (
+                  <Avatar
+                    color={item.user.color}
+                    hasAvatar={item.user.hasAvatar}
+                    initialsSize={18}
+                    key={item.user.id}
+                    name={item.user.displayName}
+                    size={24}
+                    userId={item.user.id}
+                  />
+                ))}
+                {task.assignees.length > 3 ? (
+                  <span
+                    title={task.assignees
+                      .slice(3)
+                      .map((item) => item.user.displayName)
+                      .join(', ')}
+                  >
+                    +{task.assignees.length - 3}
+                  </span>
+                ) : null}
+              </div>
+            ) : (
+              <span className="unassigned-label" title="Unassigned">
+                —
+              </span>
+            )}
+          </div>
         </div>
       </Link>
       {task.subtasks.length ? (
@@ -1559,6 +1603,7 @@ function SortableTaskShell({
   id,
   columnId,
   title,
+  type,
   disabled,
   children,
   onNavigateGuard,
@@ -1566,6 +1611,7 @@ function SortableTaskShell({
   id: string;
   columnId: string;
   title: string;
+  type?: TaskType;
   disabled: boolean;
   onNavigateGuard?: (event: { preventDefault(): void; stopPropagation(): void }) => void;
 }>) {
@@ -1581,6 +1627,7 @@ function SortableTaskShell({
       ref={setNodeRef}
       className={`task-card task-card--draggable sortable-task-shell ${isDragging ? 'is-dragging' : ''}`}
       data-board-task-id={id}
+      data-type={type}
       title={disabled ? undefined : title}
       aria-label={
         disabled

@@ -18,7 +18,8 @@ function createMockConfig() {
 
 function createMockJwt() {
   return {
-    signAsync: async (payload) => `mock-token.${Buffer.from(JSON.stringify(payload)).toString('base64url')}.sig`,
+    signAsync: async (payload) =>
+      `mock-token.${Buffer.from(JSON.stringify(payload)).toString('base64url')}.sig`,
   };
 }
 
@@ -67,12 +68,7 @@ describe('AuthService refresh token rotation and grace period', () => {
         }),
     };
 
-    const authService = new AuthService(
-      mockPrisma,
-      createMockJwt(),
-      createMockConfig(),
-      {},
-    );
+    const authService = new AuthService(mockPrisma, createMockJwt(), createMockConfig(), {});
 
     // Provide any raw token
     const result = await authService.refresh('some-valid-token');
@@ -139,19 +135,18 @@ describe('AuthService refresh token rotation and grace period', () => {
         }),
     };
 
-    const authService = new AuthService(
-      mockPrisma,
-      createMockJwt(),
-      createMockConfig(),
-      {},
-    );
+    const authService = new AuthService(mockPrisma, createMockJwt(), createMockConfig(), {});
 
     const result = await authService.refresh('old-raw-token');
     assert.ok(result.accessToken);
     assert.ok(result.refreshToken);
     assert.equal(result.user.id, 'user-1');
     assert.equal(familyRevoked, false, 'Session family should NOT be revoked during grace period');
-    assert.equal(newSessionCreated, true, 'New refresh session should be created during grace period');
+    assert.equal(
+      newSessionCreated,
+      true,
+      'New refresh session should be created during grace period',
+    );
   });
 
   it('detects token reuse and revokes entire family when outside grace period', async () => {
@@ -190,12 +185,7 @@ describe('AuthService refresh token rotation and grace period', () => {
       },
     };
 
-    const authService = new AuthService(
-      mockPrisma,
-      createMockJwt(),
-      createMockConfig(),
-      {},
-    );
+    const authService = new AuthService(mockPrisma, createMockJwt(), createMockConfig(), {});
 
     await assert.rejects(
       () => authService.refresh('reused-old-token'),
@@ -223,12 +213,7 @@ describe('AuthService refresh token rotation and grace period', () => {
       },
     };
 
-    const authService = new AuthService(
-      mockPrisma,
-      createMockJwt(),
-      createMockConfig(),
-      {},
-    );
+    const authService = new AuthService(mockPrisma, createMockJwt(), createMockConfig(), {});
 
     await assert.rejects(
       () => authService.refresh('expired-token'),

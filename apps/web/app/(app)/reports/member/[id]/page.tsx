@@ -14,6 +14,7 @@ import Link from 'next/link';
 import { use, useCallback, useEffect, useState } from 'react';
 import { HeaderActions } from '../../../../../components/header-actions';
 import { Avatar } from '../../../../../components/avatar';
+import { TaskTypeBadge } from '../../../../../components/task-type-badge';
 import { useAuth } from '../../../../../components/auth-provider';
 import { useToast } from '../../../../../components/toast-provider';
 import type { MemberReport, ReportSubtask, SprintSummary } from '../../../../../lib/types';
@@ -25,16 +26,26 @@ function formatEstimate(value: number | null, unit: string | null) {
 }
 
 function SubtaskRow({ subtask }: { subtask: ReportSubtask }) {
+  const isDone = Boolean(
+    subtask.isCompleted ||
+      subtask.column?.isDone ||
+      subtask.column?.name?.trim().toLowerCase() === 'done',
+  );
   return (
     <TableRow>
       <TableCell>
-        <span className={subtask.isCompleted ? 'report-done' : undefined}>{subtask.title}</span>
+        <span className={isDone ? 'report-done' : undefined}>{subtask.title}</span>
       </TableCell>
       <TableCell>
         {subtask.task ? (
-          <Link href={`/tasks/${subtask.task.id}`} className="report-link">
-            {subtask.task.title}
-          </Link>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+            {subtask.task.type ? (
+              <TaskTypeBadge type={subtask.task.type} showLabel={false} />
+            ) : null}
+            <Link href={`/tasks/${subtask.task.id}`} className="report-link">
+              {subtask.task.title}
+            </Link>
+          </span>
         ) : (
           <span className="muted">—</span>
         )}
@@ -49,7 +60,7 @@ function SubtaskRow({ subtask }: { subtask: ReportSubtask }) {
         )}
       </TableCell>
       <TableCell>
-        {subtask.isCompleted ? (
+        {isDone ? (
           <span className="report-badge done">Done</span>
         ) : (
           <span className="report-badge pending">In progress</span>
@@ -111,7 +122,9 @@ export default function MemberReportPage({ params }: { params: Promise<{ id: str
       ) : null}
 
       {report?.user && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', marginBottom: '0.5rem' }}>
+        <div
+          style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', marginBottom: '0.5rem' }}
+        >
           <Avatar
             color={report.user.color}
             hasAvatar={report.user.hasAvatar}
@@ -120,8 +133,12 @@ export default function MemberReportPage({ params }: { params: Promise<{ id: str
             userId={report.user.id}
           />
           <div>
-            <h1 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 600 }}>{report.user.displayName}</h1>
-            <p className="muted" style={{ margin: 0, fontSize: '0.9em' }}>Member performance & subtask report</p>
+            <h1 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 600 }}>
+              {report.user.displayName}
+            </h1>
+            <p className="muted" style={{ margin: 0, fontSize: '0.9em' }}>
+              Member performance & subtask report
+            </p>
           </div>
         </div>
       )}
