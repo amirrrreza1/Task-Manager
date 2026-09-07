@@ -7,8 +7,10 @@ describe('BackupService', () => {
   let mockPrisma;
   let mockConfig;
   let mockTelegramService;
+  let transactionActivityEvents;
 
   beforeEach(() => {
+    transactionActivityEvents = [];
     mockPrisma = {
       user: {
         count: async () => 2,
@@ -165,6 +167,7 @@ describe('BackupService', () => {
       $transaction: async (fn) => {
         const deletedOrder = [];
         const createdOrder = [];
+        const restoredUserIds = new Set();
         const txMock = {
           outboxMessage: {
             deleteMany: async () => {
@@ -181,7 +184,12 @@ describe('BackupService', () => {
             deleteMany: async () => {
               deletedOrder.push('activityEvent');
             },
-            create: async () => {},
+            create: async ({ data }) => {
+              if (data.actorId && !restoredUserIds.has(data.actorId)) {
+                throw new Error(`Activity actor ${data.actorId} was not restored`);
+              }
+              transactionActivityEvents.push(data);
+            },
           },
           refreshSession: {
             deleteMany: async () => {
@@ -288,8 +296,9 @@ describe('BackupService', () => {
             deleteMany: async () => {
               deletedOrder.push('user');
             },
-            create: async () => {
+            create: async ({ data }) => {
               createdOrder.push('user');
+              restoredUserIds.add(data.id);
             },
           },
           appSettings: { upsert: async () => {} },
@@ -366,7 +375,7 @@ describe('BackupService', () => {
     assert.ok(sentDoc.filename.endsWith('.zip'));
   });
 
-  test('restoreBackup restores records in transaction from JSON file', async () => {
+  test('restoreBackup restores records when the initiating actor is absent from the backup', async () => {
     const { writeFileSync } = await import('node:fs');
     const { join } = await import('node:path');
     const { tmpdir } = await import('node:os');
@@ -426,5 +435,12 @@ describe('BackupService', () => {
     assert.equal(res.counts.users, 1);
     assert.equal(res.counts.workspaces, 1);
     assert.equal(res.counts.tasks, 1);
+
+    const restoreEvent = transactionActivityEvents.find(
+      (event) => event.eventType === 'backup.restored',
+    );
+    assert.ok(restoreEvent);
+    assert.equal(restoreEvent.actorId, null);
+    assert.equal(restoreEvent.payload.initiatedByActorId, 'actor-id');
   });
 });

@@ -396,6 +396,8 @@ export class BackupService {
       );
     }
 
+    const restoredActorId = backupData.users.some((user) => user.id === actorId) ? actorId : null;
+
     // Execute atomic restore in PostgreSQL transaction
     await this.prisma.$transaction(
       async (tx) => {
@@ -764,8 +766,9 @@ export class BackupService {
             eventType: 'backup.restored',
             entityType: 'backup',
             entityId: '00000000-0000-0000-0000-000000000000',
-            actorId,
+            actorId: restoredActorId,
             payload: {
+              initiatedByActorId: actorId,
               restoredAt: new Date().toISOString(),
               counts: {
                 users: backupData.users?.length || 0,
