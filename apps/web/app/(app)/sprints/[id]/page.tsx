@@ -25,6 +25,7 @@ import { Avatar } from '../../../../components/avatar';
 import { HeaderActions } from '../../../../components/header-actions';
 import { PriorityBadge } from '../../../../components/priority-badge';
 import { TaskTypeBadge } from '../../../../components/task-type-badge';
+import { TaskIdBadge } from '../../../../components/task-id-badge';
 import { useAuth } from '../../../../components/auth-provider';
 import { useToast } from '../../../../components/toast-provider';
 import { formatDate, formatDateTime } from '../../../../lib/app-config';
@@ -385,11 +386,14 @@ export default function SprintDetailPage() {
                     aria-label={completed ? 'Completed' : 'Not completed'}
                   />
                   <div>
-                    {taskId ? (
-                      <Link href={`/tasks/${taskId}`}>{task.title}</Link>
-                    ) : (
-                      <strong>{task.title}</strong>
-                    )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                      {taskId ? <TaskIdBadge id={taskId} /> : null}
+                      {taskId ? (
+                        <Link href={`/tasks/${taskId}`}>{task.title}</Link>
+                      ) : (
+                        <strong>{task.title}</strong>
+                      )}
+                    </div>
                     <small>{'columnName' in task ? task.columnName : task.column.name}</small>
                   </div>
                   <span className="sprint-task-facts">
@@ -407,6 +411,7 @@ export default function SprintDetailPage() {
                     {task.subtasks.map((subtask) => (
                       <div key={subtask.id}>
                         <span className={subtask.isCompleted ? 'done-marker' : 'open-marker'} />
+                        <TaskIdBadge id={subtask.id} />
                         <span>{subtask.title}</span>
                         <span className="sprint-task-facts">
                           <small>{subtask.assignee?.displayName ?? 'Unassigned'}</small>
@@ -433,7 +438,10 @@ export default function SprintDetailPage() {
               <div className="sprint-task" key={subtask.id}>
                 <span className={subtask.isCompleted ? 'done-marker' : 'open-marker'} />
                 <div>
-                  <strong>{subtask.title}</strong>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                    <TaskIdBadge id={subtask.id} />
+                    <strong>{subtask.title}</strong>
+                  </div>
                   <small>
                     From <Link href={`/tasks/${subtask.task.id}`}>{subtask.task.title}</Link>
                     {subtask.assignee ? ` · ${subtask.assignee.displayName}` : ''}

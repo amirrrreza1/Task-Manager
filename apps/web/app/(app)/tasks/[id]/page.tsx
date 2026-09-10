@@ -9,6 +9,8 @@ import { Avatar } from '../../../../components/avatar';
 import { HeaderActions } from '../../../../components/header-actions';
 import { PriorityBadge, PrioritySelect } from '../../../../components/priority-badge';
 import { TaskTypeBadge, TaskTypeSelect } from '../../../../components/task-type-badge';
+import { TaskIdBadge } from '../../../../components/task-id-badge';
+import { formatTaskId } from '../../../../lib/task-id';
 import { ProjectIcon } from '../../../../lib/project-icons';
 import { useAuth } from '../../../../components/auth-provider';
 import { useToast } from '../../../../components/toast-provider';
@@ -93,6 +95,9 @@ export default function TaskPage() {
       setProjectIds(assignedProjectIds);
       const workspace = nextTask.workspaceId ? `?workspaceId=${nextTask.workspaceId}` : '';
       setProjects(await request<Project[]>(`/projects${workspace}`));
+      if (typeof document !== 'undefined') {
+        document.title = `${formatTaskId(nextTask.id)} ${nextTask.title} · Task Manager`;
+      }
     } catch (caught) {
       setLoadFailed(true);
       toast.fromError(caught, 'Could not load the task.');
@@ -280,6 +285,7 @@ export default function TaskPage() {
       <header className="task-detail-header">
         <div>
           <div className="task-heading-facts">
+            <TaskIdBadge id={task.id} size="md" />
             <span className="column-chip">
               <span style={{ background: task.column.color }} />
               {task.column.name}
@@ -368,13 +374,15 @@ export default function TaskPage() {
             </header>
             <div className="subtask-list compact-subtask-list">
               {task.subtasks.map((subtask) => (
-                <Link
-                  className="subtask-title-link"
-                  href={`/tasks/${id}/subtasks/${subtask.id}`}
-                  key={subtask.id}
-                >
-                  {subtask.title}
-                </Link>
+                <div key={subtask.id} style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                  <TaskIdBadge id={subtask.id} />
+                  <Link
+                    className="subtask-title-link"
+                    href={`/tasks/${id}/subtasks/${subtask.id}`}
+                  >
+                    {subtask.title}
+                  </Link>
+                </div>
               ))}
               {!task.subtasks.length ? (
                 <p className="empty-copy">Break this task into independently owned steps.</p>

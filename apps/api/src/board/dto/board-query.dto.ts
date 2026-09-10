@@ -68,4 +68,9 @@ export class BoardQueryDto {
   @Transform(toBoolean)
   @IsBoolean()
   backlogOnly?: boolean;
+
+  @IsOptional()
+  @Transform(toBoolean)
+  @IsBoolean()
+  includeCompletedSprints?: boolean;
 }

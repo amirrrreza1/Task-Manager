@@ -16,6 +16,8 @@ import { Avatar } from '../../../components/avatar';
 import { HeaderActions } from '../../../components/header-actions';
 import { PriorityBadge, PrioritySelect } from '../../../components/priority-badge';
 import { TaskTypeBadge, TaskTypeSelect } from '../../../components/task-type-badge';
+import { TaskIdBadge } from '../../../components/task-id-badge';
+import { matchesTaskId } from '../../../lib/task-id';
 import { ProjectIcon } from '../../../lib/project-icons';
 import { useAuth } from '../../../components/auth-provider';
 import { useToast } from '../../../components/toast-provider';
@@ -104,7 +106,8 @@ export default function BacklogPage() {
     return items.filter(
       (task) =>
         task.title.toLowerCase().includes(term) ||
-        (task.description?.toLowerCase().includes(term) ?? false),
+        (task.description?.toLowerCase().includes(term) ?? false) ||
+        matchesTaskId(task.id, term),
     );
   }, [backlogColumn, search, projectFilter, typeFilter]);
 
@@ -467,6 +470,7 @@ function BacklogTaskRow({ task }: { task: TaskCard }) {
       <Link href={`/tasks/${task.id}`} className="backlog-task-main" data-type={task.type}>
         <div className="task-title-group">
           <div className="task-card-tags">
+            <TaskIdBadge id={task.id} />
             <TaskTypeBadge type={task.type} />
             {task.projects && task.projects.length > 0 ? (
               <div className="task-project-pills">

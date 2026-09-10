@@ -15,6 +15,8 @@ import {
 import { Avatar } from '../../../../../../components/avatar';
 import { HeaderActions } from '../../../../../../components/header-actions';
 import { PriorityBadge, PrioritySelect } from '../../../../../../components/priority-badge';
+import { TaskIdBadge } from '../../../../../../components/task-id-badge';
+import { formatTaskId } from '../../../../../../lib/task-id';
 import { useAuth } from '../../../../../../components/auth-provider';
 import { useToast } from '../../../../../../components/toast-provider';
 import { formatDateTime } from '../../../../../../lib/app-config';
@@ -67,6 +69,9 @@ export default function SubtaskPage() {
       setEstimate(nextSubtask.estimateValue?.toString() ?? '');
       setPriority(nextSubtask.priority);
       setAssigneeId(nextSubtask.assigneeId ?? '');
+      if (typeof document !== 'undefined') {
+        document.title = `${formatTaskId(nextSubtask.id)} ${nextSubtask.title} · Subtask`;
+      }
     } catch (caught) {
       setLoadFailed(true);
       toast.fromError(caught, 'Could not load the subtask.');
@@ -213,13 +218,16 @@ export default function SubtaskPage() {
       <nav className="breadcrumb" aria-label="Breadcrumb">
         <Link href="/board">Board</Link>
         <span>/</span>
-        <Link href={`/tasks/${taskId}`}>{subtask.task.title}</Link>
+        <Link href={`/tasks/${taskId}`}>
+          {formatTaskId(taskId)} {subtask.task.title}
+        </Link>
         <span>/</span>
         <span>Subtask</span>
       </nav>
       <header className="task-detail-header">
         <div>
           <div className="task-heading-facts">
+            <TaskIdBadge id={subtask.id} size="md" />
             <span className="column-chip">
               <span style={{ background: subtask.column.color }} />
               {subtask.column.name}

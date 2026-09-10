@@ -5,7 +5,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, SprintStatus, UserRole } from '@prisma/client';
+import {
+  EstimateUnit,
+  Prisma,
+  SprintStatus,
+  TaskPriority,
+  TaskType,
+  UserRole,
+} from '@prisma/client';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import type { CarryOverDto } from './dto/carry-over.dto';
@@ -117,6 +124,215 @@ export class SprintsService {
     const hasMore = records.length > query.limit;
     const items = hasMore ? records.slice(0, query.limit) : records;
     return { items, nextCursor: hasMore ? (items.at(-1)?.id ?? null) : null };
+  }
+
+  async history(workspaceId?: string) {
+    const wsId = await this.resolveWorkspaceId(workspaceId);
+    const sprints = await this.prisma.sprint.findMany({
+      where: {
+        workspaceId: wsId,
+        status: SprintStatus.COMPLETED,
+      },
+      orderBy: [{ completedAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
+      include: {
+        taskSnapshots: {
+          orderBy: [{ completedAt: 'desc' }, { title: 'asc' }],
+          include: {
+            task: {
+              select: {
+                id: true,
+                type: true,
+                priority: true,
+                sprintId: true,
+                assignees: {
+                  include: { user: { select: authorSelect } },
+                  orderBy: { assignedAt: 'asc' },
+                },
+              },
+            },
+          },
+        },
+        subtaskSnapshots: {
+          orderBy: [{ taskTitle: 'asc' }, { title: 'asc' }],
+          include: {
+            subtask: {
+              select: {
+                id: true,
+                priority: true,
+                assignee: { select: authorSelect },
+              },
+            },
+          },
+        },
+        tasks: {
+          where: {
+            column: { isDone: true },
+          },
+          include: taskInclude,
+        },
+        _count: {
+          select: { tasks: true, taskSnapshots: true, comments: true },
+        },
+      },
+    });
+
+    return sprints.map((sprint) => {
+      const hasSnapshots = sprint.taskSnapshots.length > 0;
+
+      const subtasksByTaskId = new Map<string, typeof sprint.subtaskSnapshots>();
+      const standaloneSubtasks: typeof sprint.subtaskSnapshots = [];
+      const taskSnapshotIds = new Set(
+        sprint.taskSnapshots.map((ts) => ts.taskId).filter(Boolean) as string[],
+      );
+
+      for (const subSnap of sprint.subtaskSnapshots) {
+        if (subSnap.wasDone) {
+          if (subSnap.taskId && taskSnapshotIds.has(subSnap.taskId)) {
+            const list = subtasksByTaskId.get(subSnap.taskId) ?? [];
+            list.push(subSnap);
+            subtasksByTaskId.set(subSnap.taskId, list);
+          } else {
+            standaloneSubtasks.push(subSnap);
+          }
+        }
+      }
+
+      let doneTasks: Array<{
+        id: string;
+        taskId: string | null;
+        title: string;
+        type: TaskType;
+        priority: TaskPriority;
+        estimateValue: number | null;
+        estimateUnit: EstimateUnit | null;
+        columnName: string;
+        completedAt: Date;
+        assignees: Array<{
+          id: string;
+          displayName: string;
+          color: string;
+          hasAvatar: boolean;
+          isActive: boolean;
+        }>;
+        subtasks: Array<{
+          id: string;
+          subtaskId: string | null;
+          title: string;
+          estimateValue: number | null;
+          estimateUnit: EstimateUnit | null;
+          completedAt: Date;
+          assignee: {
+            id: string;
+            displayName: string;
+            color: string;
+            hasAvatar: boolean;
+            isActive: boolean;
+          } | null;
+        }>;
+      }> = [];
+
+      if (hasSnapshots) {
+        const doneSnapshots = sprint.taskSnapshots.filter((ts) => ts.wasDone);
+        doneTasks = doneSnapshots.map((ts) => {
+          const subtaskSnaps = ts.taskId ? (subtasksByTaskId.get(ts.taskId) ?? []) : [];
+          return {
+            id: ts.id,
+            taskId: ts.taskId,
+            title: ts.title,
+            type: ts.task?.type ?? 'TASK',
+            priority: ts.task?.priority ?? 'MEDIUM',
+            estimateValue: ts.estimateValue,
+            estimateUnit: ts.estimateUnit,
+            columnName: ts.columnName,
+            completedAt: ts.completedAt,
+            assignees: (ts.task?.assignees.map((a) => a.user) ?? []) as Array<{
+              id: string;
+              displayName: string;
+              color: string;
+              hasAvatar: boolean;
+              isActive: boolean;
+            }>,
+            subtasks: subtaskSnaps.map((sub) => ({
+              id: sub.id,
+              subtaskId: sub.subtaskId,
+              title: sub.title,
+              estimateValue: sub.estimateValue,
+              estimateUnit: sub.estimateUnit,
+              completedAt: sub.completedAt,
+              assignee: sub.subtask?.assignee ?? null,
+            })),
+          };
+        });
+      } else {
+        doneTasks = sprint.tasks.map((task) => ({
+          id: task.id,
+          taskId: task.id,
+          title: task.title,
+          type: task.type,
+          priority: task.priority,
+          estimateValue: task.estimateValue,
+          estimateUnit: task.estimateUnit,
+          columnName: task.column.name,
+          completedAt: sprint.completedAt ?? task.updatedAt,
+          assignees: task.assignees.map((a) => a.user),
+          subtasks: task.subtasks
+            .filter((sub) => sub.isCompleted)
+            .map((sub) => ({
+              id: sub.id,
+              subtaskId: sub.id,
+              title: sub.title,
+              estimateValue: sub.estimateValue,
+              estimateUnit: sub.estimateUnit,
+              completedAt: sprint.completedAt ?? task.updatedAt,
+              assignee: sub.assignee,
+            })),
+        }));
+      }
+
+      let estimateHours = 0;
+      let estimatePoints = 0;
+      for (const t of doneTasks) {
+        if (t.estimateUnit === 'HOURS' && t.estimateValue) {
+          estimateHours += t.estimateValue;
+        } else if (t.estimateUnit === 'POINTS' && t.estimateValue) {
+          estimatePoints += t.estimateValue;
+        }
+      }
+
+      const totalTasksCount = hasSnapshots ? sprint.taskSnapshots.length : sprint.tasks.length;
+      const completedTasksCount = doneTasks.length;
+
+      return {
+        id: sprint.id,
+        name: sprint.name,
+        goal: sprint.goal,
+        status: sprint.status,
+        startsAt: sprint.startsAt,
+        endsAt: sprint.endsAt,
+        completedAt: sprint.completedAt,
+        createdAt: sprint.createdAt,
+        totalTasks: totalTasksCount,
+        completedTasks: completedTasksCount,
+        totalSubtasks: sprint.subtaskSnapshots.length,
+        completedSubtasks: sprint.subtaskSnapshots.filter((s) => s.wasDone).length,
+        estimateTotals: {
+          hours: Math.round(estimateHours * 100) / 100,
+          points: Math.round(estimatePoints * 100) / 100,
+        },
+        doneTasks,
+        standaloneDoneSubtasks: standaloneSubtasks.map((sub) => ({
+          id: sub.id,
+          subtaskId: sub.subtaskId,
+          taskId: sub.taskId,
+          taskTitle: sub.taskTitle,
+          title: sub.title,
+          estimateValue: sub.estimateValue,
+          estimateUnit: sub.estimateUnit,
+          completedAt: sub.completedAt,
+          assignee: sub.subtask?.assignee ?? null,
+        })),
+      };
+    });
   }
 
   async get(id: string) {

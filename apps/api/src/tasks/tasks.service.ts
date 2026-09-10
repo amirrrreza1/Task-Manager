@@ -23,6 +23,7 @@ import type { TaskQueryDto } from './dto/task-query.dto';
 import type { UpdateSubtaskDto } from './dto/update-subtask.dto';
 import type { UpdateTaskDto } from './dto/update-task.dto';
 import { pickBacklogColumnId, pickTodoColumnId } from './task-work';
+import { getShortId } from '../common/task-id';
 
 const userSummary = {
   id: true,
@@ -97,7 +98,7 @@ export class TasksService {
   }
 
   async list(query: TaskQueryDto) {
-    const where = this.filters(query);
+    const where = await this.filters(query);
     const records = await this.prisma.task.findMany({
       where,
       orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
@@ -910,15 +911,52 @@ export class TasksService {
     });
   }
 
-  private filters(query: TaskQueryDto): Prisma.TaskWhereInput {
+  private async filters(query: TaskQueryDto): Promise<Prisma.TaskWhereInput> {
+    const searchRaw = query.search?.trim() ?? '';
+    const searchTrim = searchRaw.replace(/^#/, '');
+    let taskIdMatches: string[] = [];
+    if (searchTrim) {
+      if (
+        /^[0-9a-fA-F-]{4,36}$/.test(searchTrim) &&
+        typeof (this.prisma as unknown as { $queryRaw?: unknown }).$queryRaw === 'function'
+      ) {
+        try {
+          const rawTasks = await this.prisma.$queryRaw<{ id: string }[]>`
+            SELECT id FROM "Task" WHERE id::text ILIKE ${'%' + searchTrim + '%'} LIMIT 100
+          `;
+          taskIdMatches = rawTasks.map((r) => r.id);
+        } catch {
+          // Fallback gracefully if raw query unsupported in tests
+        }
+      }
+
+      if (/^\d{3,10}$/.test(searchTrim) || /^[A-Za-z0-9]+-\d{3,10}$/.test(searchTrim)) {
+        const numericTerm = searchTrim.includes('-') ? searchTrim.split('-').pop()! : searchTrim;
+        try {
+          const wsTasks = await this.prisma.task.findMany({
+            where: query.workspaceId ? { workspaceId: query.workspaceId } : {},
+            select: { id: true },
+          });
+          for (const t of wsTasks) {
+            if (getShortId(t.id).includes(numericTerm) && !taskIdMatches.includes(t.id)) {
+              taskIdMatches.push(t.id);
+            }
+          }
+        } catch {
+          // Fallback gracefully
+        }
+      }
+    }
+
     return {
       ...(query.workspaceId ? { workspaceId: query.workspaceId } : {}),
       ...(query.projectId ? { projects: { some: { projectId: query.projectId } } } : {}),
-      ...(query.search?.trim()
+      ...(searchRaw
         ? {
             OR: [
-              { title: { contains: query.search.trim(), mode: 'insensitive' } },
-              { description: { contains: query.search.trim(), mode: 'insensitive' } },
+              { title: { contains: searchRaw, mode: 'insensitive' } },
+              { description: { contains: searchRaw, mode: 'insensitive' } },
+              ...(taskIdMatches.length > 0 ? [{ id: { in: taskIdMatches } }] : []),
             ],
           }
         : {}),

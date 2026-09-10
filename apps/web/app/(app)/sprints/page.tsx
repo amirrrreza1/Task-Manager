@@ -63,10 +63,24 @@ export default function SprintsPage() {
   return (
     <div className="page-stack">
       <HeaderActions>
+        <Button nativeButton={false} variant="outline" render={<Link href="/sprints/history" />}>
+          Sprint History
+        </Button>
         <Button variant="primary" onClick={() => setShowForm(true)} type="button">
           Plan sprint
         </Button>
       </HeaderActions>
+
+      <div className="sprint-page-nav">
+        <div className="sprint-tabs" role="tablist">
+          <Link className="sprint-tab active" href="/sprints">
+            Active & Planned
+          </Link>
+          <Link className="sprint-tab" href="/sprints/history">
+            Sprint History
+          </Link>
+        </div>
+      </div>
       {showForm ? (
         <Modal
           className="modal"

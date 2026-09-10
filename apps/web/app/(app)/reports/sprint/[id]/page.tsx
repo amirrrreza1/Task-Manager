@@ -18,6 +18,7 @@ import { useToast } from '../../../../../components/toast-provider';
 import { formatDate } from '../../../../../lib/app-config';
 import { Avatar } from '../../../../../components/avatar';
 import { TaskTypeBadge } from '../../../../../components/task-type-badge';
+import { TaskIdBadge } from '../../../../../components/task-id-badge';
 import type { MemberContribution, SprintReport, SprintReportTask } from '../../../../../lib/types';
 
 function formatEstimate(value: number | null, unit: string | null) {
@@ -56,6 +57,7 @@ function TaskRow({ task }: { task: SprintReportTask }) {
               flexWrap: 'wrap',
             }}
           >
+            <TaskIdBadge id={task.id} />
             {task.type ? <TaskTypeBadge type={task.type} showLabel={false} /> : null}
             <Link
               href={`/tasks/${task.id}`}
@@ -120,7 +122,13 @@ function TaskRow({ task }: { task: SprintReportTask }) {
           const done = isSubtaskDone(s);
           return (
             <TableRow key={s.id} className={`report-subtask-row ${done ? 'is-done' : ''}`}>
-              <TableCell style={{ paddingLeft: '2rem' }}>↳ {s.title}</TableCell>
+              <TableCell style={{ paddingLeft: '2rem' }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <span>↳</span>
+                  <TaskIdBadge id={s.id} />
+                  <span>{s.title}</span>
+                </span>
+              </TableCell>
               <TableCell>
                 <span className="tag">{s.column.name}</span>
                 {done && (

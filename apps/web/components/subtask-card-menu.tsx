@@ -1,7 +1,8 @@
 'use client';
 
-import { Edit, FileText, Trash, User } from '@appica/icons-react';
+import { Copy, Edit, FileText, Trash, User } from '@appica/icons-react';
 import type { BoardSubtask, ManagedUser, TaskPriority } from '../lib/types';
+import { formatTaskId } from '../lib/task-id';
 import { CardMenu, CardMenuItem, CardMenuSeparator, CardMenuSubmenu } from './card-menu-primitives';
 
 interface SubtaskCardMenuProps {
@@ -68,6 +69,19 @@ export function SubtaskCardMenu({
             }}
           >
             <span>Edit assignee...</span>
+          </CardMenuItem>
+
+          <CardMenuItem
+            icon={<Copy size={14} className="menu-icon" />}
+            onClick={() => {
+              close();
+              const formatted = formatTaskId(subtask.id);
+              if (navigator?.clipboard?.writeText) {
+                void navigator.clipboard.writeText(formatted);
+              }
+            }}
+          >
+            <span>Copy ID ({formatTaskId(subtask.id)})</span>
           </CardMenuItem>
 
           <CardMenuSeparator />

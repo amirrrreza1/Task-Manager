@@ -15,6 +15,7 @@ import { use, useCallback, useEffect, useState } from 'react';
 import { HeaderActions } from '../../../../../components/header-actions';
 import { Avatar } from '../../../../../components/avatar';
 import { TaskTypeBadge } from '../../../../../components/task-type-badge';
+import { TaskIdBadge } from '../../../../../components/task-id-badge';
 import { useAuth } from '../../../../../components/auth-provider';
 import { useToast } from '../../../../../components/toast-provider';
 import type { MemberReport, ReportSubtask, SprintSummary } from '../../../../../lib/types';
@@ -34,11 +35,15 @@ function SubtaskRow({ subtask }: { subtask: ReportSubtask }) {
   return (
     <TableRow>
       <TableCell>
-        <span className={isDone ? 'report-done' : undefined}>{subtask.title}</span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+          <TaskIdBadge id={subtask.id} />
+          <span className={isDone ? 'report-done' : undefined}>{subtask.title}</span>
+        </span>
       </TableCell>
       <TableCell>
         {subtask.task ? (
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+            <TaskIdBadge id={subtask.task.id} />
             {subtask.task.type ? (
               <TaskTypeBadge type={subtask.task.type} showLabel={false} />
             ) : null}

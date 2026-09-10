@@ -46,6 +46,7 @@ import { useWorkspace } from '../../../components/workspace-provider';
 import { HeaderActions } from '../../../components/header-actions';
 import { PriorityBadge, PrioritySelect } from '../../../components/priority-badge';
 import { TaskTypeBadge, TaskTypeSelect } from '../../../components/task-type-badge';
+import { TaskIdBadge } from '../../../components/task-id-badge';
 import { TaskCardMenu } from '../../../components/task-card-menu';
 import { SubtaskCardMenu } from '../../../components/subtask-card-menu';
 import {
@@ -60,7 +61,9 @@ import type {
   BoardResponse,
   BoardSubtask,
   ManagedUser,
+  Paginated,
   Project,
+  SprintSummary,
   TaskCard,
   TaskPriority,
   TaskType,
@@ -152,6 +155,7 @@ interface Filters {
   search: string;
   assigneeId: string;
   projectId: string;
+  sprintId: string;
   unassigned: boolean;
   mine: boolean;
   estimate: '' | 'true' | 'false';
@@ -164,6 +168,7 @@ const emptyFilters: Filters = {
   search: '',
   assigneeId: '',
   projectId: '',
+  sprintId: '',
   unassigned: false,
   mine: false,
   estimate: '',
@@ -179,6 +184,7 @@ export default function BoardPage() {
   const [board, setBoard] = useState<BoardResponse | null>(null);
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [sprints, setSprints] = useState<SprintSummary[]>([]);
   const [editingTitleItem, setEditingTitleItem] = useState<
     { type: 'task'; item: TaskCard } | { type: 'subtask'; item: BoardSubtask } | null
   >(null);
@@ -244,10 +250,12 @@ export default function BoardPage() {
     const priority = params.get('priority') ?? '';
     const type = params.get('type') ?? '';
     const sortBy = params.get('sortBy') ?? params.get('sort') ?? '';
+    const sprintId = params.get('sprintId') ?? '';
     setFilters({
       search: params.get('search') ?? '',
       assigneeId: mine ? '' : (params.get('assigneeId') ?? ''),
       projectId: params.get('projectId') ?? '',
+      sprintId,
       unassigned: !mine && params.get('unassigned') === 'true',
       mine,
       estimate: estimated === 'true' || estimated === 'false' ? estimated : '',
@@ -272,6 +280,10 @@ export default function BoardPage() {
     if (filters.projectId) {
       browserParams.set('projectId', filters.projectId);
       apiParams.set('projectId', filters.projectId);
+    }
+    if (filters.sprintId) {
+      browserParams.set('sprintId', filters.sprintId);
+      apiParams.set('sprintId', filters.sprintId);
     }
     if (filters.mine && user?.id) {
       browserParams.set('mine', 'true');
@@ -305,14 +317,16 @@ export default function BoardPage() {
     setLoadFailed(false);
     try {
       const wsParam = currentWorkspace?.id ? `?workspaceId=${currentWorkspace.id}` : '';
-      const [nextBoard, nextUsers, nextProjects] = await Promise.all([
+      const [nextBoard, nextUsers, nextProjects, nextSprints] = await Promise.all([
         request<BoardResponse>(`/board${apiQuery ? `?${apiQuery}` : ''}`),
         request<ManagedUser[]>('/users'),
         request<Project[]>(`/projects${wsParam}`),
+        request<Paginated<SprintSummary>>(`/sprints${wsParam}`),
       ]);
       setBoard(workflowBoard(nextBoard));
       setUsers(nextUsers.filter((member) => member.isActive));
       setProjects(nextProjects);
+      setSprints(nextSprints.items);
       setLoadFailed(false);
     } catch (caught) {
       setLoadFailed(true);
@@ -1015,6 +1029,9 @@ export default function BoardPage() {
           <span className="live-dot" />
           <span>{isConnected ? 'Live' : 'Connecting'}</span>
         </div>
+        <Button nativeButton={false} variant="outline" render={<Link href="/sprints/history" />}>
+          Sprint History
+        </Button>
         {user?.role === 'ADMIN' ? (
           <Button nativeButton={false} variant="outline" render={<Link href="/settings/board" />}>
             Configure board
@@ -1035,7 +1052,29 @@ export default function BoardPage() {
             placeholder="Search"
           />
         </label>
-        <label>
+        {sprints.length > 0 ? (
+          <label className="board-filter-sprint">
+            <Select
+              aria-label="Sprint"
+              placeholder="Sprint"
+              value={filters.sprintId || undefined}
+              onChange={(event) => setFilters({ ...filters, sprintId: event.target.value })}
+            >
+              <option value="">All active work</option>
+              {sprints.map((sp) => (
+                <option value={sp.id} key={sp.id}>
+                  {sp.name}{' '}
+                  {sp.status === 'ACTIVE'
+                    ? '· Active'
+                    : sp.status === 'COMPLETED'
+                      ? '· Completed'
+                      : '· Planned'}
+                </option>
+              ))}
+            </Select>
+          </label>
+        ) : null}
+        <label className="board-filter-project">
           <Select
             aria-label="Project"
             placeholder="Project"
@@ -1050,7 +1089,7 @@ export default function BoardPage() {
             ))}
           </Select>
         </label>
-        <label>
+        <label className="board-filter-assignee">
           <Select
             aria-label="Assignee"
             placeholder="Assignee"
@@ -1073,7 +1112,7 @@ export default function BoardPage() {
             ))}
           </Select>
         </label>
-        <label>
+        <label className="board-filter-estimate">
           <Select
             aria-label="Estimate"
             placeholder="Estimate"
@@ -1087,7 +1126,7 @@ export default function BoardPage() {
             <option value="false">No estimate</option>
           </Select>
         </label>
-        <label>
+        <label className="board-filter-priority">
           <PrioritySelect
             allowAny
             aria-label="Priority"
@@ -1096,7 +1135,7 @@ export default function BoardPage() {
             onChange={(value) => setFilters({ ...filters, priority: value })}
           />
         </label>
-        <label>
+        <label className="board-filter-type">
           <TaskTypeSelect
             allowAny
             aria-label="Type"
@@ -1437,6 +1476,7 @@ function TaskCardContent({
         <div className="task-card-header">
           <div className="task-title-group">
             <div className="task-card-tags">
+              <TaskIdBadge id={task.id} />
               <TaskTypeBadge type={task.type} />
               {task.projects && task.projects.length > 0 ? (
                 <div className="task-project-pills">
@@ -1767,7 +1807,10 @@ function BoardSubtaskCard({
     >
       <span className="board-subtask-marker" aria-hidden="true" />
       <div className="board-subtask-copy">
-        <small>{standalone ? `Subtask of ${parentTask.title}` : 'Subtask'}</small>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+          <small>{standalone ? `Subtask of ${parentTask.title}` : 'Subtask'}</small>
+          <TaskIdBadge id={subtask.id} />
+        </div>
         <strong title={title}>{title}</strong>
         <p
           className={subtask.description ? undefined : 'is-empty'}

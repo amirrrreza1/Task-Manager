@@ -62,8 +62,10 @@ services:
       dockerfile: apps/web/Dockerfile
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000/api/v1}
+        NEXT_PUBLIC_SOCKET_URL: ${NEXT_PUBLIC_SOCKET_URL:-}
         NEXT_PUBLIC_CALENDAR: ${NEXT_PUBLIC_CALENDAR:-gregorian}
         NEXT_PUBLIC_COMPANY_NAME: ${NEXT_PUBLIC_COMPANY_NAME:-Task Manager}
+        NEXT_PUBLIC_COMPANY_ICON: ${NEXT_PUBLIC_COMPANY_ICON:-/icon.svg}
     restart: unless-stopped
     environment:
       NODE_ENV: production

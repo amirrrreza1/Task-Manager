@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { Button, Input, Modal, Select, Textarea } from './design-system';
 import { PrioritySelect } from './priority-badge';
 import { TaskTypeSelect } from './task-type-badge';
+import { TaskIdBadge } from './task-id-badge';
 import { Avatar } from './avatar';
 import { useAuth } from './auth-provider';
 import { useToast } from './toast-provider';
@@ -141,7 +142,10 @@ export function TaskQuickEditModal({
     >
       <form onSubmit={handleSave} className="task-quick-edit-form">
         <header className="quick-edit-header">
-          <h2 id="quick-edit-title">Quick Edit Task</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <h2 id="quick-edit-title">Quick Edit Task</h2>
+            <TaskIdBadge id={task.id} />
+          </div>
           <p className="quick-edit-subtitle">Update task details directly from the board</p>
         </header>
 

@@ -69,7 +69,7 @@ export function useBoardSocket(
       if (!socket || !socket.connected) {
         socket = io(socketUrl, {
           auth: { token },
-          transports: ['websocket', 'polling'],
+          transports: ['polling', 'websocket'],
           autoConnect: true,
           reconnection: true,
           reconnectionAttempts: Infinity,
@@ -90,8 +90,9 @@ export function useBoardSocket(
         setIsConnected(false);
       });
 
-      socket.on('connect_error', async () => {
+      socket.on('connect_error', async (error) => {
         if (!active) return;
+        console.warn('[board-socket] Connection error:', error?.message || error);
         const nextToken = await getToken();
         if (socket && nextToken) {
           socket.auth = { token: nextToken };

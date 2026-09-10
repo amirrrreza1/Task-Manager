@@ -43,6 +43,11 @@ export class SprintsController {
     return this.sprints.create(input, actor.id);
   }
 
+  @Get('history')
+  history(@Query('workspaceId') workspaceId?: string) {
+    return this.sprints.history(workspaceId);
+  }
+
   @Get(':id')
   get(@Param('id', ParseUUIDPipe) id: string) {
     return this.sprints.get(id);

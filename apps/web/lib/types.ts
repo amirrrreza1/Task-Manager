@@ -319,6 +319,56 @@ export interface SprintSubtaskSnapshot {
   canCarryOver: boolean;
 }
 
+export interface SprintHistoryDoneSubtask {
+  id: string;
+  subtaskId: string | null;
+  title: string;
+  estimateValue: number | null;
+  estimateUnit: EstimateUnit | null;
+  completedAt: string;
+  assignee: UserSummary | null;
+}
+
+export interface SprintHistoryStandaloneDoneSubtask extends SprintHistoryDoneSubtask {
+  taskId: string | null;
+  taskTitle: string;
+}
+
+export interface SprintHistoryDoneTask {
+  id: string;
+  taskId: string | null;
+  title: string;
+  type: TaskType;
+  priority: TaskPriority;
+  estimateValue: number | null;
+  estimateUnit: EstimateUnit | null;
+  columnName: string;
+  completedAt: string;
+  assignees: UserSummary[];
+  subtasks: SprintHistoryDoneSubtask[];
+}
+
+export interface SprintHistoryRecord {
+  id: string;
+  name: string;
+  goal: string | null;
+  status: SprintStatus;
+  startsAt: string | null;
+  endsAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  totalTasks: number;
+  completedTasks: number;
+  totalSubtasks: number;
+  completedSubtasks: number;
+  estimateTotals: {
+    hours: number;
+    points: number;
+  };
+  doneTasks: SprintHistoryDoneTask[];
+  standaloneDoneSubtasks: SprintHistoryStandaloneDoneSubtask[];
+}
+
 export interface SprintWorkSubtask {
   id: string;
   title: string;

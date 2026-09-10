@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import { Prisma, SprintStatus } from '@prisma/client';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { BoardEventsService } from './board-events.service';
@@ -12,6 +12,7 @@ import type { BoardQueryDto } from './dto/board-query.dto';
 import type { CreateColumnDto } from './dto/create-column.dto';
 import type { ReorderColumnsDto } from './dto/reorder-columns.dto';
 import type { UpdateColumnDto } from './dto/update-column.dto';
+import { getShortId } from '../common/task-id';
 
 const taskCardInclude = {
   projects: {
@@ -115,19 +116,81 @@ export class BoardService {
     }
     const workspaceId = await this.resolveWorkspaceId(query.workspaceId);
 
+    const sprintFilter: Prisma.TaskWhereInput = query.sprintId
+      ? { sprintId: query.sprintId }
+      : query.includeCompletedSprints
+        ? {}
+        : {
+            OR: [
+              { sprintId: null },
+              { sprint: { status: { not: SprintStatus.COMPLETED } } },
+            ],
+          };
+
+    const searchRaw = query.search?.trim() ?? '';
+    const searchTrim = searchRaw.replace(/^#/, '');
+    let taskIdMatches: string[] = [];
+    let subtaskIdMatches: string[] = [];
+    if (searchTrim) {
+      if (
+        /^[0-9a-fA-F-]{4,36}$/.test(searchTrim) &&
+        typeof (this.prisma as unknown as { $queryRaw?: unknown }).$queryRaw === 'function'
+      ) {
+        try {
+          const rawTasks = await this.prisma.$queryRaw<{ id: string }[]>`
+            SELECT id FROM "Task" WHERE id::text ILIKE ${'%' + searchTrim + '%'} LIMIT 100
+          `;
+          taskIdMatches = rawTasks.map((r) => r.id);
+          const rawSubtasks = await this.prisma.$queryRaw<{ id: string }[]>`
+            SELECT id FROM "Subtask" WHERE id::text ILIKE ${'%' + searchTrim + '%'} LIMIT 100
+          `;
+          subtaskIdMatches = rawSubtasks.map((r) => r.id);
+        } catch {
+          // Fallback gracefully if raw query unsupported in tests
+        }
+      }
+
+      if (/^\d{3,10}$/.test(searchTrim) || /^[A-Za-z0-9]+-\d{3,10}$/.test(searchTrim)) {
+        const numericTerm = searchTrim.includes('-') ? searchTrim.split('-').pop()! : searchTrim;
+        try {
+          const wsTasks = await this.prisma.task.findMany({
+            where: { workspaceId },
+            select: { id: true },
+          });
+          for (const t of wsTasks) {
+            if (getShortId(t.id).includes(numericTerm) && !taskIdMatches.includes(t.id)) {
+              taskIdMatches.push(t.id);
+            }
+          }
+          const wsSubtasks = await this.prisma.subtask.findMany({
+            where: { task: { workspaceId } },
+            select: { id: true },
+          });
+          for (const s of wsSubtasks) {
+            if (getShortId(s.id).includes(numericTerm) && !subtaskIdMatches.includes(s.id)) {
+              subtaskIdMatches.push(s.id);
+            }
+          }
+        } catch {
+          // Fallback gracefully
+        }
+      }
+    }
+
     const taskWhere: Prisma.TaskWhereInput = {
       workspaceId,
+      ...sprintFilter,
       ...(query.projectId ? { projects: { some: { projectId: query.projectId } } } : {}),
-      ...(query.search?.trim()
+      ...(searchRaw
         ? {
             OR: [
-              { title: { contains: query.search.trim(), mode: 'insensitive' } },
-              { description: { contains: query.search.trim(), mode: 'insensitive' } },
+              { title: { contains: searchRaw, mode: 'insensitive' } },
+              { description: { contains: searchRaw, mode: 'insensitive' } },
+              ...(taskIdMatches.length > 0 ? [{ id: { in: taskIdMatches } }] : []),
             ],
           }
         : {}),
       ...(query.assigneeId ? { assignees: { some: { userId: query.assigneeId } } } : {}),
-      ...(query.sprintId ? { sprintId: query.sprintId } : {}),
       ...(query.unassigned ? { assignees: { none: {} } } : {}),
       ...(query.hasEstimate === true ? { estimateValue: { not: null } } : {}),
       ...(query.hasEstimate === false ? { estimateValue: null } : {}),
@@ -139,25 +202,42 @@ export class BoardService {
         workspaceId,
         ...(query.projectId ? { projects: { some: { projectId: query.projectId } } } : {}),
         ...(query.type ? { type: query.type } : {}),
+        ...(query.sprintId
+          ? { sprintId: query.sprintId }
+          : query.includeCompletedSprints
+            ? {}
+            : {
+                OR: [
+                  { sprintId: null },
+                  { sprint: { status: { not: SprintStatus.COMPLETED } } },
+                ],
+              }),
       },
-      ...(query.search?.trim()
+      ...(query.sprintId
         ? {
             OR: [
-              { title: { contains: query.search.trim(), mode: 'insensitive' } },
-              { description: { contains: query.search.trim(), mode: 'insensitive' } },
+              { sprintId: query.sprintId },
+              { sprintId: null, task: { sprintId: query.sprintId } },
+            ],
+          }
+        : query.includeCompletedSprints
+          ? {}
+          : {
+              OR: [
+                { sprintId: null },
+                { sprint: { status: { not: SprintStatus.COMPLETED } } },
+              ],
+            }),
+      ...(searchRaw
+        ? {
+            OR: [
+              { title: { contains: searchRaw, mode: 'insensitive' } },
+              { description: { contains: searchRaw, mode: 'insensitive' } },
+              ...(subtaskIdMatches.length > 0 ? [{ id: { in: subtaskIdMatches } }] : []),
             ],
           }
         : {}),
       ...(query.assigneeId ? { assigneeId: query.assigneeId } : {}),
-      ...(query.sprintId
-        ? {
-            task: {
-              sprintId: query.sprintId,
-              workspaceId,
-              ...(query.projectId ? { projects: { some: { projectId: query.projectId } } } : {}),
-            },
-          }
-        : {}),
       ...(query.unassigned ? { assigneeId: null } : {}),
       ...(query.hasEstimate === true ? { estimateValue: { not: null } } : {}),
       ...(query.hasEstimate === false ? { estimateValue: null } : {}),
