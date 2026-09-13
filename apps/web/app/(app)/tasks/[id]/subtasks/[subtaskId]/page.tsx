@@ -298,7 +298,7 @@ export default function SubtaskPage() {
             </form>
             <div className="comment-list">
               {subtask.comments.map((item) => (
-                <article className="sprint-comment" key={item.id}>
+                <article className="sprint-comment task-comment" key={item.id}>
                   <Avatar
                     color={item.author.color}
                     hasAvatar={item.author.hasAvatar}

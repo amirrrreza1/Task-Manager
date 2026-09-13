@@ -761,7 +761,7 @@ function CommentThread({
       </form>
       <div className="comment-list">
         {comments.map((item) => (
-          <article className="sprint-comment" key={item.id}>
+          <article className="sprint-comment task-comment" key={item.id}>
             <Avatar
               color={item.author.color}
               hasAvatar={item.author.hasAvatar}
