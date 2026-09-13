@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { formatEstimateInput, parseEstimateInput } from '../lib/estimate.ts';
+import {
+  calculateSubtasksEstimate,
+  formatEstimateInput,
+  parseEstimateInput,
+} from '../lib/estimate.ts';
 
 describe('parseEstimateInput', () => {
   it('parses standard positive integers', () => {
@@ -47,5 +51,49 @@ describe('formatEstimateInput', () => {
     assert.equal(formatEstimateInput(2), '2');
     assert.equal(formatEstimateInput(null), '');
     assert.equal(formatEstimateInput(undefined), '');
+  });
+});
+
+describe('calculateSubtasksEstimate', () => {
+  it('returns null estimate for empty subtasks array', () => {
+    assert.deepEqual(calculateSubtasksEstimate([]), {
+      estimateValue: null,
+      estimateUnit: null,
+    });
+  });
+
+  it('returns null estimate when all subtasks have null estimateValue', () => {
+    const subtasks = [
+      { estimateValue: null, estimateUnit: null },
+      { estimateValue: null, estimateUnit: 'HOURS' },
+    ];
+    assert.deepEqual(calculateSubtasksEstimate(subtasks), {
+      estimateValue: null,
+      estimateUnit: null,
+    });
+  });
+
+  it('sums fractional hour estimates with floating-point precision handling', () => {
+    const subtasks = [
+      { estimateValue: 0.1, estimateUnit: 'HOURS' },
+      { estimateValue: 0.2, estimateUnit: 'HOURS' },
+      { estimateValue: 1.25, estimateUnit: 'HOURS' },
+      { estimateValue: null, estimateUnit: null },
+    ];
+    assert.deepEqual(calculateSubtasksEstimate(subtasks), {
+      estimateValue: 1.55,
+      estimateUnit: 'HOURS',
+    });
+  });
+
+  it('sums integer point estimates correctly', () => {
+    const subtasks = [
+      { estimateValue: 3, estimateUnit: 'POINTS' },
+      { estimateValue: 5, estimateUnit: 'POINTS' },
+    ];
+    assert.deepEqual(calculateSubtasksEstimate(subtasks), {
+      estimateValue: 8,
+      estimateUnit: 'POINTS',
+    });
   });
 });

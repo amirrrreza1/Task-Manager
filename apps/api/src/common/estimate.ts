@@ -31,3 +31,34 @@ export function assertEstimateMatchesMode(
     `Estimates must use ${mode === EstimateMode.TIME ? 'hours' : 'points'}, as configured in workspace settings.`,
   );
 }
+
+export function calculateSubtasksEstimate(
+  subtasks: Array<{ estimateValue?: number | null; estimateUnit?: EstimateUnit | null }>,
+  defaultUnit: EstimateUnit = EstimateUnit.HOURS,
+): { estimateValue: number | null; estimateUnit: EstimateUnit | null } {
+  if (!subtasks || subtasks.length === 0) {
+    return { estimateValue: null, estimateUnit: null };
+  }
+
+  const estimated = subtasks.filter(
+    (s): s is { estimateValue: number; estimateUnit?: EstimateUnit | null } =>
+      typeof s.estimateValue === 'number' && Number.isFinite(s.estimateValue) && s.estimateValue > 0,
+  );
+
+  if (estimated.length === 0) {
+    return { estimateValue: null, estimateUnit: null };
+  }
+
+  const unit = estimated.find((s) => s.estimateUnit)?.estimateUnit ?? defaultUnit;
+
+  if (unit === EstimateUnit.POINTS) {
+    const sum = Math.round(estimated.reduce((acc, s) => acc + s.estimateValue, 0));
+    const clamped = Math.min(Math.max(sum, 1), 10000);
+    return { estimateValue: clamped, estimateUnit: EstimateUnit.POINTS };
+  } else {
+    const rawSum = estimated.reduce((acc, s) => acc + s.estimateValue, 0);
+    const sum = Math.round((rawSum + Number.EPSILON) * 100) / 100;
+    const clamped = Math.min(Math.max(sum, 0.01), 8760);
+    return { estimateValue: clamped, estimateUnit: EstimateUnit.HOURS };
+  }
+}

@@ -3,8 +3,8 @@
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { FormEvent, useCallback, useEffect, useState } from 'react';
-import { Download, FileText, Plus, Trash } from '@appica/icons-react';
-import { Button, Input, Modal, Select, Textarea } from '../../../../components/design-system';
+import { ChevronRight, Download, FileText, Plus, Trash } from '@appica/icons-react';
+import { Button, Checkbox, Input, Modal, Select, Textarea } from '../../../../components/design-system';
 import { Avatar } from '../../../../components/avatar';
 import { HeaderActions } from '../../../../components/header-actions';
 import { PriorityBadge, PrioritySelect } from '../../../../components/priority-badge';
@@ -71,12 +71,16 @@ export default function TaskPage() {
   const load = useCallback(async () => {
     setLoadFailed(false);
     try {
-      const [nextTask, nextUsers, nextSettings, planned, active] = await Promise.all([
-        request<TaskDetail>(`/tasks/${id}`),
+      const nextTask = await request<TaskDetail>(`/tasks/${id}`);
+      const workspaceParam = nextTask.workspaceId ? `&workspaceId=${nextTask.workspaceId}` : '';
+      const [nextUsers, nextSettings, planned, active, nextProjects] = await Promise.all([
         request<ManagedUser[]>('/users'),
         request<AppSettings>('/settings'),
-        request<Paginated<SprintSummary>>('/sprints?status=PLANNED'),
-        request<Paginated<SprintSummary>>('/sprints?status=ACTIVE'),
+        request<Paginated<SprintSummary>>(`/sprints?status=PLANNED${workspaceParam}`),
+        request<Paginated<SprintSummary>>(`/sprints?status=ACTIVE${workspaceParam}`),
+        request<Project[]>(
+          `/projects${nextTask.workspaceId ? `?workspaceId=${nextTask.workspaceId}` : ''}`,
+        ),
       ]);
       setTask(nextTask);
       setUsers(nextUsers.filter((member) => member.isActive));
@@ -93,8 +97,7 @@ export default function TaskPage() {
         nextTask.projects?.map((p) => p.project.id) ??
         (nextTask.projectId ? [nextTask.projectId] : []);
       setProjectIds(assignedProjectIds);
-      const workspace = nextTask.workspaceId ? `?workspaceId=${nextTask.workspaceId}` : '';
-      setProjects(await request<Project[]>(`/projects${workspace}`));
+      setProjects(nextProjects);
       if (typeof document !== 'undefined') {
         document.title = `${formatTaskId(nextTask.id)} ${nextTask.title} · Task Manager`;
       }
@@ -110,8 +113,9 @@ export default function TaskPage() {
 
   async function saveTask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const hasSubtasks = Boolean(task?.subtasks && task.subtasks.length > 0);
     const parsedEstimate = parseEstimateInput(estimate);
-    if (estimate.trim() && (parsedEstimate === null || Number.isNaN(parsedEstimate))) {
+    if (!hasSubtasks && estimate.trim() && (parsedEstimate === null || Number.isNaN(parsedEstimate))) {
       toast.error('Please enter a valid positive numeric estimate.');
       return;
     }
@@ -128,7 +132,12 @@ export default function TaskPage() {
           sprintId: sprintId || null,
           projectIds,
           priority,
-          estimate: parsedEstimate !== null ? { value: parsedEstimate, unit: estimateUnit } : null,
+          ...(hasSubtasks
+            ? {}
+            : {
+                estimate:
+                  parsedEstimate !== null ? { value: parsedEstimate, unit: estimateUnit } : null,
+              }),
         }),
       });
       setEditing(false);
@@ -169,6 +178,29 @@ export default function TaskPage() {
       toast.fromError(caught, 'Could not create the subtask.');
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function toggleSubtaskCompletion(subtaskId: string, currentCompleted: boolean) {
+    setTask((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        subtasks: prev.subtasks.map((item) =>
+          item.id === subtaskId ? { ...item, isCompleted: !currentCompleted } : item,
+        ),
+      };
+    });
+    try {
+      await request(`/tasks/${id}/subtasks/${subtaskId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ isCompleted: !currentCompleted }),
+      });
+      toast.success(!currentCompleted ? 'Subtask completed.' : 'Subtask reopened.');
+      await load();
+    } catch (caught) {
+      toast.fromError(caught, 'Could not update subtask status.');
+      await load();
     }
   }
 
@@ -349,11 +381,22 @@ export default function TaskPage() {
               <p className="empty-copy">No description yet.</p>
             )}
           </section>
-          <section className="detail-section">
+          <section className="detail-section subtasks-section">
             <header>
               <div>
-                <h2>Subtasks</h2>
-                <p>{task.subtasks.length} total</p>
+                <div className="subtasks-header-title">
+                  <h2>Subtasks</h2>
+                  {task.subtasks.length > 0 ? (
+                    <span className="subtasks-count-chip">
+                      {task.subtasks.filter((s) => s.isCompleted).length}/{task.subtasks.length}
+                    </span>
+                  ) : null}
+                </div>
+                <p>
+                  {task.subtasks.length === 0
+                    ? '0 total'
+                    : `${task.subtasks.filter((s) => s.isCompleted).length} of ${task.subtasks.length} completed`}
+                </p>
               </div>
               <Button
                 variant="outline"
@@ -372,20 +415,125 @@ export default function TaskPage() {
                 Add subtask
               </Button>
             </header>
-            <div className="subtask-list compact-subtask-list">
+            {task.subtasks.length > 0 ? (
+              <div
+                className="subtasks-progress-track"
+                role="progressbar"
+                aria-valuenow={Math.round(
+                  (task.subtasks.filter((s) => s.isCompleted).length / task.subtasks.length) * 100,
+                )}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label={`Subtasks progress: ${Math.round(
+                  (task.subtasks.filter((s) => s.isCompleted).length / task.subtasks.length) * 100,
+                )}% completed`}
+              >
+                <div
+                  className="subtasks-progress-fill"
+                  style={{
+                    width: `${Math.round(
+                      (task.subtasks.filter((s) => s.isCompleted).length / task.subtasks.length) *
+                        100,
+                    )}%`,
+                  }}
+                />
+              </div>
+            ) : null}
+            <div className="subtask-list">
               {task.subtasks.map((subtask) => (
-                <div key={subtask.id} style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                  <TaskIdBadge id={subtask.id} />
-                  <Link
-                    className="subtask-title-link"
-                    href={`/tasks/${id}/subtasks/${subtask.id}`}
-                  >
-                    {subtask.title}
-                  </Link>
+                <div
+                  key={subtask.id}
+                  className={`subtask-item ${subtask.isCompleted ? 'is-completed' : ''}`}
+                >
+                  <div className="subtask-item-main">
+                    <div className="subtask-item-check">
+                      <Checkbox
+                        aria-label={`Mark "${subtask.title}" as ${subtask.isCompleted ? 'incomplete' : 'complete'}`}
+                        checked={subtask.isCompleted}
+                        disabled={busy}
+                        onChange={() =>
+                          void toggleSubtaskCompletion(subtask.id, subtask.isCompleted)
+                        }
+                      />
+                    </div>
+                    <TaskIdBadge id={subtask.id} />
+                    <Link
+                      className="subtask-item-title"
+                      href={`/tasks/${id}/subtasks/${subtask.id}`}
+                      title={subtask.title}
+                    >
+                      {subtask.title}
+                    </Link>
+                  </div>
+                  <div className="subtask-item-meta">
+                    {subtask.estimateValue ? (
+                      <span
+                        className="subtask-meta-pill"
+                        title={`Estimate: ${formatEstimate(subtask.estimateValue, subtask.estimateUnit)}`}
+                      >
+                        {formatEstimate(subtask.estimateValue, subtask.estimateUnit, true)}
+                      </span>
+                    ) : null}
+                    <PriorityBadge priority={subtask.priority} />
+                    {subtask.assignee ? (
+                      <div
+                        className="subtask-assignee-badge"
+                        title={`Assigned to ${subtask.assignee.displayName}`}
+                      >
+                        <Avatar
+                          color={subtask.assignee.color}
+                          hasAvatar={subtask.assignee.hasAvatar}
+                          name={subtask.assignee.displayName}
+                          size={20}
+                          userId={subtask.assignee.id}
+                        />
+                        <span className="subtask-assignee-name">
+                          {subtask.assignee.displayName}
+                        </span>
+                      </div>
+                    ) : null}
+                    {subtask.attachments && subtask.attachments.length > 0 ? (
+                      <span
+                        className="subtask-meta-pill subtask-attachment-pill-badge"
+                        title={`${subtask.attachments.length} attachment(s)`}
+                      >
+                        <FileText size={12} />
+                        <span>{subtask.attachments.length}</span>
+                      </span>
+                    ) : null}
+                    <Link
+                      href={`/tasks/${id}/subtasks/${subtask.id}`}
+                      className="subtask-open-btn"
+                      aria-label={`View subtask ${subtask.title}`}
+                      title="View subtask"
+                    >
+                      <ChevronRight size={15} />
+                    </Link>
+                  </div>
                 </div>
               ))}
               {!task.subtasks.length ? (
-                <p className="empty-copy">Break this task into independently owned steps.</p>
+                <div className="subtask-empty-box">
+                  <p className="empty-copy">
+                    No subtasks yet. Break this task into independently owned steps.
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      setSubtaskForm({
+                        title: '',
+                        description: '',
+                        estimate: '',
+                        assigneeId: '',
+                        priority: DEFAULT_TASK_PRIORITY,
+                      })
+                    }
+                  >
+                    <Plus size={14} />
+                    Add subtask
+                  </Button>
+                </div>
               ) : null}
             </div>
           </section>
@@ -491,6 +639,14 @@ export default function TaskPage() {
               {task.estimateValue
                 ? formatEstimate(task.estimateValue, task.estimateUnit)
                 : 'Not estimated'}
+              {task.subtasks && task.subtasks.length > 0 ? (
+                <span
+                  className="muted"
+                  style={{ fontSize: '0.8rem', display: 'block', marginTop: '0.2rem' }}
+                >
+                  (sum of subtasks)
+                </span>
+              ) : null}
             </p>
           </section>
           <section>
@@ -512,6 +668,20 @@ export default function TaskPage() {
               </div>
             ) : (
               <p>Unassigned</p>
+            )}
+          </section>
+          <section>
+            <h2>Sprint</h2>
+            {task.sprint ? (
+              <p>
+                <Link href={`/sprints/${task.sprint.id}`}>
+                  {task.sprint.name}
+                  {task.sprint.status === 'ACTIVE' ? ' (active)' : ''}
+                  {task.sprint.status === 'COMPLETED' ? ' (completed)' : ''}
+                </Link>
+              </p>
+            ) : (
+              <p>Backlog</p>
             )}
           </section>
         </aside>
@@ -906,6 +1076,8 @@ function TaskEditModal({
   setProjectIds(value: string[]): void;
   setSprintId(value: string): void;
 }) {
+  const hasSubtasks = Boolean(task.subtasks && task.subtasks.length > 0);
+
   return (
     <Modal
       className="modal task-modal"
@@ -981,17 +1153,28 @@ function TaskEditModal({
         </label>
         <label>
           Estimate ({estimateUnit === 'HOURS' ? 'hours' : 'points'})
+          {hasSubtasks ? (
+            <small className="muted" style={{ display: 'block', marginBottom: '0.25rem' }}>
+              Calculated from subtasks (cannot be changed directly)
+            </small>
+          ) : null}
           <Input
             type="text"
             inputMode="decimal"
-            value={estimate}
+            value={hasSubtasks ? (task.estimateValue ? String(task.estimateValue) : '') : estimate}
             onChange={(event) => setEstimate(event.target.value)}
             placeholder={estimateUnit === 'HOURS' ? 'e.g. 0.5 or 2' : 'e.g. 3'}
+            disabled={hasSubtasks}
+            readOnly={hasSubtasks}
           />
         </label>
         <label>
           Sprint
-          <Select value={sprintId} onChange={(event) => setSprintId(event.target.value)}>
+          <Select
+            value={sprintId}
+            onChange={(event) => setSprintId(event.target.value)}
+            disabled={task.sprint?.status === 'COMPLETED'}
+          >
             <option value="">No sprint</option>
             {task.sprint && !sprints.some((sprint) => sprint.id === task.sprint?.id) ? (
               <option value={task.sprint.id}>
@@ -1005,6 +1188,11 @@ function TaskEditModal({
               </option>
             ))}
           </Select>
+          {task.sprint?.status === 'COMPLETED' ? (
+            <span className="muted" style={{ fontSize: '0.8rem', marginTop: '0.25rem', display: 'block' }}>
+              Tasks in a completed sprint cannot be reassigned.
+            </span>
+          ) : null}
         </label>
         <fieldset className="assignee-picker">
           <legend>Assignees</legend>
@@ -1045,8 +1233,11 @@ function TaskEditModal({
   );
 }
 
-function formatEstimate(value: number, unit: EstimateUnit | null) {
-  return unit === 'POINTS' ? `${value} ${value === 1 ? 'point' : 'points'}` : `${value}h`;
+function formatEstimate(value: number, unit: EstimateUnit | null, compact = false) {
+  if (unit === 'POINTS') {
+    return compact ? `${value} ${value === 1 ? 'pt' : 'pts'}` : `${value} ${value === 1 ? 'point' : 'points'}`;
+  }
+  return `${value}h`;
 }
 function formatBytes(value: number) {
   if (value < 1024) return `${value} B`;

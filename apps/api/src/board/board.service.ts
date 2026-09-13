@@ -13,6 +13,7 @@ import type { CreateColumnDto } from './dto/create-column.dto';
 import type { ReorderColumnsDto } from './dto/reorder-columns.dto';
 import type { UpdateColumnDto } from './dto/update-column.dto';
 import { getShortId } from '../common/task-id';
+import { calculateSubtasksEstimate } from '../common/estimate';
 
 const taskCardInclude = {
   projects: {
@@ -295,10 +296,24 @@ export class BoardService {
     return {
       columns: columns.map((column) => ({
         ...column,
-        tasks: column.tasks.map((task) => ({
-          ...task,
-          subtasks: task.subtasks.filter((subtask) => subtask.columnId === column.id),
-        })),
+        tasks: column.tasks.map((task) => {
+          let estimateValue = task.estimateValue;
+          let estimateUnit = task.estimateUnit;
+          if (task.subtasks && task.subtasks.length > 0) {
+            const calculated = calculateSubtasksEstimate(
+              task.subtasks,
+              task.estimateUnit ?? undefined,
+            );
+            estimateValue = calculated.estimateValue;
+            estimateUnit = calculated.estimateUnit;
+          }
+          return {
+            ...task,
+            estimateValue,
+            estimateUnit,
+            subtasks: task.subtasks.filter((subtask) => subtask.columnId === column.id),
+          };
+        }),
         subtasks: matchingSubtasks
           .filter(
             (subtask) =>

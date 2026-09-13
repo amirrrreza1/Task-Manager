@@ -87,29 +87,34 @@ export function TaskQuickEditModal({
 
     setSaving(true);
     try {
-      const parsedEstimate = parseEstimateInput(estimate);
-      if (estimate.trim() && (parsedEstimate === null || Number.isNaN(parsedEstimate))) {
-        toast.error('Please enter a valid positive numeric estimate.');
-        setSaving(false);
-        return;
-      }
+      const hasSubtasks = Boolean(task.subtasks && task.subtasks.length > 0);
+    const parsedEstimate = parseEstimateInput(estimate);
+    if (!hasSubtasks && estimate.trim() && (parsedEstimate === null || Number.isNaN(parsedEstimate))) {
+      toast.error('Please enter a valid positive numeric estimate.');
+      setSaving(false);
+      return;
+    }
 
-      const updated = await request<TaskCard>(`/tasks/${task.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          title: title.trim(),
-          description: description.trim() ? description : null,
-          type,
-          priority,
-          assigneeIds,
-          projectId: projectId || null,
-          projectIds: projectId ? [projectId] : [],
-          estimate:
-            parsedEstimate !== null
-              ? { value: parsedEstimate, unit: task.estimateUnit ?? estimateUnit }
-              : null,
-        }),
-      });
+    const updated = await request<TaskCard>(`/tasks/${task.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        title: title.trim(),
+        description: description.trim() ? description : null,
+        type,
+        priority,
+        assigneeIds,
+        projectId: projectId || null,
+        projectIds: projectId ? [projectId] : [],
+        ...(hasSubtasks
+          ? {}
+          : {
+              estimate:
+                parsedEstimate !== null
+                  ? { value: parsedEstimate, unit: task.estimateUnit ?? estimateUnit }
+                  : null,
+            }),
+      }),
+    });
 
       // If column changed, move the task to that column
       if (columnId && columnId !== task.columnId) {
@@ -233,14 +238,26 @@ export function TaskQuickEditModal({
             <label className="field">
               <span className="field-label">
                 Estimate ({estimateUnit === 'POINTS' ? 'Points' : 'Hours'})
+                {Boolean(task.subtasks && task.subtasks.length > 0) && (
+                  <span className="muted" style={{ fontSize: '0.75rem', marginLeft: '0.5rem' }}>
+                    (Calculated from subtasks)
+                  </span>
+                )}
               </span>
               <Input
                 type="text"
                 inputMode="decimal"
-                value={estimate}
+                value={
+                  task.subtasks && task.subtasks.length > 0
+                    ? task.estimateValue
+                      ? String(task.estimateValue)
+                      : ''
+                    : estimate
+                }
                 onChange={(e) => setEstimate(e.target.value)}
                 placeholder={estimateUnit === 'POINTS' ? 'e.g. 5' : 'e.g. 0.5 or 2.5'}
-                disabled={saving}
+                disabled={saving || Boolean(task.subtasks && task.subtasks.length > 0)}
+                readOnly={Boolean(task.subtasks && task.subtasks.length > 0)}
               />
             </label>
           </div>
