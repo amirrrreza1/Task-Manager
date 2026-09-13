@@ -134,7 +134,6 @@ describe('Sprint History and Board Exclusion', () => {
 
   it('BoardService.read excludes completed sprint tasks by default', async () => {
     let capturedTaskWhere = null;
-    let capturedSubtaskWhere = null;
 
     const mockPrisma = {
       workspace: {
@@ -171,10 +170,7 @@ describe('Sprint History and Board Exclusion', () => {
         },
       },
       subtask: {
-        findMany: async ({ where }) => {
-          capturedSubtaskWhere = where;
-          return [];
-        },
+        findMany: async () => [],
       },
     };
 

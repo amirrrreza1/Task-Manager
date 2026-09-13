@@ -39,6 +39,14 @@ export interface BackupData {
   notifications: any[];
 }
 
+export interface BackupScheduleInfo {
+  enabled: boolean;
+  time: string;
+  timezone: string;
+  includeAttachments: boolean;
+  nextRunAt: string | null;
+}
+
 export interface BackupStatus {
   databaseReady: boolean;
   totalCounts: {
@@ -54,6 +62,7 @@ export interface BackupStatus {
   telegramEnabled: boolean;
   telegramChatId: string | null;
   lastBackupAt: string | null;
+  nightlySchedule?: BackupScheduleInfo;
 }
 
 export interface RestoreResult {

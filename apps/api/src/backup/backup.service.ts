@@ -274,35 +274,61 @@ export class BackupService {
   }
 
   async sendToTelegram(
-    options: { includeAttachments?: boolean },
-    actorId: string,
+    options: {
+      includeAttachments?: boolean;
+      automated?: boolean;
+      captionPrefix?: string;
+    },
+    actorId?: string | null,
   ): Promise<{ success: boolean; message: string; filename: string; sizeBytes: number }> {
-    const backup = await this.createBackupFile({
-      includeAttachments: options.includeAttachments !== false,
+    const includeAttachments = options.includeAttachments !== false;
+    let backup = await this.createBackupFile({
+      includeAttachments,
       format: 'zip',
-      actorId,
+      actorId: actorId ?? undefined,
     });
 
     const MAX_TELEGRAM_BYTES = 50 * 1024 * 1024; // 50MB
+    let fallbackNotice = '';
+
     if (backup.buffer.length > MAX_TELEGRAM_BYTES) {
-      const sizeMB = (backup.buffer.length / (1024 * 1024)).toFixed(1);
-      throw new BadRequestException(
-        `Backup file size (${sizeMB} MB) exceeds Telegram Bot limit of 50 MB. Please download the backup directly or export without attachments.`,
-      );
+      if (options.automated && includeAttachments) {
+        this.logger.warn(
+          `Automated backup size (${(backup.buffer.length / (1024 * 1024)).toFixed(1)} MB) exceeds Telegram 50 MB limit. Falling back to records snapshot without attachments.`,
+        );
+        backup = await this.createBackupFile({
+          includeAttachments: false,
+          format: 'json',
+          actorId: actorId ?? undefined,
+        });
+        fallbackNotice = `\n⚠️ <i>Attachments exceeded 50 MB limit; exported records-only snapshot.</i>`;
+      } else {
+        const sizeMB = (backup.buffer.length / (1024 * 1024)).toFixed(1);
+        throw new BadRequestException(
+          `Backup file size (${sizeMB} MB) exceeds Telegram Bot limit of 50 MB. Please download the backup directly or export without attachments.`,
+        );
+      }
     }
 
     const mb = (backup.buffer.length / (1024 * 1024)).toFixed(2);
     const counts = backup.metadata.counts;
+    const title =
+      options.captionPrefix ||
+      (options.automated
+        ? '🌙 <b>Task Manager Automated Nightly Backup</b>'
+        : '📦 <b>Task Manager System Backup</b>');
+
     const caption =
-      `📦 <b>Task Manager System Backup</b>\n\n` +
+      `${title}\n\n` +
       `📅 <b>Date:</b> <code>${backup.metadata.exportedAt}</code>\n` +
       `📁 <b>File:</b> <code>${backup.filename}</code>\n` +
       `💾 <b>Size:</b> ${mb} MB\n\n` +
       `📊 <b>Data Included:</b>\n` +
       `• ${counts.workspaces} Workspaces, ${counts.projects} Projects\n` +
       `• ${counts.tasks} Tasks, ${counts.subtasks} Subtasks\n` +
-      `• ${counts.users} Users, ${counts.attachments} Attachments\n\n` +
-      `<i>Automated system backup ready for restore.</i>`;
+      `• ${counts.users} Users, ${counts.attachments} Attachments\n` +
+      fallbackNotice +
+      `\n<i>Automated system backup ready for restore.</i>`;
 
     const result = await this.telegramService.sendDocument({
       filename: backup.filename,
@@ -316,11 +342,12 @@ export class BackupService {
         eventType: 'backup.sent_telegram',
         entityType: 'backup',
         entityId: '00000000-0000-0000-0000-000000000000',
-        actorId,
+        actorId: actorId ?? null,
         payload: {
           filename: backup.filename,
           sizeBytes: backup.buffer.length,
           counts: backup.metadata.counts,
+          automated: Boolean(options.automated),
         },
       },
     });

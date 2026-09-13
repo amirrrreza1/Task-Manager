@@ -20,6 +20,7 @@ import type { AuthenticatedUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { BackupService } from './backup.service';
+import { BackupSchedulerService } from './backup-scheduler.service';
 import { BackupDownloadQueryDto, BackupTelegramDto } from './dto/backup-options.dto';
 import type { BackupStatus, RestoreResult } from './backup.types';
 
@@ -36,11 +37,22 @@ const restoreUploadInterceptor = FileInterceptor('file', {
 @Roles(UserRole.ADMIN)
 @Controller('backup')
 export class BackupController {
-  constructor(private readonly backupService: BackupService) {}
+  constructor(
+    private readonly backupService: BackupService,
+    private readonly backupSchedulerService: BackupSchedulerService,
+  ) {}
 
   @Get('status')
-  getStatus(): Promise<BackupStatus> {
-    return this.backupService.getStatus();
+  async getStatus(): Promise<BackupStatus> {
+    const status = await this.backupService.getStatus();
+    status.nightlySchedule = this.backupSchedulerService.getScheduleInfo();
+    return status;
+  }
+
+  @Post('schedule/trigger')
+  @HttpCode(HttpStatus.OK)
+  triggerSchedule(@CurrentUser() actor: AuthenticatedUser) {
+    return this.backupSchedulerService.triggerManualRun(actor.id);
   }
 
   @Get('download')

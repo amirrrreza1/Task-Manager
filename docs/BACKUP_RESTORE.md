@@ -7,15 +7,41 @@ Task Manager supports both built-in administrator backup & restore (via Web UI a
 Administrators (`ADMIN` role) can manage backups directly in the Task Manager UI under **Settings > Backup & Restore** (`/settings/backup`):
 
 - **Download Backup**: Generates an archive (`.zip` containing `backup.json` and attachments, or standalone `.json` snapshot) and downloads it directly to your computer.
-- **Send to Telegram Group**: Compresses system data and sends the backup document directly to the team's configured Telegram group or topic via the Telegram Bot API (`sendDocument`).
+- **Download Backup**: Generates an archive (`.zip` containing `backup.json` and attachments, or standalone `.json` snapshot) and downloads it directly to your computer.
+- **Send to Telegram Group / Channel**: Compresses system data and sends the backup document directly to the configured Telegram channel, group, or topic via the Telegram Bot API (`sendDocument`).
+- **Automated Nightly Backup**: Automatically generates system backups every night at 12:00 midnight (`00:00`) and dispatches them to Telegram. Includes smart fallback: if attachments cause the file to exceed Telegram's 50 MB limit, it automatically delivers the database snapshot JSON so backups never fail.
 - **Restore Backup**: Accepts an uploaded `.zip` archive or `.json` snapshot, validates contents, safely extracts attachments, and executes an atomic PostgreSQL transaction that restores tables in dependency order.
 
 API Endpoints:
 
-- `GET /api/v1/backup/status` - Backup metrics and Telegram readiness
+- `GET /api/v1/backup/status` - Backup metrics, Telegram readiness, and nightly schedule info
 - `GET /api/v1/backup/download` - Stream backup download
-- `POST /api/v1/backup/telegram` - Dispatch backup archive to Telegram group
+- `POST /api/v1/backup/telegram` - Dispatch backup archive to Telegram on demand
+- `POST /api/v1/backup/schedule/trigger` - Test the automated nightly backup pipeline on demand
 - `POST /api/v1/backup/restore` - Restore system from multipart backup file upload
+
+### Automated Nightly Backup Configuration
+
+Configure in `.env`:
+
+```dotenv
+# Enable automated nightly backups
+BACKUP_NIGHTLY_TELEGRAM_ENABLED=true
+
+# Schedule time (default: 00:00 for 12:00 AM midnight)
+BACKUP_NIGHTLY_TIME="00:00"
+
+# Timezone (e.g. UTC, Asia/Tehran, Europe/London). Defaults to host server local time if blank
+BACKUP_NIGHTLY_TIMEZONE=
+
+# Whether to include attachments (default: true)
+BACKUP_NIGHTLY_INCLUDE_ATTACHMENTS=true
+```
+
+To deliver to a Telegram channel:
+1. Add your bot to the channel as an **Administrator** with permission to **Post Messages**.
+2. Set `TELEGRAM_CHAT_ID` to the channel ID (e.g. `-100xxxxxxxxxx`) or public channel username (e.g. `@my_channel`).
+
 
 ## What must be backed up
 
