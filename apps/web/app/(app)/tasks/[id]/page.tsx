@@ -384,14 +384,7 @@ export default function TaskPage() {
           <section className="detail-section subtasks-section">
             <header>
               <div>
-                <div className="subtasks-header-title">
-                  <h2>Subtasks</h2>
-                  {task.subtasks.length > 0 ? (
-                    <span className="subtasks-count-chip">
-                      {task.subtasks.filter((s) => s.isCompleted).length}/{task.subtasks.length}
-                    </span>
-                  ) : null}
-                </div>
+                <h2>Subtasks</h2>
                 <p>
                   {task.subtasks.length === 0
                     ? '0 total'
@@ -415,30 +408,6 @@ export default function TaskPage() {
                 Add subtask
               </Button>
             </header>
-            {task.subtasks.length > 0 ? (
-              <div
-                className="subtasks-progress-track"
-                role="progressbar"
-                aria-valuenow={Math.round(
-                  (task.subtasks.filter((s) => s.isCompleted).length / task.subtasks.length) * 100,
-                )}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-label={`Subtasks progress: ${Math.round(
-                  (task.subtasks.filter((s) => s.isCompleted).length / task.subtasks.length) * 100,
-                )}% completed`}
-              >
-                <div
-                  className="subtasks-progress-fill"
-                  style={{
-                    width: `${Math.round(
-                      (task.subtasks.filter((s) => s.isCompleted).length / task.subtasks.length) *
-                        100,
-                    )}%`,
-                  }}
-                />
-              </div>
-            ) : null}
             <div className="subtask-list">
               {task.subtasks.map((subtask) => (
                 <div
