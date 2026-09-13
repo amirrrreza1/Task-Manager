@@ -89,7 +89,7 @@ export function TaskIdBadge({
       <span className="task-id-badge-content">
         <span className="task-id-number">{formatted}</span>
         <span className="task-id-badge-icon" aria-hidden="true">
-          {copied ? <Check size={size === 'md' ? 11 : 10} /> : <Copy size={size === 'md' ? 11 : 10} />}
+          {copied ? <Check size={size === 'md' ? 10 : 9} /> : <Copy size={size === 'md' ? 10 : 9} />}
         </span>
       </span>
     </button>
