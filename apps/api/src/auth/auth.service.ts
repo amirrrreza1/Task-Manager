@@ -17,6 +17,7 @@ const publicUserSelect = {
   role: true,
   hasAvatar: true,
   isBootstrapAdmin: true,
+  isDemoAccount: true,
 } satisfies Prisma.UserSelect;
 
 const REFRESH_GRACE_PERIOD_MS = 30_000;
@@ -41,6 +42,17 @@ export class AuthService {
       throw new UnauthorizedException('The username or password is incorrect.');
     }
 
+    return this.createSession(user);
+  }
+
+  async loginAsDemo() {
+    if (this.config.get<string>('DEMO_MODE', 'false') !== 'true') {
+      throw new UnauthorizedException('The administrator demo is not enabled.');
+    }
+    const user = await this.prisma.user.findFirst({
+      where: { isDemoAccount: true, isActive: true, role: 'ADMIN' },
+    });
+    if (!user) throw new UnauthorizedException('The administrator demo is not available.');
     return this.createSession(user);
   }
 
@@ -262,6 +274,7 @@ export class AuthService {
       role: user.role,
       hasAvatar: user.hasAvatar,
       isBootstrapAdmin: user.isBootstrapAdmin,
+      isDemoAccount: user.isDemoAccount,
     };
   }
 }

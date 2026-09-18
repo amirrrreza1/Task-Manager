@@ -10,6 +10,7 @@ export interface CurrentUser {
   role: UserRole;
   hasAvatar: boolean;
   isBootstrapAdmin: boolean;
+  isDemoAccount: boolean;
 }
 
 export interface ManagedUser extends CurrentUser {

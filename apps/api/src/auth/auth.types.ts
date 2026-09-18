@@ -10,6 +10,7 @@ export interface AuthenticatedUser {
   role: UserRole;
   hasAvatar: boolean;
   isBootstrapAdmin: boolean;
+  isDemoAccount: boolean;
 }
 
 export interface AccessTokenPayload {

@@ -11,6 +11,7 @@ import {
   Database,
   Folder,
   LayoutKanban,
+  Lock,
   ReportAnalytics,
   Settings,
   User,
@@ -151,6 +152,15 @@ export function AppShell({ children }: { children: ReactNode }) {
               <HeaderActionsSlot />
             </div>
           </header>
+          {user.isDemoAccount ? (
+            <div className="demo-banner" role="status">
+              <Lock aria-hidden="true" />
+              <span>
+                <strong>Public administrator demo.</strong> Sensitive actions are disabled and demo
+                data may be reset periodically.
+              </span>
+            </div>
+          ) : null}
           <main className="app-content">{children}</main>
         </div>
       </div>

@@ -14,6 +14,7 @@ import { UserRole } from '@prisma/client';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AuthenticatedUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { DemoWritable } from '../auth/decorators/demo-access.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CarryOverDto } from './dto/carry-over.dto';
 import { ResolveSprintWorkDto } from './dto/resolve-sprint-work.dto';
@@ -29,6 +30,7 @@ import { SprintsService } from './sprints.service';
 
 @ApiTags('sprints')
 @ApiBearerAuth()
+@DemoWritable()
 @Controller('sprints')
 export class SprintsController {
   constructor(private readonly sprints: SprintsService) {}

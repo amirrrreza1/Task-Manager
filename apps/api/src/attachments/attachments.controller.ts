@@ -17,6 +17,7 @@ import { tmpdir } from 'node:os';
 import type { Response } from 'express';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { DemoRestricted } from '../auth/decorators/demo-access.decorator';
 import { AttachmentsService } from './attachments.service';
 
 const maxBytes = (Number(process.env.MAX_UPLOAD_SIZE_MB) || 25) * 1024 * 1024;
@@ -66,6 +67,7 @@ export class AttachmentsController {
   constructor(private readonly attachments: AttachmentsService) {}
 
   @Get(':id')
+  @DemoRestricted()
   async download(@Param('id', ParseUUIDPipe) id: string, @Res() response: Response) {
     const attachment = await this.attachments.get(id);
     const inline = new Set([

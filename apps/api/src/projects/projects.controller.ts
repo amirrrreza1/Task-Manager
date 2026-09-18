@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestj
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { DemoWritable } from '../auth/decorators/demo-access.decorator';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { ProjectQueryDto } from './dto/project-query.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
@@ -9,6 +10,7 @@ import { ProjectsService } from './projects.service';
 
 @ApiTags('projects')
 @ApiBearerAuth()
+@DemoWritable()
 @Controller('projects')
 export class ProjectsController {
   constructor(private readonly projects: ProjectsService) {}

@@ -72,6 +72,7 @@ interface AuthContextValue {
   user: CurrentUser | null;
   loading: boolean;
   login(username: string, password: string): Promise<void>;
+  loginDemo(): Promise<void>;
   logout(): Promise<void>;
   updateUser(patch: Partial<CurrentUser>): void;
   request<T>(path: string, init?: RequestInit): Promise<T>;
@@ -210,6 +211,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [scheduleTokenRefresh],
   );
 
+  const loginDemo = useCallback(async () => {
+    const response = await fetch(`${API_URL}/auth/demo`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+    const session = await parseApiResponse<SessionResponse>(response);
+    tokenRef.current = session.accessToken;
+    setUser(session.user);
+    persistSession(session.accessToken, session.user);
+    setLoading(false);
+    scheduleTokenRefresh(session.accessToken);
+  }, [scheduleTokenRefresh]);
+
   const logout = useCallback(async () => {
     clearRefreshTimer();
     try {
@@ -299,8 +313,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   const value = useMemo(
-    () => ({ user, loading, login, logout, updateUser, request, requestBlob, getToken }),
-    [user, loading, login, logout, updateUser, request, requestBlob, getToken],
+    () => ({ user, loading, login, loginDemo, logout, updateUser, request, requestBlob, getToken }),
+    [user, loading, login, loginDemo, logout, updateUser, request, requestBlob, getToken],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

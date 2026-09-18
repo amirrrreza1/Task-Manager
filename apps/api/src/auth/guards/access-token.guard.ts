@@ -49,6 +49,7 @@ export class AccessTokenGuard implements CanActivate {
         role: true,
         hasAvatar: true,
         isBootstrapAdmin: true,
+        isDemoAccount: true,
         isActive: true,
       },
     });
@@ -65,6 +66,7 @@ export class AccessTokenGuard implements CanActivate {
       role: user.role,
       hasAvatar: user.hasAvatar,
       isBootstrapAdmin: user.isBootstrapAdmin,
+      isDemoAccount: user.isDemoAccount,
     };
     return true;
   }

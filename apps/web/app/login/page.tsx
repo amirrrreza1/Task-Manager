@@ -12,13 +12,14 @@ import { useAuth } from '../../components/auth-provider';
 import { useToast } from '../../components/toast-provider';
 
 function LoginForm() {
-  const { login, user, loading } = useAuth();
+  const { login, loginDemo, user, loading } = useAuth();
   const toast = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const demoEnabled = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
   const returnTo = searchParams.get('returnTo');
   const safeReturnTo =
     returnTo?.startsWith('/') && !returnTo.startsWith('//') ? returnTo : '/board';
@@ -35,6 +36,18 @@ function LoginForm() {
       router.replace(safeReturnTo);
     } catch (caught) {
       toast.fromError(caught, 'Sign in failed.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function startDemo() {
+    setSubmitting(true);
+    try {
+      await loginDemo();
+      router.replace(safeReturnTo);
+    } catch (caught) {
+      toast.fromError(caught, 'Could not start the administrator demo.');
     } finally {
       setSubmitting(false);
     }
@@ -103,6 +116,28 @@ function LoginForm() {
               </>
             )}
           </Button>
+
+          {demoEnabled ? (
+            <>
+              <div className="login-divider" role="separator">
+                <span>or</span>
+              </div>
+              <Button
+                className="login-submit"
+                disabled={submitting || loading}
+                size="lg"
+                type="button"
+                variant="outline"
+                onClick={() => void startDemo()}
+              >
+                <User aria-hidden="true" />
+                Explore administrator demo
+              </Button>
+              <p className="demo-login-note">
+                Administrative pages are visible; sensitive actions are safely disabled.
+              </p>
+            </>
+          ) : null}
         </form>
       </section>
     </main>

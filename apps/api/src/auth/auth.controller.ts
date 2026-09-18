@@ -42,6 +42,17 @@ export class AuthController {
   }
 
   @Public()
+  @Post('demo')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Start a restricted public administrator demo session' })
+  async demo(@Res({ passthrough: true }) response: Response) {
+    const session = await this.auth.loginAsDemo();
+    this.setRefreshCookie(response, session.refreshToken);
+    return { accessToken: session.accessToken, user: session.user };
+  }
+
+  @Public()
   @Post('refresh')
   @HttpCode(200)
   async refresh(@Req() request: Request, @Res({ passthrough: true }) response: Response) {

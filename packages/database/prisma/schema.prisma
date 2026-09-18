@@ -59,6 +59,7 @@ model User {
   hasAvatar         Boolean             @default(false)
   isActive          Boolean             @default(true)
   isBootstrapAdmin  Boolean             @default(false)
+  isDemoAccount     Boolean             @default(false)
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
   taskAssignments   TaskAssignment[]

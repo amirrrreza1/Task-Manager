@@ -3,7 +3,9 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { NotificationsService } from './notifications.service';
 import { NotificationQueryDto } from './dto/notification-query.dto';
+import { DemoWritable } from '../auth/decorators/demo-access.decorator';
 
+@DemoWritable()
 @Controller('notifications')
 export class NotificationsController {
   constructor(private readonly notificationsService: NotificationsService) {}

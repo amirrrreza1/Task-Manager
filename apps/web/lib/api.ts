@@ -6,6 +6,7 @@ export class ApiError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    readonly code?: string,
   ) {
     super(message);
   }
@@ -24,5 +25,9 @@ export async function parseApiResponse<T>(response: Response): Promise<T> {
     // The status text is the safest fallback when the server returned no JSON.
   }
   const message = Array.isArray(body.message) ? body.message.join(' ') : body.message;
-  throw new ApiError(message ?? response.statusText ?? 'The request failed.', response.status);
+  throw new ApiError(
+    message ?? response.statusText ?? 'The request failed.',
+    response.status,
+    body.code,
+  );
 }

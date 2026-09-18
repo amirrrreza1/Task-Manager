@@ -42,6 +42,7 @@ const userSelect = {
   hasAvatar: true,
   isActive: true,
   isBootstrapAdmin: true,
+  isDemoAccount: true,
   createdAt: true,
   updatedAt: true,
 } satisfies Prisma.UserSelect;

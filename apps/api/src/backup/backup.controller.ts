@@ -19,6 +19,7 @@ import type { Response } from 'express';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { DemoRestricted } from '../auth/decorators/demo-access.decorator';
 import { BackupService } from './backup.service';
 import { BackupSchedulerService } from './backup-scheduler.service';
 import { BackupDownloadQueryDto, BackupTelegramDto } from './dto/backup-options.dto';
@@ -56,6 +57,7 @@ export class BackupController {
   }
 
   @Get('download')
+  @DemoRestricted()
   async download(
     @Query() query: BackupDownloadQueryDto,
     @CurrentUser() actor: AuthenticatedUser,

@@ -13,6 +13,7 @@ import {
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { DemoWritable } from '../auth/decorators/demo-access.decorator';
 import { CommentDto } from './dto/comment.dto';
 import { CreateSubtaskDto } from './dto/create-subtask.dto';
 import { CreateTaskDto } from './dto/create-task.dto';
@@ -26,6 +27,7 @@ import { TasksService } from './tasks.service';
 
 @ApiTags('tasks')
 @ApiBearerAuth()
+@DemoWritable()
 @Controller('tasks')
 export class TasksController {
   constructor(private readonly tasks: TasksService) {}

@@ -29,6 +29,14 @@ class EnvironmentVariables {
   @MinLength(12)
   ADMIN_PASSWORD!: string;
 
+  @IsIn(['true', 'false'])
+  DEMO_MODE = 'false';
+
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(3)
+  DEMO_ADMIN_USERNAME = 'demo-admin';
+
   @IsString()
   @IsNotEmpty()
   JWT_SECRET!: string;

@@ -5,6 +5,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { TokenBucketThrottlerStorageService } from './infrastructure/throttler/token-bucket-throttler-storage.service';
 import { AuthModule } from './auth/auth.module';
 import { AccessTokenGuard } from './auth/guards/access-token.guard';
+import { DemoAccountGuard } from './auth/guards/demo-account.guard';
 import { RolesGuard } from './auth/guards/roles.guard';
 import { HealthModule } from './health/health.module';
 import { PrismaModule } from './infrastructure/prisma/prisma.module';
@@ -57,6 +58,7 @@ import { BackupModule } from './backup/backup.module';
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: AccessTokenGuard },
+    { provide: APP_GUARD, useClass: DemoAccountGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
   ],
 })

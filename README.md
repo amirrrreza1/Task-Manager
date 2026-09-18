@@ -44,6 +44,20 @@ pnpm run prisma:generate
 pnpm run dev
 ```
 
+## Restricted public administrator demo
+
+An isolated portfolio deployment can expose a one-click administrator demo without sharing the
+real bootstrap administrator. Set `DEMO_MODE=true` (and optionally
+`DEMO_ADMIN_USERNAME=demo-admin`) before building and starting the Compose stack. The API creates a
+dedicated demo administrator and the login page displays an **Explore administrator demo** action.
+
+The demo administrator can use normal task, project, sprint, comment, and notification-read flows.
+It can view administration pages, but the API blocks member/profile changes, workflow and workspace
+configuration, notification configuration/tests, attachments, backups, and password changes. The
+UI surfaces these blocks as a public-demo toast. Keep this mode on a separate deployment containing
+only synthetic data; it is not a tenant boundary or a substitute for an isolated database and file
+volume.
+
 For local processes outside Docker, change the database host in `DATABASE_URL` from `database` to
 `localhost` and expose PostgreSQL (or run only the database service with a local override).
 
