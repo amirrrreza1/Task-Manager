@@ -21,7 +21,7 @@ import { ResolveSprintWorkDto } from './dto/resolve-sprint-work.dto';
 import { AssignSprintTasksDto } from './dto/assign-sprint-tasks.dto';
 import { AssignSprintSubtasksDto } from './dto/assign-sprint-subtasks.dto';
 import { CommentDto } from './dto/comment.dto';
-import type { CreateSprintDto } from './dto/create-sprint.dto';
+import { CreateSprintDto } from './dto/create-sprint.dto';
 import { FinishSprintDto } from './dto/finish-sprint.dto';
 import { SprintQueryDto } from './dto/sprint-query.dto';
 import { StartSprintDto } from './dto/start-sprint.dto';
