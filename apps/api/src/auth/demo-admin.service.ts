@@ -36,7 +36,10 @@ export class DemoAdminService implements OnApplicationBootstrap {
       return;
     }
 
-    const username = this.config.get<string>('DEMO_ADMIN_USERNAME', 'demo-admin').trim().toLowerCase();
+    const username = this.config
+      .get<string>('DEMO_ADMIN_USERNAME', 'demo-admin')
+      .trim()
+      .toLowerCase();
     const usernameOwner = await this.prisma.user.findFirst({
       where: { username: { equals: username, mode: 'insensitive' } },
     });

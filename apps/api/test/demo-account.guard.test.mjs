@@ -44,9 +44,6 @@ describe('DemoAccountGuard', () => {
 
   it('does not affect normal accounts', () => {
     const guard = new DemoAccountGuard({ getAllAndOverride: () => true });
-    assert.equal(
-      guard.canActivate(contextFor({ method: 'DELETE', isDemoAccount: false })),
-      true,
-    );
+    assert.equal(guard.canActivate(contextFor({ method: 'DELETE', isDemoAccount: false })), true);
   });
 });
