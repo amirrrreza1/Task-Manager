@@ -1,5 +1,6 @@
 'use client';
 
+import { CalendarCheck, CalendarTime, ClipboardList, Run } from '@appica/icons-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../../components/auth-provider';
@@ -46,7 +47,7 @@ export default function ReportsIndexPage() {
         </h2>
         <Link className="report-card" href="/reports/activity">
           <div className="report-card-icon" aria-hidden="true">
-            📋
+            <ClipboardList />
           </div>
           <div>
             <strong>Full activity log</strong>
@@ -105,7 +106,13 @@ export default function ReportsIndexPage() {
             {sprints.map((sprint) => (
               <Link key={sprint.id} className="report-card" href={`/reports/sprint/${sprint.id}`}>
                 <div className="report-card-icon" aria-hidden="true">
-                  {sprint.status === 'COMPLETED' ? '✅' : sprint.status === 'ACTIVE' ? '🏃' : '📅'}
+                  {sprint.status === 'COMPLETED' ? (
+                    <CalendarCheck />
+                  ) : sprint.status === 'ACTIVE' ? (
+                    <Run />
+                  ) : (
+                    <CalendarTime />
+                  )}
                 </div>
                 <div>
                   <strong>{sprint.name}</strong>

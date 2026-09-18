@@ -4,7 +4,7 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsUuidLike } from '../../common/validators/is-uuid-like';
 
 export class MemberReportQueryDto {
-  /** Filter to a specific sprint; omit for all-time totals. */
+  /** Filter to one sprint; completed sprints are reconstructed from finish snapshots. */
   @ApiPropertyOptional()
   @IsOptional()
   @Transform(({ value }) =>

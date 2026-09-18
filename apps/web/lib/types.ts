@@ -460,13 +460,30 @@ export interface ReportSubtask {
 export interface MemberReportTotals {
   completedCount: number;
   incompleteCount: number;
+  taskCount: number;
+  tasksDone: number;
+  workItemCount: number;
+  workItemsDone: number;
+  completionRate: number;
   estimateHours: number;
   estimatePoints: number;
+}
+
+export interface MemberReportTask {
+  id: string;
+  title: string;
+  type: TaskType;
+  isDone: boolean;
+  estimateValue: number | null;
+  estimateUnit: EstimateUnit | null;
+  column: { id: string; name: string; isDone: boolean };
+  sprint: { id: string; name: string; status: SprintStatus } | null;
 }
 
 export interface MemberReport {
   user: UserSummary;
   sprintFilter: string | null;
+  assignedTasks: MemberReportTask[];
   completedSubtasks: ReportSubtask[];
   incompleteSubtasks: ReportSubtask[];
   totals: MemberReportTotals;

@@ -31,6 +31,25 @@ type SerializedSubtask = {
   parentTask?: { id: string; title: string; type?: TaskType };
 };
 
+type SerializedMemberTask = {
+  id: string;
+  title: string;
+  type: TaskType;
+  isDone: boolean;
+  estimateValue: number | null;
+  estimateUnit: string | null;
+  column: { id: string; name: string; isDone: boolean };
+  sprint: { id: string; name: string; status: string } | null;
+};
+
+type SerializedMemberUser = {
+  id: string;
+  displayName: string;
+  color: string;
+  hasAvatar: boolean;
+  isActive: boolean;
+};
+
 @Injectable()
 export class ReportsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -169,7 +188,7 @@ export class ReportsService {
     return { ...ev, entityLabel };
   }
 
-  // ─── Member subtask-completion report ────────────────────────────────────────
+  // ─── Member workload report ──────────────────────────────────────────────────
 
   async memberReport(userId: string, query: MemberReportQueryDto) {
     const user = await this.prisma.user.findUnique({
@@ -178,13 +197,96 @@ export class ReportsService {
     });
     if (!user) throw new NotFoundException('User not found.');
 
-    const completedCondition: Prisma.SubtaskWhereInput = {
-      OR: [
-        { isCompleted: true },
-        { column: { isDone: true } },
-        { column: { name: { equals: 'Done', mode: 'insensitive' } } },
-      ],
-    };
+    const selectedSprint = query.sprintId
+      ? await this.prisma.sprint.findUnique({
+          where: { id: query.sprintId },
+          select: {
+            id: true,
+            name: true,
+            status: true,
+            taskSnapshots: {
+              orderBy: [{ completedAt: 'desc' }, { id: 'desc' }],
+              include: {
+                task: {
+                  select: {
+                    type: true,
+                    assignees: {
+                      include: { user: { select: actorSelect } },
+                    },
+                  },
+                },
+              },
+            },
+            subtaskSnapshots: {
+              orderBy: [{ completedAt: 'desc' }, { id: 'desc' }],
+              include: {
+                subtask: {
+                  select: {
+                    assignee: { select: actorSelect },
+                    task: { select: { type: true } },
+                  },
+                },
+              },
+            },
+          },
+        })
+      : null;
+
+    if (query.sprintId && !selectedSprint) throw new NotFoundException('Sprint not found.');
+
+    // Completed sprints move unfinished work forward. Use the finish snapshots
+    // so the member report describes that sprint's actual closing outcome rather
+    // than only the items that still point at it today.
+    if (selectedSprint?.status === 'COMPLETED') {
+      const sprintRef = {
+        id: selectedSprint.id,
+        name: selectedSprint.name,
+        status: selectedSprint.status,
+      };
+      const assignedTasks: SerializedMemberTask[] = selectedSprint.taskSnapshots
+        .filter((snapshot) =>
+          snapshot.task?.assignees.some((assignment) => assignment.user.id === userId),
+        )
+        .map((snapshot) => ({
+          id: snapshot.taskId ?? snapshot.id,
+          title: snapshot.title,
+          type: snapshot.task?.type ?? 'TASK',
+          isDone: snapshot.wasDone,
+          estimateValue: snapshot.estimateValue,
+          estimateUnit: snapshot.estimateUnit,
+          column: {
+            id: '',
+            name: snapshot.columnName,
+            isDone: snapshot.wasDone,
+          },
+          sprint: sprintRef,
+        }));
+      const assignedSubtasks: SerializedSubtask[] = selectedSprint.subtaskSnapshots
+        .filter((snapshot) => snapshot.subtask?.assignee?.id === userId)
+        .map((snapshot) => ({
+          id: snapshot.subtaskId ?? snapshot.id,
+          title: snapshot.title,
+          isCompleted: snapshot.wasDone,
+          estimateValue: snapshot.estimateValue,
+          estimateUnit: snapshot.estimateUnit,
+          column: {
+            id: '',
+            name: snapshot.wasDone ? 'Done at sprint end' : 'Not done at sprint end',
+            isDone: snapshot.wasDone,
+          },
+          task: snapshot.taskId
+            ? {
+                id: snapshot.taskId,
+                title: snapshot.taskTitle,
+                type: snapshot.subtask?.task.type ?? 'TASK',
+              }
+            : null,
+          sprint: sprintRef,
+          assignee: snapshot.subtask?.assignee ?? null,
+        }));
+
+      return this.memberReportPayload(user, selectedSprint.id, assignedTasks, assignedSubtasks);
+    }
 
     const sprintCondition: Prisma.SubtaskWhereInput | undefined = query.sprintId
       ? {
@@ -195,35 +297,12 @@ export class ReportsService {
         }
       : undefined;
 
-    const completedSubtasks = await this.prisma.subtask.findMany({
+    // Fetch every assigned subtask in the selected scope and classify it in one
+    // place. The former two-query approach could omit active work when a custom
+    // done column name or mixed completion flags were used.
+    const assignedSubtasks = await this.prisma.subtask.findMany({
       where: {
         assigneeId: userId,
-        AND: sprintCondition ? [completedCondition, sprintCondition] : [completedCondition],
-      },
-      orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
-      include: {
-        task: {
-          select: {
-            id: true,
-            title: true,
-            type: true,
-            sprint: { select: { id: true, name: true, status: true } },
-          },
-        },
-        sprint: { select: { id: true, name: true, status: true } },
-        column: { select: { id: true, name: true, isDone: true } },
-        assignee: { select: actorSelect },
-      },
-    });
-
-    const completedIds = new Set(completedSubtasks.map((s) => s.id));
-
-    // Incomplete subtasks assigned to this user that are NOT in completedSubtasks
-    const incompleteSubtasksRaw = await this.prisma.subtask.findMany({
-      where: {
-        assigneeId: userId,
-        isCompleted: false,
-        column: { isDone: false, name: { not: 'Done' } },
         ...(sprintCondition ? sprintCondition : {}),
       },
       orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
@@ -241,27 +320,35 @@ export class ReportsService {
         assignee: { select: actorSelect },
       },
     });
-    const incompleteSubtasks = incompleteSubtasksRaw.filter((s) => !completedIds.has(s.id));
 
-    const totalEstimateHours = this.sumEstimateHours(completedSubtasks);
-    const totalEstimatePoints = this.sumEstimatePoints(completedSubtasks);
-
-    return {
-      user,
-      sprintFilter: query.sprintId ?? null,
-      completedSubtasks: completedSubtasks.map((s: (typeof completedSubtasks)[number]) =>
-        this.serializeSubtask({ ...s, isCompleted: true }),
-      ),
-      incompleteSubtasks: incompleteSubtasks.map((s: (typeof incompleteSubtasks)[number]) =>
-        this.serializeSubtask(s),
-      ),
-      totals: {
-        completedCount: completedSubtasks.length,
-        incompleteCount: incompleteSubtasks.length,
-        estimateHours: totalEstimateHours,
-        estimatePoints: totalEstimatePoints,
+    const serializedSubtasks = assignedSubtasks.map((s) => this.serializeSubtask(s));
+    const assignedTasksRaw = await this.prisma.task.findMany({
+      where: {
+        assignees: { some: { userId } },
+        ...(query.sprintId ? { sprintId: query.sprintId } : {}),
       },
-    };
+      orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+      select: {
+        id: true,
+        title: true,
+        type: true,
+        estimateValue: true,
+        estimateUnit: true,
+        column: { select: { id: true, name: true, isDone: true } },
+        sprint: { select: { id: true, name: true, status: true } },
+      },
+    });
+
+    const assignedTasks: SerializedMemberTask[] = assignedTasksRaw.map((task) => ({
+      ...task,
+      isDone: task.column.isDone || task.column.name.trim().toLowerCase() === 'done',
+    }));
+    return this.memberReportPayload(
+      user,
+      query.sprintId ?? null,
+      assignedTasks,
+      serializedSubtasks,
+    );
   }
 
   // ─── Sprint report ────────────────────────────────────────────────────────────
@@ -693,6 +780,39 @@ export class ReportsService {
   }
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+  private memberReportPayload(
+    user: SerializedMemberUser,
+    sprintFilter: string | null,
+    assignedTasks: SerializedMemberTask[],
+    assignedSubtasks: SerializedSubtask[],
+  ) {
+    const completedSubtasks = assignedSubtasks.filter((subtask) => subtask.isCompleted);
+    const incompleteSubtasks = assignedSubtasks.filter((subtask) => !subtask.isCompleted);
+    const completedTasks = assignedTasks.filter((task) => task.isDone).length;
+    const totalWorkItems = assignedTasks.length + assignedSubtasks.length;
+    const completedWorkItems = completedTasks + completedSubtasks.length;
+
+    return {
+      user,
+      sprintFilter,
+      assignedTasks,
+      completedSubtasks,
+      incompleteSubtasks,
+      totals: {
+        completedCount: completedSubtasks.length,
+        incompleteCount: incompleteSubtasks.length,
+        taskCount: assignedTasks.length,
+        tasksDone: completedTasks,
+        workItemCount: totalWorkItems,
+        workItemsDone: completedWorkItems,
+        completionRate:
+          totalWorkItems > 0 ? Math.round((completedWorkItems / totalWorkItems) * 100) : 0,
+        estimateHours: this.sumEstimateHours(completedSubtasks),
+        estimatePoints: this.sumEstimatePoints(completedSubtasks),
+      },
+    };
+  }
 
   private serializeSubtask(s: {
     id: string;

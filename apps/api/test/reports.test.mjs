@@ -246,34 +246,74 @@ describe('ReportsService sprint and member reports', () => {
       isActive: true,
     };
 
-    let capturedQueries = [];
+    let capturedSubtaskQuery;
+    let capturedTaskQuery;
     const prismaMock = {
       user: {
         findUnique: async () => userAlice,
       },
+      sprint: {
+        findUnique: async () => ({
+          id: 'sprint-1',
+          name: 'Sprint 1',
+          status: 'ACTIVE',
+          taskSnapshots: [],
+          subtaskSnapshots: [],
+        }),
+      },
       subtask: {
         findMany: async (args) => {
-          capturedQueries.push(args);
-          if (args.where.AND) {
-            return [
-              {
-                id: 'sub-c1',
-                title: 'Done subtask',
-                isCompleted: true,
-                estimateValue: 4,
-                estimateUnit: 'HOURS',
-                column: { id: 'col-done', name: 'Done', isDone: true },
-                task: {
-                  id: 'task-1',
-                  title: 'Task 1',
-                  sprint: { id: 'sprint-1', name: 'Sprint 1', status: 'ACTIVE' },
-                },
-                sprint: null, // sprintId is on parent task!
-                assignee: userAlice,
+          capturedSubtaskQuery = args;
+          return [
+            {
+              id: 'sub-c1',
+              title: 'Done subtask',
+              isCompleted: true,
+              estimateValue: 4,
+              estimateUnit: 'HOURS',
+              column: { id: 'col-done', name: 'Done', isDone: true },
+              task: {
+                id: 'task-1',
+                title: 'Task 1',
+                type: 'TASK',
+                sprint: { id: 'sprint-1', name: 'Sprint 1', status: 'ACTIVE' },
               },
-            ];
-          }
-          return [];
+              sprint: null, // sprintId is on parent task!
+              assignee: userAlice,
+            },
+            {
+              id: 'sub-p1',
+              title: 'Active subtask',
+              isCompleted: false,
+              estimateValue: 2,
+              estimateUnit: 'HOURS',
+              column: { id: 'col-progress', name: 'In Progress', isDone: false },
+              task: {
+                id: 'task-1',
+                title: 'Task 1',
+                type: 'TASK',
+                sprint: { id: 'sprint-1', name: 'Sprint 1', status: 'ACTIVE' },
+              },
+              sprint: null,
+              assignee: userAlice,
+            },
+          ];
+        },
+      },
+      task: {
+        findMany: async (args) => {
+          capturedTaskQuery = args;
+          return [
+            {
+              id: 'task-1',
+              title: 'Task 1',
+              type: 'TASK',
+              estimateValue: 6,
+              estimateUnit: 'HOURS',
+              column: { id: 'col-progress', name: 'In Progress', isDone: false },
+              sprint: { id: 'sprint-1', name: 'Sprint 1', status: 'ACTIVE' },
+            },
+          ];
         },
       },
     };
@@ -281,23 +321,104 @@ describe('ReportsService sprint and member reports', () => {
     const service = new ReportsService(prismaMock);
     const report = await service.memberReport('user-1', { sprintId: 'sprint-1' });
 
-    // Verify completed query captured includes sprint filter in AND
-    const sprintFilterInAnd = capturedQueries[0].where.AND.find(
-      (item) => item.OR && item.OR.some((branch) => branch.sprintId === 'sprint-1'),
-    );
-    assert.deepEqual(sprintFilterInAnd.OR, [
+    // Verify both directly assigned sprint subtasks and subtasks inherited from
+    // a parent task in the sprint are included.
+    assert.deepEqual(capturedSubtaskQuery.where.OR, [
       { sprintId: 'sprint-1' },
       { sprintId: null, task: { sprintId: 'sprint-1' } },
     ]);
+    assert.equal(capturedTaskQuery.where.sprintId, 'sprint-1');
+    assert.deepEqual(capturedTaskQuery.where.assignees, { some: { userId: 'user-1' } });
 
     // Verify completedSubtask sprint resolved from task
     assert.equal(report.completedSubtasks.length, 1);
     assert.equal(report.completedSubtasks[0].title, 'Done subtask');
     assert.equal(report.completedSubtasks[0].sprint.name, 'Sprint 1');
+    assert.equal(report.incompleteSubtasks.length, 1);
+    assert.equal(report.incompleteSubtasks[0].title, 'Active subtask');
+    assert.equal(report.assignedTasks.length, 1);
 
     assert.equal(report.totals.completedCount, 1);
-    assert.equal(report.totals.incompleteCount, 0);
+    assert.equal(report.totals.incompleteCount, 1);
+    assert.equal(report.totals.taskCount, 1);
+    assert.equal(report.totals.tasksDone, 0);
+    assert.equal(report.totals.workItemCount, 3);
+    assert.equal(report.totals.workItemsDone, 1);
+    assert.equal(report.totals.completionRate, 33);
     assert.equal(report.totals.estimateHours, 4);
+  });
+
+  it('memberReport uses completed sprint snapshots so carried-over work remains visible', async () => {
+    const userAlice = {
+      id: 'user-1',
+      displayName: 'Alice',
+      color: '#123456',
+      hasAvatar: false,
+      isActive: true,
+    };
+    const sprintRef = { id: 'sprint-1', name: 'Sprint 1', status: 'COMPLETED' };
+    const prismaMock = {
+      user: { findUnique: async () => userAlice },
+      sprint: {
+        findUnique: async () => ({
+          ...sprintRef,
+          taskSnapshots: [
+            {
+              id: 'task-snapshot-1',
+              taskId: 'task-1',
+              title: 'Carried task',
+              estimateValue: 5,
+              estimateUnit: 'POINTS',
+              columnName: 'In progress',
+              wasDone: false,
+              task: {
+                type: 'TASK',
+                assignees: [{ user: userAlice }],
+              },
+            },
+          ],
+          subtaskSnapshots: [
+            {
+              id: 'subtask-snapshot-1',
+              subtaskId: 'subtask-1',
+              taskId: 'task-1',
+              taskTitle: 'Carried task',
+              title: 'Finished part',
+              estimateValue: 2,
+              estimateUnit: 'HOURS',
+              wasDone: true,
+              subtask: { assignee: userAlice, task: { type: 'TASK' } },
+            },
+            {
+              id: 'subtask-snapshot-2',
+              subtaskId: 'subtask-2',
+              taskId: 'task-1',
+              taskTitle: 'Carried task',
+              title: 'Carried part',
+              estimateValue: 3,
+              estimateUnit: 'HOURS',
+              wasDone: false,
+              subtask: { assignee: userAlice, task: { type: 'TASK' } },
+            },
+          ],
+        }),
+      },
+      task: { findMany: async () => assert.fail('live tasks should not be queried') },
+      subtask: { findMany: async () => assert.fail('live subtasks should not be queried') },
+    };
+
+    const service = new ReportsService(prismaMock);
+    const report = await service.memberReport('user-1', { sprintId: 'sprint-1' });
+
+    assert.equal(report.assignedTasks.length, 1);
+    assert.equal(report.assignedTasks[0].isDone, false);
+    assert.equal(report.completedSubtasks.length, 1);
+    assert.equal(report.completedSubtasks[0].title, 'Finished part');
+    assert.equal(report.incompleteSubtasks.length, 1);
+    assert.equal(report.incompleteSubtasks[0].title, 'Carried part');
+    assert.equal(report.incompleteSubtasks[0].column.name, 'Not done at sprint end');
+    assert.equal(report.totals.workItemCount, 3);
+    assert.equal(report.totals.workItemsDone, 1);
   });
 
   it('sprintReport includes task types and computes bugCount and bugsDone', async () => {

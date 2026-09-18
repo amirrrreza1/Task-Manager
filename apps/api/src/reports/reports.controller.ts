@@ -19,7 +19,9 @@ export class ReportsController {
   }
 
   @Get('members/:userId')
-  @ApiOperation({ summary: 'Subtask completion and estimate report for one member (admin only)' })
+  @ApiOperation({
+    summary: 'Task, subtask, and sprint workload report for one member (admin only)',
+  })
   memberReport(
     @Param('userId', ParseUUIDPipe) userId: string,
     @Query() query: MemberReportQueryDto,

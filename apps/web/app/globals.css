@@ -1110,7 +1110,9 @@ label:not([data-slot='field-label']) small {
   color: var(--muted);
   text-decoration: none;
   border-radius: calc(var(--radius) - 2px);
-  transition: background 150ms ease, color 150ms ease;
+  transition:
+    background 150ms ease,
+    color 150ms ease;
 }
 .sprint-tab:hover {
   color: var(--text);
@@ -3996,8 +3998,26 @@ input[type='color'] {
 }
 
 .report-card-icon {
-  font-size: 1.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  color: var(--accent);
   flex-shrink: 0;
+}
+
+.report-card-icon svg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.report-inline-icon {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  vertical-align: middle;
 }
 
 .report-card strong {
@@ -5503,7 +5523,10 @@ button.task-id-badge {
   color: var(--foreground-muted);
   white-space: nowrap;
   user-select: none;
-  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease;
   font-variant-numeric: tabular-nums;
   box-sizing: border-box;
   text-decoration: none;
@@ -5585,7 +5608,6 @@ button.task-id-badge--md {
   font-size: 0.60rem;
   border-radius: 5px;
 }
-
 
 .sidebar-projects {
   display: flex;

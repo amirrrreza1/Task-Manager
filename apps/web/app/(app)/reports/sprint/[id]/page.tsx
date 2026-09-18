@@ -1,5 +1,6 @@
 'use client';
 
+import { ChevronDown, ChevronUp, CornerDownRight } from '@appica/icons-react';
 import { Button } from '../../../../../components/design-system';
 import {
   Table,
@@ -77,7 +78,12 @@ function TaskRow({ task }: { task: SprintReportTask }) {
                   userSelect: 'none',
                 }}
               >
-                {open ? '▲' : '▼'} {task.subtasks.length} subtask
+                {open ? (
+                  <ChevronUp aria-hidden="true" className="report-inline-icon" />
+                ) : (
+                  <ChevronDown aria-hidden="true" className="report-inline-icon" />
+                )}{' '}
+                {task.subtasks.length} subtask
                 {task.subtasks.length !== 1 ? 's' : ''}
               </span>
             )}
@@ -124,7 +130,7 @@ function TaskRow({ task }: { task: SprintReportTask }) {
             <TableRow key={s.id} className={`report-subtask-row ${done ? 'is-done' : ''}`}>
               <TableCell style={{ paddingLeft: '2rem' }}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                  <span>↳</span>
+                  <CornerDownRight aria-hidden="true" className="report-inline-icon" />
                   <TaskIdBadge id={s.id} />
                   <span>{s.title}</span>
                 </span>
@@ -200,7 +206,11 @@ function MemberCard({ contribution }: { contribution: MemberContribution }) {
           <span className="muted">{contribution.estimatePoints} pt</span>
         )}
         <span className="muted" style={{ marginLeft: 'auto', fontSize: '0.8em' }}>
-          {open ? '▲' : '▼'}
+          {open ? (
+            <ChevronUp aria-hidden="true" className="report-inline-icon" />
+          ) : (
+            <ChevronDown aria-hidden="true" className="report-inline-icon" />
+          )}
         </span>
       </Button>
       {open && (
