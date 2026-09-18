@@ -108,8 +108,9 @@ export class AuthController {
     const allowed = this.config
       .getOrThrow<string>('CORS_ORIGIN')
       .split(',')
-      .map((value) => value.trim().toLowerCase().replace(/\/$/, ''));
-    const normalized = origin.trim().toLowerCase().replace(/\/$/, '');
+      .map((value) => value.trim().replace(/^["']|["']$/g, '').toLowerCase().replace(/\/+$/, ''))
+      .filter(Boolean);
+    const normalized = origin.trim().toLowerCase().replace(/\/+$/, '');
     if (!allowed.includes(normalized) && !allowed.includes('*')) {
       throw new UnauthorizedException('The request origin is not allowed.');
     }

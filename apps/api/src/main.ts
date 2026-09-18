@@ -13,12 +13,35 @@ async function bootstrap() {
 
   app.use(cookieParser());
   app.setGlobalPrefix('api/v1');
+  const allowedOrigins = config
+    .getOrThrow<string>('CORS_ORIGIN')
+    .split(',')
+    .map((origin) => origin.trim().replace(/^["']|["']$/g, '').replace(/\/+$/, ''))
+    .filter(Boolean);
+
   app.enableCors({
-    origin: config
-      .getOrThrow<string>('CORS_ORIGIN')
-      .split(',')
-      .map((origin) => origin.trim()),
+    origin: (
+      origin: string | undefined,
+      callback: (err: Error | null, allow?: boolean) => void,
+    ) => {
+      if (!origin) {
+        return callback(null, true);
+      }
+      const normalized = origin.trim().replace(/\/+$/, '').toLowerCase();
+      const isAllowed = allowedOrigins.some((allowed) => {
+        const normalizedAllowed = allowed.toLowerCase();
+        return normalizedAllowed === '*' || normalizedAllowed === normalized;
+      });
+
+      if (isAllowed) {
+        callback(null, true);
+      } else {
+        callback(null, false);
+      }
+    },
     credentials: true,
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
   });
   app.useGlobalPipes(
     new ValidationPipe({
