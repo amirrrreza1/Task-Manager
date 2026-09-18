@@ -4,7 +4,14 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { ChevronRight, Download, FileText, Plus, Trash } from '@appica/icons-react';
-import { Button, Checkbox, Input, Modal, Select, Textarea } from '../../../../components/design-system';
+import {
+  Button,
+  Checkbox,
+  Input,
+  Modal,
+  Select,
+  Textarea,
+} from '../../../../components/design-system';
 import { Avatar } from '../../../../components/avatar';
 import { HeaderActions } from '../../../../components/header-actions';
 import { PriorityBadge, PrioritySelect } from '../../../../components/priority-badge';
@@ -115,7 +122,11 @@ export default function TaskPage() {
     event.preventDefault();
     const hasSubtasks = Boolean(task?.subtasks && task.subtasks.length > 0);
     const parsedEstimate = parseEstimateInput(estimate);
-    if (!hasSubtasks && estimate.trim() && (parsedEstimate === null || Number.isNaN(parsedEstimate))) {
+    if (
+      !hasSubtasks &&
+      estimate.trim() &&
+      (parsedEstimate === null || Number.isNaN(parsedEstimate))
+    ) {
       toast.error('Please enter a valid positive numeric estimate.');
       return;
     }
@@ -1158,7 +1169,10 @@ function TaskEditModal({
             ))}
           </Select>
           {task.sprint?.status === 'COMPLETED' ? (
-            <span className="muted" style={{ fontSize: '0.8rem', marginTop: '0.25rem', display: 'block' }}>
+            <span
+              className="muted"
+              style={{ fontSize: '0.8rem', marginTop: '0.25rem', display: 'block' }}
+            >
               Tasks in a completed sprint cannot be reassigned.
             </span>
           ) : null}
@@ -1204,7 +1218,9 @@ function TaskEditModal({
 
 function formatEstimate(value: number, unit: EstimateUnit | null, compact = false) {
   if (unit === 'POINTS') {
-    return compact ? `${value} ${value === 1 ? 'pt' : 'pts'}` : `${value} ${value === 1 ? 'point' : 'points'}`;
+    return compact
+      ? `${value} ${value === 1 ? 'pt' : 'pts'}`
+      : `${value} ${value === 1 ? 'point' : 'points'}`;
   }
   return `${value}h`;
 }

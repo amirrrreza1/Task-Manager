@@ -386,7 +386,14 @@ export default function SprintDetailPage() {
                     aria-label={completed ? 'Completed' : 'Not completed'}
                   />
                   <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                        flexWrap: 'wrap',
+                      }}
+                    >
                       {taskId ? <TaskIdBadge id={taskId} /> : null}
                       {taskId ? (
                         <Link href={`/tasks/${taskId}`}>{task.title}</Link>
@@ -438,7 +445,14 @@ export default function SprintDetailPage() {
               <div className="sprint-task" key={subtask.id}>
                 <span className={subtask.isCompleted ? 'done-marker' : 'open-marker'} />
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      flexWrap: 'wrap',
+                    }}
+                  >
                     <TaskIdBadge id={subtask.id} />
                     <strong>{subtask.title}</strong>
                   </div>

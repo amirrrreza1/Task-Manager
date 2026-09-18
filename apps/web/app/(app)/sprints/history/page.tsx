@@ -210,7 +210,9 @@ export default function SprintHistoryPage() {
                     <div className="sprint-history-dates muted">
                       {sprint.startsAt && <span>Started {formatDate(sprint.startsAt)}</span>}
                       {sprint.startsAt && sprint.completedAt && <span>·</span>}
-                      {sprint.completedAt && <span>Completed {formatDate(sprint.completedAt)}</span>}
+                      {sprint.completedAt && (
+                        <span>Completed {formatDate(sprint.completedAt)}</span>
+                      )}
                     </div>
                   </div>
 
@@ -226,9 +228,7 @@ export default function SprintHistoryPage() {
                       )}
                       {(sprint.estimateTotals.hours > 0 || sprint.estimateTotals.points > 0) && (
                         <span className="metric-chip" title="Completed estimates">
-                          {sprint.estimateTotals.hours > 0
-                            ? `${sprint.estimateTotals.hours}h`
-                            : ''}
+                          {sprint.estimateTotals.hours > 0 ? `${sprint.estimateTotals.hours}h` : ''}
                           {sprint.estimateTotals.hours > 0 && sprint.estimateTotals.points > 0
                             ? ' · '
                             : ''}
@@ -357,9 +357,7 @@ export default function SprintHistoryPage() {
                                 <span className="done-marker subtask" />
                                 {subtask.id ? <TaskIdBadge id={subtask.id} /> : null}
                                 <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                  <span className="sprint-done-subtask-title">
-                                    {subtask.title}
-                                  </span>
+                                  <span className="sprint-done-subtask-title">{subtask.title}</span>
                                   <small className="muted">
                                     Parent:{' '}
                                     {subtask.taskId ? (

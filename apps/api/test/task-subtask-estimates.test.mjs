@@ -268,11 +268,7 @@ describe('TasksService Task Subtask Estimate Synchronization', () => {
 
     await assert.rejects(
       async () => {
-        await service.update(
-          'task-1',
-          { estimate: { value: 10, unit: 'HOURS' } },
-          'user-1',
-        );
+        await service.update('task-1', { estimate: { value: 10, unit: 'HOURS' } }, 'user-1');
       },
       {
         name: 'BadRequestException',

@@ -181,7 +181,14 @@ describe('BackupSchedulerService & helpers', () => {
             mimeType: 'application/zip',
             metadata: {
               exportedAt: '2026-09-13T00:00:00.000Z',
-              counts: { workspaces: 1, projects: 1, tasks: 1, subtasks: 0, users: 1, attachments: 50 },
+              counts: {
+                workspaces: 1,
+                projects: 1,
+                tasks: 1,
+                subtasks: 0,
+                users: 1,
+                attachments: 50,
+              },
             },
           };
         } else {
@@ -192,13 +199,23 @@ describe('BackupSchedulerService & helpers', () => {
             mimeType: 'application/json',
             metadata: {
               exportedAt: '2026-09-13T00:00:00.000Z',
-              counts: { workspaces: 1, projects: 1, tasks: 1, subtasks: 0, users: 1, attachments: 0 },
+              counts: {
+                workspaces: 1,
+                projects: 1,
+                tasks: 1,
+                subtasks: 0,
+                users: 1,
+                attachments: 0,
+              },
             },
           };
         }
       };
 
-      const result = await service.sendToTelegram({ automated: true, includeAttachments: true }, null);
+      const result = await service.sendToTelegram(
+        { automated: true, includeAttachments: true },
+        null,
+      );
 
       assert.equal(result.success, true);
       assert.equal(callCount, 2); // Initial attempt + fallback attempt

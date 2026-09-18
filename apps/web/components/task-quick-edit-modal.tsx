@@ -88,33 +88,37 @@ export function TaskQuickEditModal({
     setSaving(true);
     try {
       const hasSubtasks = Boolean(task.subtasks && task.subtasks.length > 0);
-    const parsedEstimate = parseEstimateInput(estimate);
-    if (!hasSubtasks && estimate.trim() && (parsedEstimate === null || Number.isNaN(parsedEstimate))) {
-      toast.error('Please enter a valid positive numeric estimate.');
-      setSaving(false);
-      return;
-    }
+      const parsedEstimate = parseEstimateInput(estimate);
+      if (
+        !hasSubtasks &&
+        estimate.trim() &&
+        (parsedEstimate === null || Number.isNaN(parsedEstimate))
+      ) {
+        toast.error('Please enter a valid positive numeric estimate.');
+        setSaving(false);
+        return;
+      }
 
-    const updated = await request<TaskCard>(`/tasks/${task.id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({
-        title: title.trim(),
-        description: description.trim() ? description : null,
-        type,
-        priority,
-        assigneeIds,
-        projectId: projectId || null,
-        projectIds: projectId ? [projectId] : [],
-        ...(hasSubtasks
-          ? {}
-          : {
-              estimate:
-                parsedEstimate !== null
-                  ? { value: parsedEstimate, unit: task.estimateUnit ?? estimateUnit }
-                  : null,
-            }),
-      }),
-    });
+      const updated = await request<TaskCard>(`/tasks/${task.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          title: title.trim(),
+          description: description.trim() ? description : null,
+          type,
+          priority,
+          assigneeIds,
+          projectId: projectId || null,
+          projectIds: projectId ? [projectId] : [],
+          ...(hasSubtasks
+            ? {}
+            : {
+                estimate:
+                  parsedEstimate !== null
+                    ? { value: parsedEstimate, unit: task.estimateUnit ?? estimateUnit }
+                    : null,
+              }),
+        }),
+      });
 
       // If column changed, move the task to that column
       if (columnId && columnId !== task.columnId) {

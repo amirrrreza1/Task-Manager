@@ -48,7 +48,9 @@ export function calculateSubtasksEstimate(
 
   const estimated = subtasks.filter(
     (s): s is { estimateValue: number; estimateUnit?: EstimateUnit | null } =>
-      typeof s.estimateValue === 'number' && Number.isFinite(s.estimateValue) && s.estimateValue > 0,
+      typeof s.estimateValue === 'number' &&
+      Number.isFinite(s.estimateValue) &&
+      s.estimateValue > 0,
   );
 
   if (estimated.length === 0) {

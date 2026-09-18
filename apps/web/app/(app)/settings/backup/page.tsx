@@ -137,7 +137,9 @@ function BackupAdmin() {
       }>('/backup/schedule/trigger', {
         method: 'POST',
       });
-      toast.success(res.message || 'Automated backup pipeline test succeeded! Check your Telegram channel.');
+      toast.success(
+        res.message || 'Automated backup pipeline test succeeded! Check your Telegram channel.',
+      );
       void loadStatus();
     } catch (caught) {
       toast.fromError(caught, 'Failed to test automated backup pipeline.');
@@ -305,7 +307,8 @@ function BackupAdmin() {
                 )}
               </div>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                Automatically archives system data and dispatches it directly to your Telegram channel / group every night at midnight.
+                Automatically archives system data and dispatches it directly to your Telegram
+                channel / group every night at midnight.
               </p>
             </div>
           </div>
@@ -352,15 +355,15 @@ function BackupAdmin() {
           </div>
 
           <div className="p-3.5 rounded-lg bg-gray-50 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-800">
-            <div className="text-gray-500 dark:text-gray-400 font-medium">Backup Scope & Safety</div>
+            <div className="text-gray-500 dark:text-gray-400 font-medium">
+              Backup Scope & Safety
+            </div>
             <div className="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
               {status?.nightlySchedule?.includeAttachments !== false
                 ? 'Database + Attachments'
                 : 'Database snapshot only'}
             </div>
-            <div className="mt-0.5 text-gray-500">
-              Auto-fallback to records if &gt; 50 MB
-            </div>
+            <div className="mt-0.5 text-gray-500">Auto-fallback to records if &gt; 50 MB</div>
           </div>
         </div>
       </div>

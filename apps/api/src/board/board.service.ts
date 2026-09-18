@@ -122,10 +122,7 @@ export class BoardService {
       : query.includeCompletedSprints
         ? {}
         : {
-            OR: [
-              { sprintId: null },
-              { sprint: { status: { not: SprintStatus.COMPLETED } } },
-            ],
+            OR: [{ sprintId: null }, { sprint: { status: { not: SprintStatus.COMPLETED } } }],
           };
 
     const searchRaw = query.search?.trim() ?? '';
@@ -208,10 +205,7 @@ export class BoardService {
           : query.includeCompletedSprints
             ? {}
             : {
-                OR: [
-                  { sprintId: null },
-                  { sprint: { status: { not: SprintStatus.COMPLETED } } },
-                ],
+                OR: [{ sprintId: null }, { sprint: { status: { not: SprintStatus.COMPLETED } } }],
               }),
       },
       ...(query.sprintId
@@ -224,10 +218,7 @@ export class BoardService {
         : query.includeCompletedSprints
           ? {}
           : {
-              OR: [
-                { sprintId: null },
-                { sprint: { status: { not: SprintStatus.COMPLETED } } },
-              ],
+              OR: [{ sprintId: null }, { sprint: { status: { not: SprintStatus.COMPLETED } } }],
             }),
       ...(searchRaw
         ? {

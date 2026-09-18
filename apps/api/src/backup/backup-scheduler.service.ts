@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  Logger,
-  OnModuleDestroy,
-  OnModuleInit,
-} from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { BackupService } from './backup.service';
 import type { BackupScheduleInfo } from './backup.types';
@@ -54,8 +49,7 @@ export function calculateNextRun(
       const currentSecond = partMap.second;
 
       const isPassedToday =
-        currentHour > targetHour ||
-        (currentHour === targetHour && currentMinute >= targetMinute);
+        currentHour > targetHour || (currentHour === targetHour && currentMinute >= targetMinute);
 
       const currentSecondsInDay = currentHour * 3600 + currentMinute * 60 + currentSecond;
       const targetSecondsInDay = targetHour * 3600 + targetMinute * 60;

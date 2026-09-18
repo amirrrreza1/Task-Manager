@@ -4,10 +4,38 @@ import { TasksService } from '../dist/tasks/tasks.service.js';
 
 describe('TasksService Sprint Reassignment Rules', () => {
   const columns = [
-    { id: 'col-backlog', workspaceId: 'ws-1', isBacklog: true, isTodo: false, isDone: false, position: 0 },
-    { id: 'col-todo', workspaceId: 'ws-1', isBacklog: false, isTodo: true, isDone: false, position: 1 },
-    { id: 'col-in-progress', workspaceId: 'ws-1', isBacklog: false, isTodo: false, isDone: false, position: 2 },
-    { id: 'col-done', workspaceId: 'ws-1', isBacklog: false, isTodo: false, isDone: true, position: 3 },
+    {
+      id: 'col-backlog',
+      workspaceId: 'ws-1',
+      isBacklog: true,
+      isTodo: false,
+      isDone: false,
+      position: 0,
+    },
+    {
+      id: 'col-todo',
+      workspaceId: 'ws-1',
+      isBacklog: false,
+      isTodo: true,
+      isDone: false,
+      position: 1,
+    },
+    {
+      id: 'col-in-progress',
+      workspaceId: 'ws-1',
+      isBacklog: false,
+      isTodo: false,
+      isDone: false,
+      position: 2,
+    },
+    {
+      id: 'col-done',
+      workspaceId: 'ws-1',
+      isBacklog: false,
+      isTodo: false,
+      isDone: true,
+      position: 3,
+    },
   ];
 
   const sprints = {

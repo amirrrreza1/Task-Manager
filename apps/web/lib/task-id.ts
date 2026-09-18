@@ -40,11 +40,7 @@ export function formatTaskId(id: string, options?: FormatTaskIdOptions): string 
   return includeHash ? `#${shortId}` : shortId;
 }
 
-export function matchesTaskId(
-  id: string,
-  search: string,
-  projectKey?: string | null,
-): boolean {
+export function matchesTaskId(id: string, search: string, projectKey?: string | null): boolean {
   if (!id || !search) return false;
   const term = search.trim().toLowerCase().replace(/^#/, '');
   if (!term) return false;

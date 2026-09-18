@@ -39,9 +39,9 @@ BACKUP_NIGHTLY_INCLUDE_ATTACHMENTS=true
 ```
 
 To deliver to a Telegram channel:
+
 1. Add your bot to the channel as an **Administrator** with permission to **Post Messages**.
 2. Set `TELEGRAM_CHAT_ID` to the channel ID (e.g. `-100xxxxxxxxxx`) or public channel username (e.g. `@my_channel`).
-
 
 ## What must be backed up
 
