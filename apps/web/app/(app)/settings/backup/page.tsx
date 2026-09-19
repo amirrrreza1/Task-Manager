@@ -202,10 +202,6 @@ function BackupAdmin() {
           </span>
           <div>
             <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Backup & Restore</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Download system backups, dispatch them directly to your Telegram group, or restore
-              data.
-            </p>
           </div>
         </div>
       </div>
@@ -306,10 +302,6 @@ function BackupAdmin() {
                   </span>
                 )}
               </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                Automatically archives system data and dispatches it directly to your Telegram
-                channel / group every night at midnight.
-              </p>
             </div>
           </div>
 
@@ -378,10 +370,6 @@ function BackupAdmin() {
             <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
               Export & Download Backup
             </h2>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Create an archive of your workspaces, tasks, users, and files to download or send to
-              Telegram.
-            </p>
           </div>
         </div>
 
@@ -405,9 +393,6 @@ function BackupAdmin() {
                   Include file attachments and avatars
                 </label>
               </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 pl-7">
-                Includes all uploaded PDFs, images, documents, and user avatars into the archive.
-              </p>
             </div>
 
             <div className="flex-1 space-y-2">
@@ -425,9 +410,6 @@ function BackupAdmin() {
                   }`}
                 >
                   <div className="font-semibold text-xs">ZIP Archive (.zip)</div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                    Full archive with database snapshot and uploads
-                  </div>
                 </button>
 
                 <button
@@ -443,9 +425,6 @@ function BackupAdmin() {
                   }`}
                 >
                   <div className="font-semibold text-xs">JSON Snapshot (.json)</div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                    Lightweight, database records only (no attachments)
-                  </div>
                 </button>
               </div>
             </div>
@@ -493,9 +472,6 @@ function BackupAdmin() {
             <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
               Restore System Data
             </h2>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Upload a previously exported Task Manager backup file (.zip or .json) to restore data.
-            </p>
           </div>
         </div>
 

@@ -3,9 +3,9 @@
   "version": "0.4.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --webpack -p 3200",
+    "dev": "next dev --webpack -p 5678",
     "build": "next build --webpack",
-    "start": "next start",
+    "start": "next start -p 5678",
     "lint": "eslint .",
     "test": "node --experimental-strip-types --test test/*.test.mjs",
     "typecheck": "tsc --noEmit"
