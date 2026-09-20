@@ -54,6 +54,8 @@ import {
   QuickEditDescriptionModal,
   QuickEditTitleModal,
 } from '../../../components/quick-edit-field-modals';
+import { ChevronDown, ChevronUp } from '@appica/icons-react';
+import { TaskDescriptionAccordion } from '../../../components/task-description-accordion';
 import { ProjectIcon } from '../../../lib/project-icons';
 import { isTaskPriority } from '../../../lib/priority';
 import { isTaskType } from '../../../lib/task-type';
@@ -1457,6 +1459,7 @@ function TaskCardContent({
   onSubtaskDelete?: (subtask: BoardSubtask) => void | Promise<void>;
 }) {
   const completed = task.subtasks.filter((item) => item.isCompleted).length;
+  const [subtasksExpanded, setSubtasksExpanded] = useState(true);
   return (
     <>
       <Link
@@ -1530,12 +1533,10 @@ function TaskCardContent({
             </div>
           ) : null}
         </div>
-        <p
-          className={task.description ? undefined : 'is-empty'}
-          title={task.description || undefined}
-        >
-          {task.description || '\u00A0'}
-        </p>
+        <TaskDescriptionAccordion
+          description={task.description}
+          interactive={interactive}
+        />
         <div className="task-card-footer">
           <div className="task-card-facts">
             <PriorityBadge priority={task.priority} />
@@ -1547,9 +1548,32 @@ function TaskCardContent({
               </span>
             ) : null}
             {task.subtasks.length ? (
-              <span>
-                {completed}/{task.subtasks.length} subtasks
-              </span>
+              interactive ? (
+                <button
+                  type="button"
+                  className="task-subtasks-accordion-btn"
+                  aria-expanded={subtasksExpanded}
+                  title={subtasksExpanded ? 'Collapse subtasks' : 'Expand all subtasks'}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setSubtasksExpanded((prev) => !prev);
+                  }}
+                >
+                  <span>
+                    {completed}/{task.subtasks.length} subtasks
+                  </span>
+                  {subtasksExpanded ? (
+                    <ChevronUp size={11} aria-hidden="true" />
+                  ) : (
+                    <ChevronDown size={11} aria-hidden="true" />
+                  )}
+                </button>
+              ) : (
+                <span>
+                  {completed}/{task.subtasks.length} subtasks
+                </span>
+              )
             ) : null}
             {task._count.attachments ? (
               <span>
@@ -1597,7 +1621,7 @@ function TaskCardContent({
           </div>
         </div>
       </Link>
-      {task.subtasks.length ? (
+      {task.subtasks.length && (subtasksExpanded || !interactive) ? (
         interactive ? (
           <SortableContext
             items={task.subtasks.map((subtask) => `subtask:${subtask.id}`)}
@@ -1812,12 +1836,10 @@ function BoardSubtaskCard({
           <TaskIdBadge id={subtask.id} />
         </div>
         <strong title={title}>{title}</strong>
-        <p
-          className={subtask.description ? undefined : 'is-empty'}
-          title={subtask.description || undefined}
-        >
-          {subtask.description || '\u00A0'}
-        </p>
+        <TaskDescriptionAccordion
+          description={subtask.description}
+          interactive={interactive}
+        />
         <div className="task-card-facts">
           <PriorityBadge priority={subtask.priority} />
           {subtask.estimateValue ? (

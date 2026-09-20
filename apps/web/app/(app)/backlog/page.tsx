@@ -17,6 +17,7 @@ import { HeaderActions } from '../../../components/header-actions';
 import { PriorityBadge, PrioritySelect } from '../../../components/priority-badge';
 import { TaskTypeBadge, TaskTypeSelect } from '../../../components/task-type-badge';
 import { TaskIdBadge } from '../../../components/task-id-badge';
+import { TaskDescriptionAccordion } from '../../../components/task-description-accordion';
 import { matchesTaskId } from '../../../lib/task-id';
 import { ProjectIcon } from '../../../lib/project-icons';
 import { useAuth } from '../../../components/auth-provider';
@@ -505,7 +506,7 @@ function BacklogTaskRow({ task }: { task: TaskCard }) {
           </div>
           <h2>{task.title}</h2>
         </div>
-        <p className={task.description ? undefined : 'is-empty'}>{task.description || '\u00A0'}</p>
+        <TaskDescriptionAccordion description={task.description} />
         <div className="task-card-facts">
           <PriorityBadge priority={task.priority} />
           {task.estimateValue ? (
