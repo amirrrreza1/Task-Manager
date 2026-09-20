@@ -18,7 +18,6 @@ import {
   DndContext,
   type DragEndEvent,
   type DragMoveEvent,
-  type DragOverEvent,
   DragOverlay,
   type DragStartEvent,
   KeyboardSensor,
@@ -70,7 +69,12 @@ import type {
   TaskPriority,
   TaskType,
 } from '../../../lib/types';
-import { placeSubtaskOnColumn, workflowBoard } from '../../../lib/board-columns';
+import {
+  findBoardSubtask as findBoardSubtaskItem,
+  placeSubtaskOnColumn,
+  resolveBoardColumnIndex,
+  workflowBoard,
+} from '../../../lib/board-columns';
 import { taskDropIndex } from '../../../lib/board-dnd';
 import { useBoardSocket } from '../../../lib/use-board-socket';
 import {
@@ -465,16 +469,7 @@ export default function BoardPage() {
 
   function findBoardSubtask(subtaskId: string) {
     const current = displayedBoard ?? board;
-    if (!current) return null;
-    for (const [columnIndex, column] of current.columns.entries()) {
-      for (const task of column.tasks) {
-        const nested = task.subtasks.find((item) => item.id === subtaskId);
-        if (nested) return { subtask: nested, taskId: task.id, columnIndex };
-      }
-      const standalone = column.subtasks.find((item) => item.id === subtaskId);
-      if (standalone) return { subtask: standalone, taskId: standalone.taskId, columnIndex };
-    }
-    return null;
+    return findBoardSubtaskItem(current, subtaskId);
   }
 
   function findTaskLocation(taskId: string, source: BoardResponse = (displayedBoard ?? board)!) {
@@ -488,23 +483,7 @@ export default function BoardPage() {
 
   function resolveColumnIndex(overId: string) {
     const currentBoard = displayedBoard ?? board;
-    if (!currentBoard) return -1;
-    if (overId.startsWith('column:')) {
-      return currentBoard.columns.findIndex(
-        (column) => column.id === overId.replace(/^column:/, ''),
-      );
-    }
-    if (overId.startsWith('task:')) {
-      const taskId = overId.replace(/^task:/, '');
-      return currentBoard.columns.findIndex((column) =>
-        column.tasks.some((item) => item.id === taskId),
-      );
-    }
-    if (overId.startsWith('subtask:')) {
-      const found = findBoardSubtask(overId.replace(/^subtask:/, ''));
-      return found?.columnIndex ?? -1;
-    }
-    return -1;
+    return resolveBoardColumnIndex(currentBoard, overId);
   }
 
   function taskPointerY(event: DragMoveEvent) {
@@ -616,25 +595,8 @@ export default function BoardPage() {
     updateTaskDropPreview({ columnId: targetColumn.id, index: targetIndex });
   }
 
-  function previewBoardDrag(event: DragOverEvent) {
-    if (!board || !event.over || busy) return;
-    const activeId = String(event.active.id);
-    const overId = String(event.over.id);
-    if (activeId === overId) return;
-
-    if (activeId.startsWith('task:')) return;
-
-    if (activeId.startsWith('subtask:')) {
-      const targetColumnIndex = resolveColumnIndex(overId);
-      if (targetColumnIndex < 0) return;
-      const targetColumnId = board.columns[targetColumnIndex].id;
-      const active = findBoardSubtask(activeId.replace(/^subtask:/, ''));
-      if (!active || active.subtask.columnId === targetColumnId) return;
-      setBoard(placeSubtaskOnColumn(board, active.subtask.id, targetColumnId));
-    }
-  }
-
   function cancelBoardDrag() {
+    armClickSuppression();
     if (dragOriginBoard.current) setBoard(dragOriginBoard.current);
     dragOriginBoard.current = null;
     updateActiveDrag(null);
@@ -643,6 +605,7 @@ export default function BoardPage() {
   }
 
   function finishBoardDrag(event: DragEndEvent) {
+    armClickSuppression();
     const origin = dragOriginBoard.current;
     const active = activeDrag;
     const taskPreview = taskDropPreviewRef.current;
@@ -665,19 +628,7 @@ export default function BoardPage() {
       const activeId = String(event.active.id).replace(/^subtask:/, '');
       const overId = String(event.over.id);
 
-      const originSubtask =
-        origin &&
-        (() => {
-          for (const column of origin.columns) {
-            for (const task of column.tasks) {
-              const nested = task.subtasks.find((item) => item.id === activeId);
-              if (nested) return nested;
-            }
-            const standalone = column.subtasks.find((item) => item.id === activeId);
-            if (standalone) return standalone;
-          }
-          return null;
-        })();
+      const originSubtask = origin ? findBoardSubtaskItem(origin, activeId)?.subtask : null;
 
       if (!origin || !originSubtask) {
         dragOriginBoard.current = null;
@@ -685,11 +636,10 @@ export default function BoardPage() {
         return;
       }
 
-      const current = findBoardSubtask(activeId);
-      const targetColumnIndex = resolveColumnIndex(overId);
-      const resolvedColumnId =
-        targetColumnIndex >= 0 ? (board.columns[targetColumnIndex]?.id ?? null) : null;
-      const targetColumnId = resolvedColumnId ?? current?.subtask.columnId ?? null;
+      const boardSource = displayedBoard ?? board;
+      const targetColumnIndex = resolveBoardColumnIndex(boardSource, overId);
+      const targetColumnId =
+        targetColumnIndex >= 0 ? (boardSource.columns[targetColumnIndex]?.id ?? null) : null;
 
       if (!targetColumnId) {
         setBoard(origin);
@@ -701,7 +651,7 @@ export default function BoardPage() {
       const columnChanged = targetColumnId !== originSubtask.columnId;
 
       if (columnChanged) {
-        const parentTask = board.columns
+        const parentTask = boardSource.columns
           .flatMap((column) => column.tasks)
           .find((task) => task.id === active.taskId);
 
@@ -730,7 +680,7 @@ export default function BoardPage() {
       if (overId.startsWith('subtask:')) {
         const overSubtaskId = overId.replace(/^subtask:/, '');
         if (overSubtaskId !== activeId) {
-          const parentTask = board.columns
+          const parentTask = boardSource.columns
             .flatMap((column) => column.tasks)
             .find((task) => task.subtasks.some((subtask) => subtask.id === activeId));
           if (parentTask && parentTask.subtasks.some((subtask) => subtask.id === overSubtaskId)) {
@@ -1223,7 +1173,6 @@ export default function BoardPage() {
           measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
           onDragStart={startBoardDrag}
           onDragMove={previewTaskDrag}
-          onDragOver={previewBoardDrag}
           onDragCancel={cancelBoardDrag}
           onDragEnd={finishBoardDrag}
         >

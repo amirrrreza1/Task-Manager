@@ -107,3 +107,43 @@ export function placeSubtaskOnColumn(
     }),
   };
 }
+
+export function findBoardSubtask(
+  board: BoardResponse | null,
+  subtaskId: string,
+): { subtask: BoardSubtask; taskId: string; columnIndex: number } | null {
+  if (!board) return null;
+  for (const [columnIndex, column] of board.columns.entries()) {
+    for (const task of column.tasks) {
+      const nested = task.subtasks.find((item) => item.id === subtaskId);
+      if (nested) return { subtask: nested, taskId: task.id, columnIndex };
+    }
+    const standalone = column.subtasks.find((item) => item.id === subtaskId);
+    if (standalone) return { subtask: standalone, taskId: standalone.taskId, columnIndex };
+  }
+  return null;
+}
+
+export function resolveBoardColumnIndex(
+  board: BoardResponse | null,
+  overId: string,
+): number {
+  if (!board) return -1;
+  if (overId.startsWith('column:')) {
+    const columnId = overId.replace(/^column:/, '');
+    return board.columns.findIndex((column) => column.id === columnId);
+  }
+  if (overId.startsWith('task:')) {
+    const taskId = overId.replace(/^task:/, '');
+    return board.columns.findIndex((column) =>
+      column.tasks.some((item) => item.id === taskId),
+    );
+  }
+  if (overId.startsWith('subtask:')) {
+    const subtaskId = overId.replace(/^subtask:/, '');
+    const found = findBoardSubtask(board, subtaskId);
+    return found?.columnIndex ?? -1;
+  }
+  return -1;
+}
+

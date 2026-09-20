@@ -2,8 +2,10 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   backlogBoard,
+  findBoardSubtask,
   isBacklogColumn,
   placeSubtaskOnColumn,
+  resolveBoardColumnIndex,
   workflowBoard,
 } from '../lib/board-columns.ts';
 
@@ -161,3 +163,76 @@ describe('placeSubtaskOnColumn', () => {
     assert.equal(restored.columns[0].tasks[0].subtasks[0].columnId, 'col-todo');
   });
 });
+
+describe('findBoardSubtask and resolveBoardColumnIndex', () => {
+  const testBoard = {
+    settings: { id: 'default' },
+    columns: [
+      {
+        id: 'col-todo',
+        name: 'To Do',
+        position: 0,
+        tasks: [
+          {
+            id: 'task-1',
+            title: 'Task 1',
+            columnId: 'col-todo',
+            subtasks: [
+              { id: 'subtask-1', taskId: 'task-1', columnId: 'col-todo', title: 'Subtask 1' },
+            ],
+          },
+        ],
+        subtasks: [],
+      },
+      {
+        id: 'col-progress',
+        name: 'In Progress',
+        position: 1,
+        tasks: [{ id: 'task-2', title: 'Task 2', columnId: 'col-progress', subtasks: [] }],
+        subtasks: [
+          {
+            id: 'subtask-standalone',
+            taskId: 'task-1',
+            columnId: 'col-progress',
+            title: 'Standalone',
+          },
+        ],
+      },
+    ],
+  };
+
+  it('finds nested subtask and returns its columnIndex and taskId', () => {
+    const found = findBoardSubtask(testBoard, 'subtask-1');
+    assert.ok(found);
+    assert.equal(found.subtask.id, 'subtask-1');
+    assert.equal(found.taskId, 'task-1');
+    assert.equal(found.columnIndex, 0);
+  });
+
+  it('finds standalone subtask and returns its columnIndex', () => {
+    const found = findBoardSubtask(testBoard, 'subtask-standalone');
+    assert.ok(found);
+    assert.equal(found.subtask.id, 'subtask-standalone');
+    assert.equal(found.taskId, 'task-1');
+    assert.equal(found.columnIndex, 1);
+  });
+
+  it('resolves column index from column: overId', () => {
+    assert.equal(resolveBoardColumnIndex(testBoard, 'column:col-todo'), 0);
+    assert.equal(resolveBoardColumnIndex(testBoard, 'column:col-progress'), 1);
+    assert.equal(resolveBoardColumnIndex(testBoard, 'column:nonexistent'), -1);
+  });
+
+  it('resolves column index from task: overId', () => {
+    assert.equal(resolveBoardColumnIndex(testBoard, 'task:task-1'), 0);
+    assert.equal(resolveBoardColumnIndex(testBoard, 'task:task-2'), 1);
+    assert.equal(resolveBoardColumnIndex(testBoard, 'task:nonexistent'), -1);
+  });
+
+  it('resolves column index from subtask: overId', () => {
+    assert.equal(resolveBoardColumnIndex(testBoard, 'subtask:subtask-1'), 0);
+    assert.equal(resolveBoardColumnIndex(testBoard, 'subtask:subtask-standalone'), 1);
+    assert.equal(resolveBoardColumnIndex(testBoard, 'subtask:nonexistent'), -1);
+  });
+});
+
