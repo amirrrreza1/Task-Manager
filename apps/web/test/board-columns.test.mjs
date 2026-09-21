@@ -235,4 +235,3 @@ describe('findBoardSubtask and resolveBoardColumnIndex', () => {
     assert.equal(resolveBoardColumnIndex(testBoard, 'subtask:nonexistent'), -1);
   });
 });
-

@@ -12,12 +12,16 @@ describe('task-description utilities', () => {
 
   it('returns false for short, single-line or 2-line descriptions', () => {
     assert.equal(isDescriptionLong('Short description'), false);
-    assert.equal(isDescriptionLong('This is a normal task description that fits comfortably on one line.'), false);
+    assert.equal(
+      isDescriptionLong('This is a normal task description that fits comfortably on one line.'),
+      false,
+    );
     assert.equal(isDescriptionLong('Line 1\nLine 2'), false);
   });
 
   it('returns true when description exceeds character threshold', () => {
-    const longSingleLine = 'This is a very long task description that definitely exceeds ninety-five characters in total length so it needs an accordion.';
+    const longSingleLine =
+      'This is a very long task description that definitely exceeds ninety-five characters in total length so it needs an accordion.';
     assert.equal(isDescriptionLong(longSingleLine), true);
   });
 

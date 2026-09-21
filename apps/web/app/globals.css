@@ -2159,14 +2159,17 @@ label.check-field {
   padding: 2px 7px;
   margin-top: 2px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 4px;
   background: var(--surface-2);
   color: var(--accent);
   font-size: 0.7rem;
   font-weight: 600;
   line-height: 1.4;
   cursor: pointer;
-  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
 }
 .task-desc-accordion-toggle:hover {
   background: var(--surface-3);
@@ -2194,6 +2197,12 @@ label.check-field {
   white-space: nowrap;
   transition: all 0.15s ease;
 }
+.task-subtasks-accordion-btn span {
+  border: none;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+}
 .task-subtasks-accordion-btn:hover {
   background: var(--surface-3);
   color: var(--foreground);
@@ -2220,8 +2229,8 @@ label.check-field {
   min-width: 0;
   flex: 1 1 auto;
 }
-.task-card-facts span,
-.subtask-meta span {
+.task-card-facts > span,
+.subtask-meta > span {
   flex: 0 1 auto;
   max-width: 100%;
   overflow: hidden;
@@ -2234,7 +2243,7 @@ label.check-field {
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-.task-card-facts span.is-empty {
+.task-card-facts > span.is-empty {
   border-color: transparent;
   color: var(--faint);
   opacity: 0.55;

@@ -467,11 +467,6 @@ export default function BoardPage() {
     }
   }
 
-  function findBoardSubtask(subtaskId: string) {
-    const current = displayedBoard ?? board;
-    return findBoardSubtaskItem(current, subtaskId);
-  }
-
   function findTaskLocation(taskId: string, source: BoardResponse = (displayedBoard ?? board)!) {
     if (!source) return null;
     for (const [columnIndex, column] of source.columns.entries()) {
@@ -1482,10 +1477,7 @@ function TaskCardContent({
             </div>
           ) : null}
         </div>
-        <TaskDescriptionAccordion
-          description={task.description}
-          interactive={interactive}
-        />
+        <TaskDescriptionAccordion description={task.description} interactive={interactive} />
         <div className="task-card-footer">
           <div className="task-card-facts">
             <PriorityBadge priority={task.priority} />
@@ -1785,10 +1777,7 @@ function BoardSubtaskCard({
           <TaskIdBadge id={subtask.id} />
         </div>
         <strong title={title}>{title}</strong>
-        <TaskDescriptionAccordion
-          description={subtask.description}
-          interactive={interactive}
-        />
+        <TaskDescriptionAccordion description={subtask.description} interactive={interactive} />
         <div className="task-card-facts">
           <PriorityBadge priority={subtask.priority} />
           {subtask.estimateValue ? (

@@ -16,7 +16,12 @@ async function bootstrap() {
   const allowedOrigins = config
     .getOrThrow<string>('CORS_ORIGIN')
     .split(',')
-    .map((origin) => origin.trim().replace(/^["']|["']$/g, '').replace(/\/+$/, ''))
+    .map((origin) =>
+      origin
+        .trim()
+        .replace(/^["']|["']$/g, '')
+        .replace(/\/+$/, ''),
+    )
     .filter(Boolean);
 
   app.enableCors({

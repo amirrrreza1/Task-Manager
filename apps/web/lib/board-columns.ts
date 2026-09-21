@@ -124,10 +124,7 @@ export function findBoardSubtask(
   return null;
 }
 
-export function resolveBoardColumnIndex(
-  board: BoardResponse | null,
-  overId: string,
-): number {
+export function resolveBoardColumnIndex(board: BoardResponse | null, overId: string): number {
   if (!board) return -1;
   if (overId.startsWith('column:')) {
     const columnId = overId.replace(/^column:/, '');
@@ -135,9 +132,7 @@ export function resolveBoardColumnIndex(
   }
   if (overId.startsWith('task:')) {
     const taskId = overId.replace(/^task:/, '');
-    return board.columns.findIndex((column) =>
-      column.tasks.some((item) => item.id === taskId),
-    );
+    return board.columns.findIndex((column) => column.tasks.some((item) => item.id === taskId));
   }
   if (overId.startsWith('subtask:')) {
     const subtaskId = overId.replace(/^subtask:/, '');
@@ -146,4 +141,3 @@ export function resolveBoardColumnIndex(
   }
   return -1;
 }
-

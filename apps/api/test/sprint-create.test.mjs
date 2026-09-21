@@ -6,7 +6,11 @@ import { CreateSprintDto } from '../dist/sprints/dto/create-sprint.dto.js';
 
 describe('SprintsController create sprint validation', () => {
   it('preserves CreateSprintDto as design:paramtypes metadata on create', () => {
-    const paramTypes = Reflect.getMetadata('design:paramtypes', SprintsController.prototype, 'create');
+    const paramTypes = Reflect.getMetadata(
+      'design:paramtypes',
+      SprintsController.prototype,
+      'create',
+    );
     assert.ok(paramTypes, 'Metadata design:paramtypes should exist');
     assert.equal(paramTypes[0], CreateSprintDto);
   });
@@ -18,7 +22,11 @@ describe('SprintsController create sprint validation', () => {
       transform: true,
     });
 
-    const paramTypes = Reflect.getMetadata('design:paramtypes', SprintsController.prototype, 'create');
+    const paramTypes = Reflect.getMetadata(
+      'design:paramtypes',
+      SprintsController.prototype,
+      'create',
+    );
     const transformed = await pipe.transform(
       {
         name: 'Sprint 1',
